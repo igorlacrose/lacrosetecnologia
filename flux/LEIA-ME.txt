@@ -1,0 +1,36 @@
+LACROSE FluX — Controle Financeiro | PWA
+
+PUBLICAÇÃO
+1. Extraia o ZIP e publique todos os arquivos da pasta no mesmo diretório de uma hospedagem HTTPS. Não exige instalação de dependências nem compilação.
+2. Sirva index.html como página inicial. Use application/manifest+json para manifest.webmanifest e text/javascript para os arquivos .js. Evite cache HTTP prolongado para index.html, manifest.webmanifest e service-worker.js (preferir Cache-Control: no-cache).
+3. Abra o endereço com internet e aguarde “Pronto para uso offline neste dispositivo”. Abrir o HTML diretamente como arquivo não habilita a PWA.
+4. No iPhone: Safari > Compartilhar > Adicionar à Tela de Início. Abra pelo ícone e aguarde a preparação offline também nesse modo.
+5. Ative modo avião, feche e reabra pelo ícone e confira login, lançamentos e gráficos. Teste também rotação, teclado, download/compartilhamento de CSV, Excel e JSON e importação pelo app Arquivos.
+
+SENHA E DADOS
+Senha inicial: 102030. “Alterar senha” mantém a nova senha neste dispositivo. A opção de restaurar a senha original foi preservada. O login é uma barreira local, sem autenticação de servidor nem criptografia dos lançamentos.
+As chaves originais lacrose_financeiro_final, lacrose_senha_v4 e lacrose_ok foram preservadas. O service worker apenas armazena arquivos do aplicativo e remove versões antigas de seu próprio cache; não apaga localStorage.
+Os dados atuais do navegador não estão dentro do HTML nem deste ZIP. Dados e senha são separados por origem e por perfil/dispositivo. Ao migrar de arquivo local para HTTPS ou entre dispositivos, exporte CSV e Backup JSON antes. Importe o CSV na nova origem uma única vez (a importação adiciona registros). Redefina a senha no novo endereço. Safari e o aplicativo instalado podem usar armazenamentos separados; confira o conteúdo antes de continuar. Não há sincronização automática. O backup JSON é exportável; o importador preservado é CSV.
+Não limpe os dados do site para atualizar. Mantenha backups, pois o navegador/sistema pode remover armazenamento local. Nenhum dado de teste foi incluído no pacote.
+
+ATUALIZAÇÕES
+Na próxima versão, altere o sufixo v1 da constante CACHE em service-worker.js. Publique o conjunto completo. Uma atualização baixada aguarda o fechamento das janelas do aplicativo antes de ativar; não há recarga forçada durante edição. Reabra para usar a nova versão.
+
+ALTERAÇÕES INCREMENTAIS
+Base: LACROSE_FluX_Mobile_Dashboard_Graficos_v2.html. Interface, logo, funções, campos, contas, categorias, relatórios, exportações e chaves de armazenamento preservados.
+Adicionados manifest, service worker, controle de registro e estado offline, ícones derivados da logo existente, safe areas e ajustes responsivos.
+Correções: conflito da variável status com window.status que interrompia a inicialização; CSV com aspas, ponto e vírgula e quebra de linha; data local em vez de UTC; limpar edição; liberação de URLs de download; aviso explícito de falha de persistência e proteção de conteúdo local ilegível.
+Os filtros existentes em Lançamentos passam a atualizar também os totais e gráficos de categorias. Resumo mensal, últimos lançamentos e exportações continuam mostrando o histórico completo.
+
+VALIDAÇÃO EXECUTADA — 20/09/2026
+Microsoft Edge/Chromium automatizado em origem local confiável (localhost):
+- Login incorreto/correto, senha inicial e alteração de senha.
+- Criação e edição de lançamentos, limpeza do formulário, cálculos e filtros.
+- Gráfico por categoria e atualização após mudanças.
+- Download CSV, Excel XML (.xls) e Backup JSON; reimportação CSV com aspas, ponto e vírgula e observações multilinha.
+- Instalação e controle do service worker; reabertura sem rede preservando lançamentos e senha.
+- Sem erros JavaScript nos fluxos testados.
+- Todas as abas sem transbordamento horizontal de página nas larguras 320, 375, 390, 430, 768 e 1280 px; tabelas têm rolagem própria. Captura móvel inspecionada.
+- Sintaxe dos scripts, JSON do manifest e existência dos ícones verificados.
+- Eventos de instalação e ativação testados, incluindo exclusão restrita ao cache antigo deste aplicativo.
+PENDENTE: teste em hospedagem HTTPS definitiva, instalação standalone e Safari/iPhone físico (não disponível neste ambiente). Downloads foram gerados; não foi testada abertura no Microsoft Excel. O formato .xls original contém XML e pode gerar aviso de formato no Excel.

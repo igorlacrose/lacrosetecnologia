@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lacrose FluX - Controle Financeiro</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f3f6fa;color:#172033}
+header{background:#101828;color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:14px}.brand img{height:52px;width:auto}.contact-btn{background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.12);color:#fff!important}.contact-btn:hover{background:rgba(255,255,255,.16)!important}
+header h1{margin:0;font-size:20px}header small{opacity:.7}
+nav{background:#fff;border-bottom:1px solid #ddd;padding:10px 18px;display:flex;gap:8px;flex-wrap:wrap}
+button{border:0;border-radius:8px;padding:10px 13px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}
+button.secondary{background:#eef2f6;color:#344054}button.danger{background:#b42318}
+main{max-width:1300px;margin:auto;padding:20px}.view{display:none}.view.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:13px;padding:17px;margin-bottom:14px;box-shadow:0 4px 16px #00000008}
+.kpi span{display:block;color:#667085;font-size:12px}.kpi b{display:block;font-size:23px;margin-top:6px}.green{color:#15803d}.red{color:#b42318}
+.form{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}label{font-size:12px;font-weight:700;color:#475467}input,select,textarea{width:100%;margin-top:5px;padding:10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit}textarea{min-height:65px}.wide{grid-column:span 2}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:9px}.table{overflow:auto;max-height:520px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid #e4e7ec;text-align:left;white-space:nowrap}th{background:#f8fafc}.num{text-align:right}
+.bar{height:20px;background:#edf1f5;border-radius:20px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb}.cat{display:grid;grid-template-columns:180px 1fr 100px;gap:10px;align-items:center;margin:9px 0}
+.empty{text-align:center;padding:25px;color:#667085}.login{position:fixed;z-index:1000;inset:0;background:#101828;display:flex;align-items:center;justify-content:center}.loginbox{background:#fff;width:360px;max-width:92vw;padding:28px;border-radius:15px}.loginbox h2{margin:0 0 5px}.loginbox p{font-size:13px;color:#667085}.err{height:20px;color:#b42318;font-size:12px;margin-top:7px}
+.print-only{display:none}
+@media(max-width:950px){.cards{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:1fr 1fr}.wide{grid-column:auto}}
+@media(max-width:600px){.cards,.form,.filters{grid-template-columns:1fr}main{padding:10px}.cat{grid-template-columns:120px 1fr 85px}}
+@media print{body{background:#fff}.no-print,header,nav,#dados{display:none!important}.view{display:none!important}.print-target{display:block!important}.card{box-shadow:none;border:0}.print-only{display:block!important}button{display:none!important}}
+
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{height:48px;width:auto;max-width:220px;object-fit:contain}
+.contact-btn{background:transparent;color:#cbd5e1;border:1px solid #475467;padding:8px 11px;font-size:12px}
+.contact-btn:hover{background:#1d2939;color:#fff}
+.login-brand{text-align:center;margin-bottom:16px}
+.login-brand img{max-width:260px;max-height:100px;object-fit:contain}
+
+/* Ajustes para iPhone/Safari */
+@supports (-webkit-touch-callout:none){input,select,textarea,button{font-size:16px}body{padding-bottom:env(safe-area-inset-bottom)}header{padding-top:max(16px,env(safe-area-inset-top))}}
+button,input,select,textarea{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+/* Dashboard gráfico por categoria — sem bibliotecas externas, compatível com Safari/iPhone */
+.chart-wrap{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(240px,.8fr);gap:18px;align-items:center}
+.chart-box{display:flex;justify-content:center;align-items:center;min-height:300px}
+.donut{width:min(290px,72vw);aspect-ratio:1;border-radius:50%;position:relative;background:#e9eef5;box-shadow:inset 0 0 0 1px #e4e7ec}
+.donut:after{content:"";position:absolute;inset:25%;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #eef2f6}
+.donut-center{position:absolute;z-index:2;inset:34%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+.donut-center span{font-size:11px;color:#667085}.donut-center b{font-size:16px;color:#172033;margin-top:4px}
+.legend{display:grid;gap:9px}.legend-row{display:grid;grid-template-columns:14px 1fr auto;gap:9px;align-items:center;font-size:13px}.legend-dot{width:12px;height:12px;border-radius:4px}.legend-val{font-weight:700;white-space:nowrap}.legend-pct{color:#667085;font-size:11px;margin-left:5px}
+@media(max-width:700px){.chart-wrap{grid-template-columns:1fr}.chart-box{min-height:250px}.legend{margin-top:4px}}
+</style>
+<meta name="theme-color" content="#101828">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lacrose FluX">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<style>
+html{min-height:100%;-webkit-text-size-adjust:100%}body{min-height:100vh;min-height:100dvh;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}
+header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap}.brand{min-width:0;max-width:100%}.brand img{max-width:35vw}.brand h1{overflow-wrap:anywhere}
+.login{overflow:auto;padding:calc(20px + env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom));align-items:safe center}.loginbox{flex-shrink:0}.login-brand img{max-width:100%}input,select,textarea{font-size:16px;min-width:0}.card,.form>*,.filters>*{min-width:0}.legend-row{grid-template-columns:14px minmax(0,1fr) auto}.legend-row>div{overflow-wrap:anywhere}.cat{grid-template-columns:minmax(70px,1fr) minmax(20px,1fr) auto;font-size:13px}.cat>div{overflow-wrap:anywhere}.kpi b{overflow-wrap:anywhere}#relMes{overflow:auto}
+#pwa-status{padding:8px 20px;color:#475467;font-size:12px}#storage-warning{position:relative;z-index:1100;background:#fff3cd;color:#663c00;padding:14px}
+@media(max-width:600px){header{padding-left:12px;padding-right:12px}.brand h1{font-size:17px}.card{padding:13px}h2{font-size:20px}.legend-val{font-size:12px}nav button{flex-grow:1}}
+@media print{#pwa-status,#storage-warning{display:none}}
+</style>
+</head>
+<body>
+<div id="storage-warning" role="alert" hidden></div>
+
+<div id="login" class="login">
+<div class="loginbox"><div class="login-brand"><img src="./lacrose-tecnologia.png" alt="Lacrose Tecnologia"></div>
+<h2>Controle Financeiro</h2><p>Acesso protegido • Lacrose</p>
+<label>Senha<input id="senha" type="password" placeholder="Digite sua senha" autocomplete="current-password"></label>
+<div id="erro" class="err"></div>
+<button style="width:100%;margin-top:8px" onclick="entrar()">Entrar</button>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="novaSenha()">Alterar senha</button><button class="secondary" style="width:100%;margin-top:8px" onclick="abrirContato()">Contato / Site</button><button class="secondary" style="width:100%;margin-top:8px" onclick="resetSenha()">Restaurar senha padrão</button>
+</div>
+</div>
+
+<header class="no-print">
+<div class="brand">
+  <img src="./lacrose-tecnologia.png" alt="Lacrose Tecnologia">
+  <div>
+    <h1>Controle Financeiro Lacrose</h1>
+    <small>Versão offline • Lacrose Tecnologia</small>
+  </div>
+</div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+  <button class="contact-btn" onclick="window.open('https://lacrose-informatica.com.br/card/','_blank')">Contato</button>
+  <button onclick="imprimir()">Imprimir relatório</button>
+</div>
+</header>
+<nav class="no-print">
+<button class="active" onclick="aba('dashboard',this)">Dashboard</button>
+<button class="secondary" onclick="aba('lancamentos',this)">Lançamentos</button>
+<button class="secondary" onclick="aba('relatorios',this)">Relatórios</button>
+<button class="secondary" onclick="aba('dados',this)">Importar / Exportar</button>
+</nav>
+
+<div id="pwa-status" class="no-print" role="status">Preparando uso offline…</div>
+<main>
+<section id="dashboard" class="view active">
+<div class="cards">
+<div class="card kpi"><span>Total recebido</span><b id="receitas" class="green">R$ 0,00</b></div>
+<div class="card kpi"><span>Total despesas</span><b id="despesas" class="red">R$ 0,00</b></div>
+<div class="card kpi"><span>Saldo</span><b id="saldo">R$ 0,00</b></div>
+<div class="card kpi"><span>Pendências</span><b id="pendencias">R$ 0,00</b></div>
+<div class="card kpi"><span>Lançamentos</span><b id="quantidade">0</b></div>
+</div>
+<div class="card"><h2>Despesas por categoria</h2><div id="categorias"></div></div>
+<div class="card"><h2>Gráfico de despesas por categoria</h2><div id="graficoCategorias"></div></div>
+<div class="card"><h2>Últimos lançamentos</h2><div id="ultimos"></div></div>
+</section>
+
+<section id="lancamentos" class="view">
+<div class="card"><h2>Novo lançamento</h2>
+<form id="form" class="form">
+<label>Data<input id="fdata" type="date" required></label>
+<label>Tipo<select id="ftipo"><option>Entrada</option><option>Despesa</option></select></label>
+<label>Categoria<select id="fcategoria"></select></label>
+<label>Descrição<input id="fdescricao" required></label>
+<label>Fornecedor / Cliente<input id="fpessoa"></label>
+<label>Forma de pagamento<select id="fforma"></select></label>
+<label>Conta / Caixa<select id="fconta"></select></label>
+<label>Documento<input id="fdoc"></label>
+<label>Valor (R$)<input id="fvalor" type="number" min="0" step="0.01" required></label>
+<label>Status<select id="fstatus"></select></label>
+<label class="wide">Observações<textarea id="fobs"></textarea></label>
+<div><button>Salvar lançamento</button> <button type="button" class="secondary" onclick="limpar()">Limpar</button></div>
+</form></div>
+<div class="card"><h2>Lançamentos</h2>
+<div class="filters">
+<input id="busca" placeholder="Buscar...">
+<select id="filtroTipo"><option value="">Todos</option><option>Entrada</option><option>Despesa</option></select>
+<select id="filtroCat"><option value="">Todas categorias</option></select>
+<input id="inicio" type="date"><input id="fim" type="date">
+</div><div id="tabela"></div></div>
+</section>
+
+<section id="relatorios" class="view">
+<div class="print-only"><h1>Relatório Financeiro — Lacrose</h1><p id="gerado"></p></div>
+<div class="card"><h2>Relatório por categoria</h2><div id="relCat"></div></div>
+<div class="card"><h2>Resumo mensal</h2><div id="relMes"></div></div>
+</section>
+
+<section id="dados" class="view">
+<div class="card">
+<h2>Importar / Exportar</h2>
+<p>Esta versão não depende de internet. A exportação para Excel gera um arquivo <b>.xls</b> compatível com Excel. A importação funciona com <b>CSV UTF-8</b> separado por ponto e vírgula.</p>
+<button onclick="exportarExcel()">Exportar Excel</button>
+<button class="secondary" onclick="exportarCSV()">Exportar CSV</button>
+<button class="secondary" onclick="backup()">Backup JSON</button>
+<label style="display:block;margin-top:18px">Importar CSV<input id="arquivo" type="file" accept=".csv,.txt"></label>
+<hr>
+<button class="secondary" onclick="bloquear()">Bloquear sistema</button>
+<button class="danger" onclick="apagar()">Apagar todos os dados</button>
+</div>
+</section>
+</main>
+
+<script>
+var categorias=["Alimentação","Combustível","Compras","Equipamentos","Impostos","Manutenção","Marketing","Material de escritório","Serviços","Software/Assinaturas","Telefone/Internet","Transporte","Outros"];
+var formas=["Dinheiro","Pix","Cartão de débito","Cartão de crédito","Boleto","Transferência","Outro"];
+var contas=["Caixa físico","Conta bancária","Conta digital","Outro"];
+var statusOpcoes=["Pago","Recebido","Pendente","Cancelado"];
+var dados=[],editando=null;
+
+function $(id){return document.getElementById(id)}
+function dinheiro(v){return Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function preencher(id,arr){$(id).innerHTML=arr.map(function(x){return "<option>"+x+"</option>"}).join("")}
+// Armazenamento compatível com Safari/iPhone, inclusive quando localStorage é bloqueado em arquivo local.
+var memoriaLocal={},memoriaSessao={};
+function storeGet(k){try{var v=window.localStorage.getItem(k);return v===null?(memoriaLocal[k]||null):v}catch(e){return memoriaLocal[k]||null}}
+function storeSet(k,v){memoriaLocal[k]=String(v);try{window.localStorage.setItem(k,String(v))}catch(e){}}
+function sessGet(k){try{var v=window.sessionStorage.getItem(k);return v===null?(memoriaSessao[k]||null):v}catch(e){return memoriaSessao[k]||null}}
+function sessSet(k,v){memoriaSessao[k]=String(v);try{window.sessionStorage.setItem(k,String(v))}catch(e){}}
+function sessRemove(k){delete memoriaSessao[k];try{window.sessionStorage.removeItem(k)}catch(e){}}
+function salvar(){storeSet("lacrose_financeiro_final",JSON.stringify(dados))}
+function carregar(){try{dados=JSON.parse(storeGet("lacrose_financeiro_final")||"[]")}catch(e){dados=[]}}
+function hoje(){$("fdata").value=dataLocal()}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+
+function senhaInicial(){if(!storeGet("lacrose_senha_v4"))storeSet("lacrose_senha_v4","102030")}
+function entrar(){if($("senha").value===storeGet("lacrose_senha_v4")){$("login").style.display="none";sessSet("lacrose_ok","1");$("erro").textContent=""}else $("erro").textContent="Senha incorreta."}
+function novaSenha(){var a=prompt("Senha atual:");if(a===null)return;if(a!==storeGet("lacrose_senha_v4")){alert("Senha atual incorreta.");return}var n=prompt("Nova senha (mínimo 6 caracteres):");if(!n||n.length<6){alert("Senha inválida.");return}var c=prompt("Confirme a nova senha:");if(n!==c){alert("As senhas não conferem.");return}storeSet("lacrose_senha_v4",n);alert("Senha alterada com sucesso.")}
+function bloquear(){sessRemove("lacrose_ok");$("senha").value="";$("login").style.display="flex"}
+function resetSenha(){if(confirm("Restaurar a senha padrão 102030?")){storeSet("lacrose_senha_v4","102030");alert("Senha restaurada. Use: 102030");$("senha").value="";}}
+
+function aba(id,btn){var bs=document.querySelectorAll("nav button");for(var i=0;i<bs.length;i++){bs[i].classList.remove("active");bs[i].classList.add("secondary")}btn.classList.add("active");btn.classList.remove("secondary");var vs=document.querySelectorAll(".view");for(var j=0;j<vs.length;j++)vs[j].classList.remove("active");$(id).classList.add("active");render()}
+
+$("form").onsubmit=function(e){e.preventDefault();var x={id:editando||String(Date.now()),data:$("fdata").value,tipo:$("ftipo").value,categoria:$("fcategoria").value,descricao:$("fdescricao").value,pessoa:$("fpessoa").value,forma:$("fforma").value,conta:$("fconta").value,doc:$("fdoc").value,valor:Number($("fvalor").value),obs:$("fobs").value,status:$("fstatus").value};if(editando){for(var i=0;i<dados.length;i++)if(dados[i].id===editando)dados[i]=x}else dados.push(x);salvar();editando=null;limpar();render();alert("Lançamento salvo.")}
+
+function limpar(){editando=null;$("form").reset();hoje()}
+function editar(id){var x=dados.find(function(a){return a.id===id});if(!x)return;editando=id;["data","tipo","categoria","descricao","pessoa","forma","conta","doc","valor","obs","status"].forEach(function(k){$("f"+k).value=x[k]||""});aba("lancamentos",document.querySelectorAll("nav button")[1]);scrollTo(0,0)}
+function excluir(id){if(confirm("Excluir este lançamento?")){dados=dados.filter(function(x){return x.id!==id});salvar();render()}}
+
+function filtrados(){var q=$("busca").value.toLowerCase(),t=$("filtroTipo").value,c=$("filtroCat").value,a=$("inicio").value,b=$("fim").value;return dados.filter(function(x){return(!q||JSON.stringify(x).toLowerCase().indexOf(q)>=0)&&(!t||x.tipo===t)&&(!c||x.categoria===c)&&(!a||x.data>=a)&&(!b||x.data<=b)}).sort(function(a,b){return b.data.localeCompare(a.data)})}
+function tabela(){var a=filtrados();if(!a.length){$("tabela").innerHTML='<div class="empty">Nenhum lançamento.</div>';return}var h="<div class='table'><table><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Forma</th><th>Status</th><th class='num'>Valor</th><th>Ações</th></tr>";a.forEach(function(x){h+="<tr><td>"+x.data.split("-").reverse().join("/")+"</td><td>"+x.tipo+"</td><td>"+esc(x.categoria)+"</td><td>"+esc(x.descricao)+"</td><td>"+esc(x.forma)+"</td><td>"+esc(x.status)+"</td><td class='num'>"+dinheiro(x.valor)+"</td><td><button onclick=\"editar('"+x.id+"')\">Editar</button> <button class='danger' onclick=\"excluir('"+x.id+"')\">Excluir</button></td></tr>"});$("tabela").innerHTML=h+"</table></div>"}
+function totais(){var r=0,d=0,p=0;filtrados().forEach(function(x){if(x.status==="Cancelado")return;if(x.tipo==="Entrada")r+=x.valor;else d+=x.valor;if(x.status==="Pendente")p+=x.valor});return [r,d,r-d,p]}
+function cat(){var o=Object.create(null);filtrados().forEach(function(x){if(x.tipo==="Despesa"&&x.status!=="Cancelado")o[x.categoria]=(o[x.categoria]||0)+x.valor});return Object.keys(o).map(function(k){return[k,o[k]]}).sort(function(a,b){return b[1]-a[1]})}
+function renderCat(id){var a=cat(),max=a.length?a[0][1]:1;if(!a.length){$(id).innerHTML='<div class="empty">Sem despesas.</div>';return}var h="";a.forEach(function(x){h+="<div class='cat'><div>"+esc(x[0])+"</div><div class='bar'><i style='width:"+(x[1]/max*100)+"%'></i></div><div class='num'>"+dinheiro(x[1])+"</div></div>"});$(id).innerHTML=h}
+function renderGraficoCategorias(){var el=$("graficoCategorias"),a=cat();if(!a.length){el.innerHTML='<div class="empty">Sem despesas para exibir no gráfico.</div>';return}var total=a.reduce(function(n,x){return n+x[1]},0);var cores=["#2563eb","#06b6d4","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#64748b","#84cc16","#f97316","#14b8a6","#6366f1","#a855f7"];var inicio=0,partes=[],leg="";a.forEach(function(x,i){var pct=total?x[1]/total*100:0,fim=inicio+pct,cor=cores[i%cores.length];partes.push(cor+" "+inicio.toFixed(2)+"% "+fim.toFixed(2)+"%");leg+='<div class="legend-row"><i class="legend-dot" style="background:'+cor+'"></i><div>'+esc(x[0])+' <span class="legend-pct">'+pct.toFixed(1).replace(".",",")+'%</span></div><div class="legend-val">'+dinheiro(x[1])+'</div></div>';inicio=fim});el.innerHTML='<div class="chart-wrap"><div class="chart-box"><div class="donut" style="background:conic-gradient('+partes.join(",")+')"><div class="donut-center"><span>Total despesas</span><b>'+dinheiro(total)+'</b></div></div></div><div class="legend">'+leg+'</div></div>'}
+function render(){var t=totais();$("receitas").textContent=dinheiro(t[0]);$("despesas").textContent=dinheiro(t[1]);$("saldo").textContent=dinheiro(t[2]);$("pendencias").textContent=dinheiro(t[3]);$("quantidade").textContent=filtrados().length;renderCat("categorias");renderGraficoCategorias();renderCat("relCat");tabela();var m={};dados.forEach(function(x){if(x.status==="Cancelado")return;var k=x.data.slice(0,7);if(!m[k])m[k]=[0,0];if(x.tipo==="Entrada")m[k][0]+=x.valor;else m[k][1]+=x.valor});var keys=Object.keys(m).sort().reverse(),h=keys.length?"<table><tr><th>Mês</th><th class='num'>Entradas</th><th class='num'>Despesas</th><th class='num'>Saldo</th></tr>":'<div class="empty">Sem dados.</div>';keys.forEach(function(k){h+="<tr><td>"+k+"</td><td class='num'>"+dinheiro(m[k][0])+"</td><td class='num'>"+dinheiro(m[k][1])+"</td><td class='num'>"+dinheiro(m[k][0]-m[k][1])+"</td></tr>"});if(keys.length)h+="</table>";$("relMes").innerHTML=h;var recent=dados.slice().sort(function(a,b){return b.data.localeCompare(a.data)}).slice(0,8);$("ultimos").innerHTML=recent.length?"<div class='table'><table><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th class='num'>Valor</th></tr>"+recent.map(function(x){return"<tr><td>"+x.data.split("-").reverse().join("/")+"</td><td>"+x.tipo+"</td><td>"+esc(x.descricao)+"</td><td class='num'>"+dinheiro(x.valor)+"</td></tr>"}).join("")+"</table></div>":'<div class="empty">Nenhum lançamento.</div>'}
+
+function linhas(){var hs=["Data","Tipo","Categoria","Descrição","Fornecedor / Cliente","Forma de Pagamento","Conta / Caixa","Documento","Valor (R$)","Observações","Status"];var out=[hs.join(";")];dados.forEach(function(x){out.push([x.data,x.tipo,x.categoria,x.descricao,x.pessoa,x.forma,x.conta,x.doc,String(x.valor).replace(".",","),x.obs,x.status].map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(";"))});return out.join("\r\n")}
+function baixar(txt,nome,tipo){var b=new Blob(["\ufeff"+txt],{type:tipo}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},60000)}
+function exportarCSV(){baixar(linhas(),"controle_financeiro_lacrose.csv","text/csv;charset=utf-8")}
+function exportarExcel(){var xml='<?xml version="1.0" encoding="UTF-8"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Lançamentos"><Table>';var hs=["Data","Tipo","Categoria","Descrição","Fornecedor / Cliente","Forma de Pagamento","Conta / Caixa","Documento","Valor (R$)","Observações","Status"];xml+="<Row>"+hs.map(function(h){return"<Cell><Data ss:Type='String'>"+esc(h)+"</Data></Cell>"}).join("")+"</Row>";dados.forEach(function(x){xml+="<Row>"+hs.map(function(h){var v={"Data":x.data,"Tipo":x.tipo,"Categoria":x.categoria,"Descrição":x.descricao,"Fornecedor / Cliente":x.pessoa,"Forma de Pagamento":x.forma,"Conta / Caixa":x.conta,"Documento":x.doc,"Valor (R$)":x.valor,"Observações":x.obs,"Status":x.status}[h];return"<Cell><Data ss:Type='"+(h==="Valor (R$)"?"Number":"String")+"'>"+esc(v)+"</Data></Cell>"}).join("")+"</Row>"});xml+="</Table></Worksheet></Workbook>";baixar(xml,"controle_financeiro_lacrose.xls","application/vnd.ms-excel")}
+function backup(){baixar(JSON.stringify({versao:3,lancamentos:dados},null,2),"backup_controle_financeiro.json","application/json")}
+$("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var ls=r.result.replace(/^\ufeff/,"").split(/\r?\n/).filter(Boolean);var hs=ls[0].split(";").map(function(x){return x.replace(/^"|"$/g,"")});var add=[];for(var i=1;i<ls.length;i++){var v=ls[i].split(";");if(v.length<2)continue;var o={};hs.forEach(function(h,j){o[h]=(v[j]||"").replace(/^"|"$/g,"").replace(/""/g,'"')});add.push({id:String(Date.now()+i),data:o["Data"]||"",tipo:o["Tipo"]||"Despesa",categoria:o["Categoria"]||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o["Documento"]||"",valor:Number(String(o["Valor (R$)"]||0).replace(/\./g,"").replace(",","."))||0,obs:o["Observações"]||"",status:o["Status"]||"Pendente"})}if(!add.length)throw 1;if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("CSV inválido. Use o modelo exportado por este sistema.")}};r.readAsText(f,"UTF-8")}
+function apagar(){if(confirm("Apagar TODOS os lançamentos?"))if(confirm("Confirma definitivamente?")){dados=[];salvar();render()}}
+function abrirContato(){window.open("https://lacrose-informatica.com.br/card/","_blank","noopener,noreferrer")}
+function imprimir(){var vs=document.querySelectorAll(".view");for(var i=0;i<vs.length;i++)vs[i].classList.remove("print-target");$("relatorios").classList.add("print-target");$("gerado").textContent="Gerado em "+new Date().toLocaleString("pt-BR");window.print();setTimeout(function(){$("relatorios").classList.remove("print-target")},500)}
+
+function dataLocal(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function avisoStorage(texto){$("storage-warning").hidden=false;$("storage-warning").textContent=texto}
+function storeSet(k,v){try{window.localStorage.setItem(k,String(v));memoriaLocal[k]=String(v)}catch(e){avisoStorage("Não foi possível salvar neste dispositivo. Mantenha esta tela aberta e exporte um backup JSON antes de sair.");throw e}}
+function carregar(){var raw=storeGet("lacrose_financeiro_final");try{dados=JSON.parse(raw||"[]");if(!Array.isArray(dados))throw Error()}catch(e){avisoStorage("Os dados locais não puderam ser lidos. O conteúdo original foi preservado. Não salve novos lançamentos antes de recuperar seu backup.");document.querySelectorAll('#form button,#arquivo').forEach(function(el){el.disabled=true});dados=[];salvar=function(){throw Error("Dados locais inválidos preservados")}}}
+function parseCSV(text){text=text.replace(/^\ufeff/,"");var rows=[],row=[],cell="",quoted=false;for(var i=0;i<text.length;i++){var c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++}else quoted=!quoted}else if(c===';'&&!quoted){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(Boolean))rows.push(row);row=[];cell=""}else cell+=c}if(quoted)throw Error("Aspas incompletas");row.push(cell);if(row.some(Boolean))rows.push(row);return rows}
+$("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onerror=function(){alert("Não foi possível ler o arquivo.")};r.onload=function(){try{var rows=parseCSV(r.result),hs=rows.shift();if(!hs||hs.indexOf("Data")<0||hs.indexOf("Valor (R$)")<0)throw Error();var add=rows.map(function(v,i){if(v.length!==hs.length)throw Error();var o={};hs.forEach(function(h,j){o[h]=v[j]});var raw=o["Valor (R$)"]||"0",valor=Number(raw.includes(',')?raw.replace(/\./g,"").replace(',','.'):raw);if(!/^\d{4}-\d{2}-\d{2}$/.test(o.Data)||!Number.isFinite(valor)||valor<0||!["Entrada","Despesa"].includes(o.Tipo))throw Error();return{id:String(Date.now())+'-'+i,data:o.Data,tipo:o.Tipo,categoria:o.Categoria||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o.Documento||"",valor:valor,obs:o["Observações"]||"",status:o.Status||"Pendente"}});if(!add.length)throw Error();if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("Importação não concluída. Verifique o CSV e o aviso de armazenamento, se houver.")}e.target.value=""};r.readAsText(f,"UTF-8")};
+$("senha").addEventListener('keydown',function(e){if(e.key==='Enter')entrar()});
+
+preencher("fcategoria",categorias);preencher("fforma",formas);preencher("fconta",contas);preencher("fstatus",statusOpcoes);preencher("filtroCat",["Todas categorias"].concat(categorias));$("filtroCat").options[0].value="";$("fdata").value=dataLocal();
+["busca","filtroTipo","filtroCat","inicio","fim"].forEach(function(id){$(id).oninput=render});
+senhaInicial();carregar();if(sessGet("lacrose_ok")==="1")$("login").style.display="none";render();
+</script>
+
+<footer class="no-print" style="text-align:center;padding:20px;color:#667085;font-size:12px">
+  Desenvolvido por <b>Lacrose Tecnologia</b> •
+  <a href="https://lacrose-informatica.com.br/card/" target="_blank" style="color:#2563eb;text-decoration:none">Cartão Digital</a>
+</footer>
+<script src="./pwa.js"></script>
+</body>
+</html>

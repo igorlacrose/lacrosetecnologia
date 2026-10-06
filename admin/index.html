@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel Comercial · Lacrose Tecnologia</title>
+<meta name="theme-color" content="#07111b">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="demo-banner">PROTÓTIPO NAVEGÁVEL V2 · dados simulados · nenhuma ação comercial real é executada</div>
+<div class="app">
+<aside class="sidebar">
+  <a class="logo" href="../"><img src="../assets/brand/lacrose-tecnologia-dark.png" alt="Lacrose Tecnologia"></a>
+  <nav>
+    <button class="active" data-view="dashboard"><span>◫</span>Visão geral</button>
+    <button data-view="lead"><span>◎</span>Oportunidade</button>
+    <button data-view="conversation"><span>◌</span>Conversa</button>
+    <button data-view="audit"><span>≡</span>Auditoria</button>
+  </nav>
+  <div class="side-bottom"><span>Agente Comercial</span><small>MVP · modo demonstração</small><a href="../#agente">← Voltar ao site</a></div>
+</aside>
+
+<main>
+<header class="topbar"><div><small>PAINEL COMERCIAL</small><h1 id="pageTitle">Visão geral</h1></div><div class="human"><span class="avatar">IL</span><div><b>Igor Lacrose</b><small>Administrador</small></div></div></header>
+
+<section class="view active" id="dashboard">
+  <div class="kpis">
+    <article><span>Novos leads</span><strong>4</strong><small>+2 nesta semana</small></article>
+    <article><span>Qualificados</span><strong id="kpiQualified">2</strong><small>aguardando análise</small></article>
+    <article><span>Follow-ups</span><strong>3</strong><small>1 previsto para hoje</small></article>
+    <article><span>Propostas</span><strong>1</strong><small>sob aprovação humana</small></article>
+  </div>
+  <div class="grid-main">
+    <section class="panel">
+      <div class="panel-head"><div><small>OPORTUNIDADES RECENTES</small><h2>Fila comercial</h2></div><button class="ghost" data-view-jump="lead">Abrir selecionado ↗</button></div>
+      <div class="lead-table">
+        <div class="row head"><span>Empresa / contato</span><span>Necessidade</span><span>Prioridade</span><span>Status</span></div>
+        <button class="row selected" data-view-jump="lead"><span><b id="tableCompany">Clínica · contato em diagnóstico</b><small id="tableDate">Hoje · via Agente do site</small></span><span id="tableNeed">TI, rede ou segurança</span><span><i class="priority high"></i><span id="tablePriority">Alta</span></span><span><em id="tableStatus">Qualificado</em></span></button>
+        <div class="row"><span><b>Empresa demonstrativa 02</b><small>Ontem · indicação</small></span><span>Automação</span><span><i class="priority medium"></i>Média</span><span><em class="muted">Em diagnóstico</em></span></div>
+        <div class="row"><span><b>Empresa demonstrativa 03</b><small>02 out · site</small></span><span>Software</span><span><i class="priority low"></i>Baixa</span><span><em class="muted">Novo</em></span></div>
+      </div>
+    </section>
+    <aside class="panel activity"><div class="panel-head"><div><small>ATIVIDADE</small><h2>Próximas ações</h2></div></div><ol><li><b>Revisar diagnóstico do agente</b><span>Aguardando aprovação humana</span></li><li><b>Definir escopo técnico preliminar</b><span>Após validação do lead</span></li><li><b>Preparar mensagem de contato</b><span>Não enviada automaticamente</span></li></ol></aside>
+  </div>
+</section>
+
+<section class="view" id="lead">
+  <div class="lead-header">
+    <div><div class="breadcrumbs">OPORTUNIDADES / <span id="leadBreadcrumb">LEAD DO SITE</span></div><h2 id="leadHeading">Diagnóstico recebido pelo Agente Lacrose</h2><p id="leadSub">Lead estruturado a partir da conversa no site.</p></div>
+    <div class="status-block"><span id="leadStatusTop">QUALIFICADO</span><div class="score"><strong id="leadScoreTop">85</strong><small>/100</small></div></div>
+  </div>
+  <div class="lead-grid">
+    <section class="panel detail-panel">
+      <div class="panel-head"><div><small>DIAGNÓSTICO ESTRUTURADO</small><h2>Dados interpretados</h2></div><span class="ai-tag">IA + regras</span></div>
+      <dl class="facts">
+        <div><dt>Intenção</dt><dd id="fIntent">—</dd></div>
+        <div><dt>Empresa / segmento</dt><dd id="fSegment">—</dd></div>
+        <div><dt>Escala</dt><dd id="fScale">—</dd></div>
+        <div class="wide"><dt>Problema identificado</dt><dd id="fProblem">—</dd></div>
+        <div><dt>Impacto</dt><dd id="fImpact">—</dd></div>
+        <div><dt>Urgência</dt><dd id="fUrgency">—</dd></div>
+        <div><dt>Localização</dt><dd id="fLocation">—</dd></div>
+        <div><dt>Contato</dt><dd id="fContact">—</dd></div>
+        <div class="wide"><dt>Solução atual</dt><dd id="fCurrent">—</dd></div>
+        <div class="wide"><dt>Faixa / orientação de investimento</dt><dd id="fInvestment">Não informada / não aplicável</dd></div>
+      </dl>
+      <div class="recommend"><span>SOLUÇÃO PROVÁVEL</span><p id="fSolution">—</p></div>
+    </section>
+    <aside class="panel decision">
+      <div class="panel-head"><div><small>CONTROLE HUMANO</small><h2>Próximo passo</h2></div></div>
+      <div class="guard"><i>✓</i><p><b>Nenhuma proposta foi enviada.</b><span>O agente apenas preparou e recomendou ações.</span></p></div>
+      <button class="primary" id="approve">Aprovar para contato</button>
+      <button class="secondary" id="request">Solicitar mais informações</button>
+      <button class="secondary">Preparar mensagem de WhatsApp</button>
+      <button class="secondary">Criar follow-up</button>
+      <div class="note">No MVP real, ações sensíveis serão validadas no backend e registradas na auditoria antes de qualquer execução.</div>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="conversation">
+  <section class="panel conversation-panel"><div class="panel-head"><div><small>CONVERSA ORIGINAL</small><h2>Histórico do diagnóstico</h2></div><span class="ai-tag">somente leitura</span></div><div id="conversationList" class="conversation-list"></div></section>
+</section>
+
+<section class="view" id="audit">
+  <section class="panel"><div class="panel-head"><div><small>LOG / AUDITORIA</small><h2>Eventos da oportunidade</h2></div><span class="ai-tag">protótipo</span></div>
+  <div class="audit-list" id="auditList">
+    <div><time>agora</time><p><b>Lead estruturado</b><span>Agente Lacrose identificou intenção e dados do diagnóstico.</span></p><code>agent.lead.updated</code></div>
+    <div><time>agora</time><p><b>Score calculado</b><span>Regra determinística aplicada aos dados disponíveis.</span></p><code>rules.score.calculated</code></div>
+    <div><time>agora</time><p><b>Aguardando humano</b><span>Nenhuma ação externa autorizada automaticamente.</span></p><code>approval.pending</code></div>
+  </div></section>
+</section>
+</main>
+</div>
+<div id="toast" class="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

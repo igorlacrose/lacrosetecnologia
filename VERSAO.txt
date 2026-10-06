@@ -1,0 +1,4 @@
+Lacrose Tecnologia — Agente Comercial
+Protótipo navegável V2
+Data: 05/10/2026
+Status: pronto para validação visual/UX e próximo passo de integração com backend e IA real.
