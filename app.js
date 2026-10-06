@@ -8,7 +8,9 @@
 const AGENT_LEAD_ENDPOINT =
   'https://icrtewhazpfauuroswri.supabase.co/functions/v1/agent-lead';
 
+
 function createAgentSessionId(){
+
   if(window.crypto?.randomUUID){
     return window.crypto.randomUUID();
   }
@@ -21,6 +23,7 @@ function createAgentSessionId(){
   );
 }
 
+
 let agentSessionId=createAgentSessionId();
 
 let persistTimer=null;
@@ -30,6 +33,7 @@ let lastPersistBody='';
 
 
 function hasVisitorActivity(){
+
   return state.messages.some(
     message=>message.role==='user'
   );
@@ -37,18 +41,25 @@ function hasVisitorActivity(){
 
 
 function buildPersistencePayload(){
+
   return {
+
     sessionId:agentSessionId,
 
     lead:{
       ...state.lead
     },
 
-    messages:state.messages.map(message=>({
-      role:message.role,
-      text:message.text,
-      time:message.time
-    })),
+    messages:state.messages.map(
+      message=>({
+
+        role:message.role,
+
+        text:message.text,
+
+        time:message.time
+      })
+    ),
 
     completed:state.completed
   };
@@ -61,9 +72,11 @@ async function persistAgentSnapshot(){
     return;
   }
 
-  const body=JSON.stringify(
-    buildPersistencePayload()
-  );
+
+  const body=
+    JSON.stringify(
+      buildPersistencePayload()
+    );
 
 
   if(body===lastPersistBody){
@@ -72,7 +85,9 @@ async function persistAgentSnapshot(){
 
 
   if(persistInFlight){
+
     persistPending=true;
+
     return;
   }
 
@@ -82,29 +97,36 @@ async function persistAgentSnapshot(){
 
   try{
 
-    const response=await fetch(
-      AGENT_LEAD_ENDPOINT,
-      {
-        method:'POST',
+    const response=
+      await fetch(
+        AGENT_LEAD_ENDPOINT,
+        {
 
-        headers:{
-          'Content-Type':'application/json'
-        },
+          method:'POST',
 
-        credentials:'omit',
+          headers:{
+            'Content-Type':'application/json'
+          },
 
-        body
-      }
-    );
+          credentials:'omit',
+
+          body
+        }
+      );
 
 
     if(!response.ok){
 
       let detail='';
 
+
       try{
-        detail=await response.text();
+
+        detail=
+          await response.text();
+
       }catch(e){}
+
 
       throw new Error(
         `Falha ao registrar diagnóstico: ${response.status} ${detail}`
@@ -122,6 +144,7 @@ async function persistAgentSnapshot(){
       error
     );
 
+
   }finally{
 
     persistInFlight=false;
@@ -130,6 +153,7 @@ async function persistAgentSnapshot(){
     if(persistPending){
 
       persistPending=false;
+
 
       setTimeout(
         persistAgentSnapshot,
@@ -146,12 +170,15 @@ function schedulePersist(delay=350){
     return;
   }
 
+
   clearTimeout(persistTimer);
 
-  persistTimer=setTimeout(
-    persistAgentSnapshot,
-    delay
-  );
+
+  persistTimer=
+    setTimeout(
+      persistAgentSnapshot,
+      delay
+    );
 }
 
 
@@ -160,8 +187,11 @@ function schedulePersist(delay=350){
    MENU
    ========================================================= */
 
-const menu=document.getElementById('menu'),
-      links=document.getElementById('links');
+const menu=
+  document.getElementById('menu'),
+
+links=
+  document.getElementById('links');
 
 
 function closeMenu(){
@@ -170,10 +200,12 @@ function closeMenu(){
     return;
   }
 
+
   menu.setAttribute(
     'aria-expanded',
     'false'
   );
+
 
   links.classList.remove('open');
 }
@@ -188,10 +220,12 @@ if(menu&&links){
       const open=
         menu.getAttribute('aria-expanded')!=='true';
 
+
       menu.setAttribute(
         'aria-expanded',
         String(open)
       );
+
 
       links.classList.toggle(
         'open',
@@ -267,15 +301,11 @@ const FIELD_QUESTIONS={
     'Qual é a urgência para resolver isso?',
 
   location:
-    'Em que cidade essa empresa ou operação está? Pergunto porque este caso pode envolver atendimento técnico presencial.',
+    'Em qual cidade e estado sua empresa ou operação está?',
 
   contact:
-    'Para deixar a oportunidade pronta para análise da Lacrose, informe seu nome e um telefone ou e-mail de contato.',
-
-  investment:
-    'Já existe uma faixa de investimento prevista ou prefere receber uma proposta com base no diagnóstico?'
+    'Para deixar a oportunidade pronta para análise da Lacrose, informe seu nome e um telefone ou e-mail de contato.'
 };
-
 
 
 const state={
@@ -388,6 +418,7 @@ function cap(s){
 
   s=clean(s);
 
+
   return s
     ?s.charAt(0).toUpperCase()+s.slice(1)
     :'';
@@ -399,7 +430,11 @@ function cap(s){
    MENSAGENS
    ========================================================= */
 
-function addMessage(role,text,meta){
+function addMessage(
+  role,
+  text,
+  meta
+){
 
   if(!el.messages){
     return;
@@ -443,8 +478,10 @@ function addMessage(role,text,meta){
     const sm=
       document.createElement('small');
 
+
     sm.textContent=
       meta;
+
 
     div.appendChild(sm);
   }
@@ -452,14 +489,10 @@ function addMessage(role,text,meta){
 
   el.messages.appendChild(div);
 
+
   el.messages.scrollTop=
     el.messages.scrollHeight;
 
-
-  /*
-   * Sempre que houver atividade real do visitante,
-   * agenda a sincronização com o Supabase.
-   */
 
   schedulePersist();
 }
@@ -529,6 +562,7 @@ function agentSay(
       if(
         typeof onDone==='function'
       ){
+
         onDone();
       }
 
@@ -545,12 +579,14 @@ function agentSay(
 
 function detectIntent(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
   if(
     /automat|processo|repetitiv|integra|follow.?up|e-?mail|documento|cobran|workflow|tarefa/.test(t)
   ){
+
     return'automacao';
   }
 
@@ -558,6 +594,7 @@ function detectIntent(text){
   if(
     /sistema|software|aplicativo|app\b|programa|site|plataforma|saas|desenvolv/.test(t)
   ){
+
     return'sistema';
   }
 
@@ -565,6 +602,7 @@ function detectIntent(text){
   if(
     /rede|wifi|wi-fi|internet|firewall|vpn|backup|servidor|computador|pc\b|seguran|acesso|arquivo|mikrotik|infra/.test(t)
   ){
+
     return'ti';
   }
 
@@ -572,6 +610,7 @@ function detectIntent(text){
   if(
     /melhorar|já uso|ja uso|existente|lento|atual|trocar|modernizar|otimizar/.test(t)
   ){
+
     return'melhoria';
   }
 
@@ -583,7 +622,8 @@ function detectIntent(text){
 
 function detectSegment(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
   const map=[
@@ -646,6 +686,7 @@ function detectSegment(text){
   ){
 
     if(re.test(t)){
+
       return label;
     }
   }
@@ -658,12 +699,14 @@ function detectSegment(text){
 
 function detectScale(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
-  const m=t.match(
-    /\b(\d{1,5})\s*(computadores?|pcs?|m[aá]quinas?|usu[aá]rios?|pessoas?|funcion[aá]rios?|colaboradores?|unidades?|filiais?|lojas?|atendimentos?|clientes?)\b/i
-  );
+  const m=
+    t.match(
+      /\b(\d{1,5})\s*(computadores?|pcs?|m[aá]quinas?|usu[aá]rios?|pessoas?|funcion[aá]rios?|colaboradores?|unidades?|filiais?|lojas?|atendimentos?|clientes?)\b/i
+    );
 
 
   return m
@@ -675,12 +718,14 @@ function detectScale(text){
 
 function detectImpactLevel(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
   if(
     /seguran|preju[ií]zo|cliente afet|parad|vazamento|risco|perdendo|perda financeira|sem trabalhar|bloquead|invas|cr[ií]tico/.test(t)
   ){
+
     return'Alto';
   }
 
@@ -688,6 +733,7 @@ function detectImpactLevel(text){
   if(
     /retrabalho|erro|tempo|lento|lentid|manual|produtiv|dificuldade/.test(t)
   ){
+
     return'Médio';
   }
 
@@ -695,6 +741,7 @@ function detectImpactLevel(text){
   if(
     /melhoria|otimizar|planejad|organizar|crescer/.test(t)
   ){
+
     return'Baixo';
   }
 
@@ -706,12 +753,14 @@ function detectImpactLevel(text){
 
 function detectUrgency(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
   if(
     /urgente|imediat|hoje|agora|parado|cr[ií]tico|24 horas|essa semana|esta semana/.test(t)
   ){
+
     return'Alta';
   }
 
@@ -719,6 +768,7 @@ function detectUrgency(text){
   if(
     /pr[oó]ximas semanas|semana|este m[eê]s|curto prazo|30 dias/.test(t)
   ){
+
     return'Média';
   }
 
@@ -726,6 +776,7 @@ function detectUrgency(text){
   if(
     /planejad|sem pressa|futuro|pr[oó]ximos meses/.test(t)
   ){
+
     return'Baixa';
   }
 
@@ -735,75 +786,44 @@ function detectUrgency(text){
 
 
 
-function detectLocation(text){
-
-  const t=lower(text);
-
-
-  const places=[
-
-    'Jequié',
-
-    'Vitória da Conquista',
-
-    'Salvador',
-
-    'Itabuna',
-
-    'Ilhéus',
-
-    'Jaguaquara',
-
-    'Ipiaú',
-
-    'Maracás'
-  ];
-
-
-  return places.find(
-    p=>t.includes(
-      p.toLocaleLowerCase('pt-BR')
-    )
-  )||'';
-}
-
-
-
 function absorbKnown(text){
 
-  const l=state.lead;
+  const l=
+    state.lead;
 
 
   if(!l.intent){
-    l.intent=detectIntent(text);
+
+    l.intent=
+      detectIntent(text);
   }
 
 
   if(!l.segment){
-    l.segment=detectSegment(text);
+
+    l.segment=
+      detectSegment(text);
   }
 
 
   if(!l.scale){
-    l.scale=detectScale(text);
+
+    l.scale=
+      detectScale(text);
   }
 
 
   if(!l.impactLevel){
+
     l.impactLevel=
       detectImpactLevel(text);
   }
 
 
   if(!l.urgency){
+
     l.urgency=
       detectUrgency(text);
-  }
-
-
-  if(!l.location){
-    l.location=
-      detectLocation(text);
   }
 }
 
@@ -811,12 +831,14 @@ function absorbKnown(text){
 
 function normalizeUrgency(text){
 
-  const t=lower(text);
+  const t=
+    lower(text);
 
 
   if(
     /alta|urgente|imediat|hoje|agora/.test(t)
   ){
+
     return'Alta';
   }
 
@@ -824,6 +846,7 @@ function normalizeUrgency(text){
   if(
     /m[eé]dia|semana|m[eê]s|30 dias/.test(t)
   ){
+
     return'Média';
   }
 
@@ -831,6 +854,7 @@ function normalizeUrgency(text){
   if(
     /baixa|planejad|sem pressa/.test(t)
   ){
+
     return'Baixa';
   }
 
@@ -849,8 +873,11 @@ function setAwaited(
   meta={}
 ){
 
-  const l=state.lead,
-        field=state.awaiting;
+  const l=
+    state.lead,
+
+  field=
+    state.awaiting;
 
 
   if(!field){
@@ -866,22 +893,26 @@ function setAwaited(
   }else if(field==='segment'){
 
     l.segment=
-      meta.value||cap(text);
+      meta.value||
+      cap(text);
 
   }else if(field==='scale'){
 
     l.scale=
-      meta.value||clean(text);
+      meta.value||
+      clean(text);
 
   }else if(field==='current'){
 
     l.current=
-      meta.value||clean(text);
+      meta.value||
+      clean(text);
 
   }else if(field==='impact'){
 
     l.impact=
-      meta.value||clean(text);
+      meta.value||
+      clean(text);
 
 
     l.impactLevel=
@@ -898,17 +929,12 @@ function setAwaited(
   }else if(field==='location'){
 
     l.location=
-      meta.value||cap(text);
+      clean(text);
 
   }else if(field==='contact'){
 
     l.contact=
       clean(text);
-
-  }else if(field==='investment'){
-
-    l.investment=
-      meta.value||clean(text);
   }
 
 
@@ -919,10 +945,7 @@ function setAwaited(
 
 function requiredFields(){
 
-  const l=state.lead;
-
-
-  const fields=[
+  return[
 
     'problem',
 
@@ -934,35 +957,20 @@ function requiredFields(){
 
     'impact',
 
-    'urgency'
+    'urgency',
+
+    'location',
+
+    'contact'
   ];
-
-
-  if(l.intent==='ti'){
-    fields.push('location');
-  }
-
-
-  fields.push('contact');
-
-
-  if(
-    l.intent==='sistema' ||
-    l.intent==='automacao'
-  ){
-
-    fields.push('investment');
-  }
-
-
-  return fields;
 }
 
 
 
 function nextMissing(){
 
-  const l=state.lead;
+  const l=
+    state.lead;
 
 
   if(
@@ -971,7 +979,9 @@ function nextMissing(){
   ){
 
     l.intent=
-      detectIntent(l.problem)||
+      detectIntent(
+        l.problem
+      )||
       'melhoria';
   }
 
@@ -982,7 +992,9 @@ function nextMissing(){
   ){
 
     if(
-      !clean(l[field])
+      !clean(
+        l[field]
+      )
     ){
 
       return field;
@@ -1001,7 +1013,8 @@ function nextMissing(){
 
 function solutionFor(){
 
-  const l=state.lead;
+  const l=
+    state.lead;
 
 
   if(
@@ -1013,13 +1026,14 @@ function solutionFor(){
   }
 
 
-  const t=lower(
-    l.problem+
-    ' '+
-    l.current+
-    ' '+
-    l.impact
-  );
+  const t=
+    lower(
+      l.problem+
+      ' '+
+      l.current+
+      ' '+
+      l.impact
+    );
 
 
   if(l.intent==='ti'){
@@ -1048,7 +1062,7 @@ function solutionFor(){
     }
 
 
-    return'Diagnóstico de infraestrutura e segurança + plano de correção priorizado + possibilidade de suporte/contrato mensal.';
+    return'Diagnóstico de infraestrutura e segurança + plano de correção priorizado + possibilidade de suporte ou acompanhamento técnico.';
   }
 
 
@@ -1064,18 +1078,20 @@ function solutionFor(){
     l.intent==='sistema'
   ){
 
-    return'Descoberta de requisitos + protótipo + sistema sob medida, com autenticação, banco de dados, permissões e integrações definidas pelo processo.';
+    return'Descoberta de requisitos + definição de escopo + sistema sob medida, com autenticação, banco de dados, permissões e integrações definidas pelo processo.';
   }
 
 
-  return'Auditoria da solução atual + identificação de gargalos + plano de melhoria, integração ou substituição gradual conforme custo e impacto.';
+  return'Auditoria da solução atual + identificação de gargalos + plano de melhoria, integração ou substituição gradual conforme necessidade e impacto.';
 }
 
 
 
 function scoreLead(){
 
-  const l=state.lead;
+  const l=
+    state.lead;
+
 
   let s=0;
 
@@ -1137,10 +1153,11 @@ function scoreLead(){
   }
 
 
-  s=Math.min(
-    100,
-    s
-  );
+  s=
+    Math.min(
+      100,
+      s
+    );
 
 
   l.score=s;
@@ -1184,7 +1201,8 @@ function scoreLead(){
 
 function updatePreview(){
 
-  const l=state.lead;
+  const l=
+    state.lead;
 
 
   l.solution=
@@ -1203,8 +1221,11 @@ function updatePreview(){
     const node=
       document.getElementById(id);
 
+
     if(node){
-      node.textContent=value||'—';
+
+      node.textContent=
+        value||'—';
     }
   };
 
@@ -1280,23 +1301,23 @@ function updatePreview(){
 
 
   if(bar){
+
     bar.style.width=
       score+'%';
   }
 
-
-  /*
-   * Mantemos o armazenamento local atual
-   * para não quebrar o comportamento existente.
-   */
 
   try{
 
     localStorage.setItem(
       'lacrose_agent_demo_lead',
       JSON.stringify({
+
         lead:l,
-        messages:state.messages,
+
+        messages:
+          state.messages,
+
         updatedAt:
           new Date().toISOString()
       })
@@ -1304,11 +1325,6 @@ function updatePreview(){
 
   }catch(e){}
 
-
-  /*
-   * E agora também sincronizamos
-   * com o backend seguro.
-   */
 
   schedulePersist();
 }
@@ -1363,7 +1379,6 @@ function problemOptions(){
   }
 
 
-
   if(i==='sistema'){
 
     return[
@@ -1402,7 +1417,6 @@ function problemOptions(){
   }
 
 
-
   if(i==='automacao'){
 
     return[
@@ -1439,7 +1453,6 @@ function problemOptions(){
       ]
     ];
   }
-
 
 
   return[
@@ -1503,15 +1516,23 @@ function quickConfig(field){
       options:
         problemOptions()
           .map(
-            ([label,value,action])=>({
+            (
+              [
+                label,
+                value,
+                action
+              ]
+            )=>({
+
               label,
+
               value,
+
               action
             })
           )
     };
   }
-
 
 
   if(field==='segment'){
@@ -1555,7 +1576,6 @@ function quickConfig(field){
       ]
     };
   }
-
 
 
   if(field==='scale'){
@@ -1604,7 +1624,6 @@ function quickConfig(field){
       ]
     };
   }
-
 
 
   if(field==='current'){
@@ -1660,7 +1679,6 @@ function quickConfig(field){
       ]
     };
   }
-
 
 
   if(field==='impact'){
@@ -1720,7 +1738,6 @@ function quickConfig(field){
   }
 
 
-
   if(field==='urgency'){
 
     return{
@@ -1763,34 +1780,10 @@ function quickConfig(field){
   }
 
 
-
-  if(field==='location'){
-
-    return{
-
-      ...common,
-
-      options:[
-
-        {
-          label:'Jequié',
-          value:'Jequié'
-        },
-
-        {
-          label:'Vitória da Conquista',
-          value:'Vitória da Conquista'
-        },
-
-        {
-          label:'Outra cidade',
-          action:'focus',
-          placeholder:'Digite a cidade da empresa...'
-        }
-      ]
-    };
-  }
-
+  /*
+   * Localização fica propositalmente sem opções prontas.
+   * O cliente digita livremente cidade/estado.
+   */
 
 
   if(field==='contact'){
@@ -1814,49 +1807,6 @@ function quickConfig(field){
           label:'E-mail',
           action:'focus',
           placeholder:'Digite seu nome e e-mail...'
-        }
-      ]
-    };
-  }
-
-
-
-  if(field==='investment'){
-
-    return{
-
-      ...common,
-
-      options:[
-
-        {
-          label:'Ainda não defini',
-          value:'Faixa de investimento ainda não definida'
-        },
-
-        {
-          label:'Até R$ 2 mil',
-          value:'Até R$ 2 mil'
-        },
-
-        {
-          label:'R$ 2 a 5 mil',
-          value:'R$ 2 a 5 mil'
-        },
-
-        {
-          label:'R$ 5 a 10 mil',
-          value:'R$ 5 a 10 mil'
-        },
-
-        {
-          label:'Acima de R$ 10 mil',
-          value:'Acima de R$ 10 mil'
-        },
-
-        {
-          label:'Quero proposta após diagnóstico',
-          value:'Prefere proposta com base no diagnóstico'
         }
       ]
     };
@@ -1900,13 +1850,10 @@ function setInputForField(field){
       'Ou descreva a urgência...',
 
     location:
-      'Ou digite a cidade...',
+      'Digite cidade e estado. Ex.: Feira de Santana/BA',
 
     contact:
-      'Digite seu nome e telefone ou e-mail...',
-
-    investment:
-      'Ou informe uma faixa de investimento...'
+      'Digite seu nome e telefone ou e-mail...'
   };
 
 
@@ -1931,11 +1878,13 @@ function hideContextReplies(){
 
 
   if(el.replyOptions){
+
     el.replyOptions.innerHTML='';
   }
 
 
   if(el.replyActions){
+
     el.replyActions.hidden=true;
   }
 }
@@ -2001,7 +1950,8 @@ function renderQuickReplies(field){
         document.createElement('button');
 
 
-      btn.type='button';
+      btn.type=
+        'button';
 
 
       btn.className=
@@ -2023,16 +1973,21 @@ function renderQuickReplies(field){
       );
 
 
-      if(cfg.mode==='multi'){
+      if(
+        cfg.mode==='multi'
+      ){
 
         const mark=
           document.createElement('span');
 
+
         mark.className=
           'check-mark';
 
+
         mark.textContent=
           '✓';
+
 
         btn.appendChild(mark);
       }
@@ -2057,7 +2012,9 @@ function renderQuickReplies(field){
             option.action==='focus'
           ){
 
-            if(option.placeholder){
+            if(
+              option.placeholder
+            ){
 
               el.input.placeholder=
                 option.placeholder;
@@ -2065,6 +2022,7 @@ function renderQuickReplies(field){
 
 
             el.input.focus();
+
 
             return;
           }
@@ -2075,16 +2033,22 @@ function renderQuickReplies(field){
           ){
 
             const selected=
-              state.quickSelection.has(index);
+              state.quickSelection.has(
+                index
+              );
 
 
             if(selected){
 
-              state.quickSelection.delete(index);
+              state.quickSelection.delete(
+                index
+              );
 
             }else{
 
-              state.quickSelection.add(index);
+              state.quickSelection.add(
+                index
+              );
             }
 
 
@@ -2124,7 +2088,9 @@ function renderQuickReplies(field){
       );
 
 
-      el.replyOptions.appendChild(btn);
+      el.replyOptions.appendChild(
+        btn
+      );
     }
   );
 
@@ -2165,6 +2131,7 @@ function confirmMultiReplies(){
     !cfg ||
     cfg.mode!=='multi'
   ){
+
     return;
   }
 
@@ -2223,8 +2190,11 @@ function confirmMultiReplies(){
   submitText(
     value,
     {
+
       value,
+
       impactLevel,
+
       fromQuick:true
     }
   );
@@ -2287,7 +2257,7 @@ function askNext(){
 
   agentSay(
 
-    `Fechei o diagnóstico inicial. Classifiquei esta oportunidade como “${l.status}”. A solução provável é: ${l.solution} A próxima etapa é a revisão humana da Lacrose antes de orçamento, proposta ou qualquer compromisso comercial.`,
+    `Fechei o diagnóstico inicial. Classifiquei esta oportunidade como “${l.status}”. A solução provável é: ${l.solution} A próxima etapa é a revisão humana da Lacrose para continuidade do atendimento.`,
 
     420
   );
@@ -2304,7 +2274,8 @@ function submitText(
   meta={}
 ){
 
-  text=clean(text);
+  text=
+    clean(text);
 
 
   if(!text){
@@ -2394,12 +2365,9 @@ function startIntent(
 
 
   addMessage(
-
     'user',
-
     label||
     INTENT_LABELS[intent],
-
     'Visitante'
   );
 
@@ -2420,7 +2388,9 @@ function startIntent(
 
     300,
 
-    ()=>renderQuickReplies('problem')
+    ()=>renderQuickReplies(
+      'problem'
+    )
   );
 }
 
@@ -2431,11 +2401,6 @@ function startIntent(
    ========================================================= */
 
 function resetAgent(){
-
-  /*
-   * Se já existia uma conversa real,
-   * uma nova conversa recebe outro identificador.
-   */
 
   const hadVisitorActivity=
     state.messages.some(
@@ -2518,6 +2483,7 @@ function resetAgent(){
 
     el.input.value='';
 
+
     el.input.placeholder=
       'Ou simplesmente conte o problema da sua empresa...';
   }
@@ -2589,7 +2555,9 @@ if(el.form){
       el.input.value='';
 
 
-      submitText(text);
+      submitText(
+        text
+      );
     }
   );
 
@@ -2606,6 +2574,7 @@ if(el.form){
 
         e.preventDefault();
 
+
         el.form.requestSubmit();
       }
     }
@@ -2614,7 +2583,9 @@ if(el.form){
 
 
   document
-    .querySelectorAll('[data-start]')
+    .querySelectorAll(
+      '[data-start]'
+    )
     .forEach(
       btn=>btn.addEventListener(
         'click',
@@ -2628,7 +2599,9 @@ if(el.form){
 
 
   document
-    .querySelectorAll('[data-intent]')
+    .querySelectorAll(
+      '[data-intent]'
+    )
     .forEach(
       a=>a.addEventListener(
         'click',
@@ -2670,6 +2643,7 @@ if(el.form){
       ()=>{
 
         hideContextReplies();
+
 
         el.input?.focus();
       }
@@ -2742,7 +2716,9 @@ if(el.form){
           url+=
             '?demo='+
             encodeURIComponent(
-              encodeDemo(payload)
+              encodeDemo(
+                payload
+              )
             );
 
         }catch(e){}
