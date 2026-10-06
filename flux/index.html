@@ -82,7 +82,7 @@ header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap
   </div>
 </div>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-  <button class="contact-btn" onclick="window.open('https://lacrose-informatica.com.br/card/','_blank')">Contato</button>
+  <button class="contact-btn" onclick="window.open('https://lacrosetecnologia.com.br/card/','_blank')">Contato</button>
   <button onclick="imprimir()">Imprimir relatório</button>
 </div>
 </header>
@@ -205,7 +205,7 @@ function exportarExcel(){var xml='<?xml version="1.0" encoding="UTF-8"?><Workboo
 function backup(){baixar(JSON.stringify({versao:3,lancamentos:dados},null,2),"backup_controle_financeiro.json","application/json")}
 $("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var ls=r.result.replace(/^\ufeff/,"").split(/\r?\n/).filter(Boolean);var hs=ls[0].split(";").map(function(x){return x.replace(/^"|"$/g,"")});var add=[];for(var i=1;i<ls.length;i++){var v=ls[i].split(";");if(v.length<2)continue;var o={};hs.forEach(function(h,j){o[h]=(v[j]||"").replace(/^"|"$/g,"").replace(/""/g,'"')});add.push({id:String(Date.now()+i),data:o["Data"]||"",tipo:o["Tipo"]||"Despesa",categoria:o["Categoria"]||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o["Documento"]||"",valor:Number(String(o["Valor (R$)"]||0).replace(/\./g,"").replace(",","."))||0,obs:o["Observações"]||"",status:o["Status"]||"Pendente"})}if(!add.length)throw 1;if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("CSV inválido. Use o modelo exportado por este sistema.")}};r.readAsText(f,"UTF-8")}
 function apagar(){if(confirm("Apagar TODOS os lançamentos?"))if(confirm("Confirma definitivamente?")){dados=[];salvar();render()}}
-function abrirContato(){window.open("https://lacrose-informatica.com.br/card/","_blank","noopener,noreferrer")}
+function abrirContato(){window.open("https://lacrosetecnologia.com.br/card/","_blank","noopener,noreferrer")}
 function imprimir(){var vs=document.querySelectorAll(".view");for(var i=0;i<vs.length;i++)vs[i].classList.remove("print-target");$("relatorios").classList.add("print-target");$("gerado").textContent="Gerado em "+new Date().toLocaleString("pt-BR");window.print();setTimeout(function(){$("relatorios").classList.remove("print-target")},500)}
 
 function dataLocal(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -223,7 +223,7 @@ senhaInicial();carregar();if(sessGet("lacrose_ok")==="1")$("login").style.displa
 
 <footer class="no-print" style="text-align:center;padding:20px;color:#667085;font-size:12px">
   Desenvolvido por <b>Lacrose Tecnologia</b> •
-  <a href="https://lacrose-informatica.com.br/card/" target="_blank" style="color:#2563eb;text-decoration:none">Cartão Digital</a>
+  <a href="https://lacrosetecnologia.com.br/card/" target="_blank" style="color:#2563eb;text-decoration:none">Cartão Digital</a>
 </footer>
 <script src="./pwa.js"></script>
 </body>
