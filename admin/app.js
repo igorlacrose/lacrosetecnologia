@@ -2332,132 +2332,43 @@ function renderActivity(){
 
 function bindCommercialButtons(){
 
-  const approve=
-    document.getElementById(
-      'approve'
-    );
+  const bindings=[
+    ['approve',approveContact],
+    ['contactDone',markContactCompleted],
+    ['request',requestMoreInformation],
+    ['whatsapp',prepareWhatsApp],
+    ['followup',createFollowup],
+    ['completeFollowup',completeFollowup],
+    ['prepareProposal',prepareCommercialProposal],
+    ['approveProposal',approveCommercialProposal],
+    ['markWon',markLeadWon],
+    ['markLost',markLeadLost],
+    ['reopenLead',reopenLead]
+  ];
 
 
-  if(
-    approve &&
-    !approve.dataset.bound
-  ){
+  bindings.forEach(
+    ([id,handler])=>{
 
-    approve.dataset.bound='1';
-
-
-    approve.addEventListener(
-      'click',
-      approveContact
-    );
-  }
+      const button=
+        document.getElementById(id);
 
 
-  const request=
-    document.getElementById(
-      'request'
-    );
+      if(
+        button &&
+        !button.dataset.bound
+      ){
 
+        button.dataset.bound='1';
 
-  if(
-    request &&
-    !request.dataset.bound
-  ){
-
-    request.dataset.bound='1';
-
-
-    request.addEventListener(
-      'click',
-      requestMoreInformation
-    );
-  }
-
-
-  const whatsapp=
-    document.getElementById(
-      'whatsapp'
-    );
-
-
-  if(
-    whatsapp &&
-    !whatsapp.dataset.bound
-  ){
-
-    whatsapp.dataset.bound='1';
-
-
-    whatsapp.addEventListener(
-      'click',
-      prepareWhatsApp
-    );
-  }
-
-
-  const followup=
-    document.getElementById(
-      'followup'
-    );
-
-
-  if(
-    followup &&
-    !followup.dataset.bound
-  ){
-
-    followup.dataset.bound='1';
-
-
-    followup.addEventListener(
-      'click',
-      createFollowup
-    );
-  }
-
-
-  const prepareProposal=
-    document.getElementById(
-      'prepareProposal'
-    );
-
-
-  if(
-    prepareProposal &&
-    !prepareProposal.dataset.bound
-  ){
-
-    prepareProposal.dataset.bound='1';
-
-
-    prepareProposal.addEventListener(
-      'click',
-      prepareCommercialProposal
-    );
-  }
-
-
-  const approveProposal=
-    document.getElementById(
-      'approveProposal'
-    );
-
-
-  if(
-    approveProposal &&
-    !approveProposal.dataset.bound
-  ){
-
-    approveProposal.dataset.bound='1';
-
-
-    approveProposal.addEventListener(
-      'click',
-      approveCommercialProposal
-    );
-  }
+        button.addEventListener(
+          'click',
+          handler
+        );
+      }
+    }
+  );
 }
-
 
 
 async function approveContact(){
