@@ -3364,6 +3364,9 @@ async function approveCommercialProposal(){
           status:
             'proposal',
 
+          proposal_at:
+            now,
+
           needs_human_review:
             false,
 
