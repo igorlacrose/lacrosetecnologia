@@ -803,6 +803,19 @@ async function renderDashboard(){
 
   let proposalCount=0;
 
+  const activeLeadIds=
+    new Set(
+      leads
+        .filter(
+          lead=>
+            !['won','lost','archived']
+              .includes(lead.status)
+        )
+        .map(
+          lead=>lead.id
+        )
+    );
+
 
   try{
 
@@ -821,7 +834,7 @@ async function renderDashboard(){
         sb
           .from('approvals')
           .select(
-            'id,action_type,status'
+            'id,lead_id,action_type,status'
           )
       ]);
 
@@ -850,7 +863,8 @@ async function renderDashboard(){
         .filter(
           row=>
             row.action_type==='proposal' &&
-            ['pending','approved'].includes(row.status)
+            ['pending','approved'].includes(row.status) &&
+            activeLeadIds.has(row.lead_id)
         )
         .length;
     }
