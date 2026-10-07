@@ -1120,56 +1120,35 @@ function renderLead(){
   const structured=
     lead.structured_data || {};
 
-
   const contact=
     currentContact;
-
 
   const contactParts=[];
 
 
   if(contact?.person_name){
-
-    contactParts.push(
-      contact.person_name
-    );
+    contactParts.push(contact.person_name);
   }
-
 
   if(contact?.phone){
-
-    contactParts.push(
-      contact.phone
-    );
+    contactParts.push(contact.phone);
   }
-
 
   if(contact?.email){
-
-    contactParts.push(
-      contact.email
-    );
+    contactParts.push(contact.email);
   }
-
 
   if(
     !contactParts.length &&
     structured.contact_raw
   ){
-
-    contactParts.push(
-      structured.contact_raw
-    );
+    contactParts.push(structured.contact_raw);
   }
 
 
   const impact=
-    Array.isArray(
-      lead.impact
-    )
-
+    Array.isArray(lead.impact)
       ?lead.impact.join(' · ')
-
       :lead.impact;
 
 
@@ -1181,42 +1160,30 @@ function renderLead(){
       .toUpperCase()
   );
 
-
   set(
     'leadHeading',
     'Diagnóstico recebido pelo Agente Lacrose'
   );
 
-
   set(
     'leadSub',
     'Recebido em '+
-    formatDateTime(
-      lead.created_at
-    )
+    formatDateTime(lead.created_at)
   );
-
 
   set(
     'leadStatusTop',
     (
-      statusLabels[
-        lead.status
-      ] ||
+      statusLabels[lead.status] ||
       lead.status ||
       'Em diagnóstico'
-    )
-    .toUpperCase()
+    ).toUpperCase()
   );
-
 
   set(
     'leadScoreTop',
-    String(
-      lead.score || 0
-    )
+    String(lead.score || 0)
   );
-
 
   set(
     'fIntent',
@@ -1225,14 +1192,12 @@ function renderLead(){
     '—'
   );
 
-
   set(
     'fSegment',
     lead.category ||
     structured.segment ||
     '—'
   );
-
 
   set(
     'fScale',
@@ -1241,13 +1206,11 @@ function renderLead(){
     '—'
   );
 
-
   set(
     'fProblem',
     lead.problem ||
     '—'
   );
-
 
   set(
     'fImpact',
@@ -1255,13 +1218,11 @@ function renderLead(){
     '—'
   );
 
-
   set(
     'fUrgency',
     lead.urgency ||
     '—'
   );
-
 
   set(
     'fLocation',
@@ -1270,19 +1231,16 @@ function renderLead(){
       contact?.city,
       contact?.state
     ]
-    .filter(Boolean)
-    .join('/') ||
+      .filter(Boolean)
+      .join('/') ||
     '—'
   );
 
-
   set(
     'fContact',
-    contactParts.join(
-      ' · '
-    ) || '—'
+    contactParts.join(' · ') ||
+    '—'
   );
-
 
   set(
     'fCurrent',
@@ -1291,12 +1249,10 @@ function renderLead(){
     '—'
   );
 
-
   set(
     'fInvestment',
     'Negociação em contato posterior'
   );
-
 
   set(
     'fSolution',
@@ -1306,10 +1262,9 @@ function renderLead(){
   );
 
 
-  const approve=
-    document.getElementById(
-      'approve'
-    );
+  const closed=
+    ['won','lost','archived']
+      .includes(lead.status);
 
   const contactApproved=
     currentApprovals.some(
@@ -1317,6 +1272,11 @@ function renderLead(){
         item.action_type==='contact' &&
         item.status==='approved'
     );
+
+  const contactCompleted=
+    !!lead.contacted_at ||
+    ['contacted','proposal','won','lost']
+      .includes(lead.status);
 
   const pendingProposal=
     currentApprovals.find(
@@ -1332,12 +1292,29 @@ function renderLead(){
         item.status==='approved'
     );
 
+  const pendingFollowups=
+    currentFollowups
+      .filter(
+        item=>
+          item.status==='pending' ||
+          item.status==='approved'
+      )
+      .sort(
+        (a,b)=>
+          new Date(a.due_at || 0)-
+          new Date(b.due_at || 0)
+      );
+
+  const nextFollowup=
+    pendingFollowups[0] || null;
+
+
+  const approve=
+    document.getElementById('approve');
 
   if(approve){
-
-    approve.disabled=
-      contactApproved;
-
+    approve.hidden=closed;
+    approve.disabled=contactApproved || closed;
     approve.textContent=
       contactApproved
         ?'Contato aprovado'
@@ -1345,14 +1322,70 @@ function renderLead(){
   }
 
 
+  const contactDone=
+    document.getElementById('contactDone');
+
+  if(contactDone){
+    contactDone.hidden=
+      closed ||
+      !contactApproved ||
+      contactCompleted;
+  }
+
+
+  const request=
+    document.getElementById('request');
+
+  if(request){
+    request.hidden=closed;
+    request.disabled=!contactApproved;
+  }
+
+
+  const whatsapp=
+    document.getElementById('whatsapp');
+
+  if(whatsapp){
+    whatsapp.hidden=closed;
+    whatsapp.disabled=!contactApproved;
+  }
+
+
+  const followup=
+    document.getElementById('followup');
+
+  if(followup){
+    followup.hidden=closed;
+    followup.disabled=!contactApproved;
+  }
+
+
+  const completeFollowup=
+    document.getElementById('completeFollowup');
+
+  if(completeFollowup){
+    completeFollowup.hidden=
+      closed ||
+      !nextFollowup;
+
+    completeFollowup.disabled=
+      !nextFollowup;
+
+    completeFollowup.textContent=
+      nextFollowup?.due_at
+        ?'Concluir follow-up · '+
+          formatDateTime(nextFollowup.due_at)
+        :'Concluir follow-up';
+  }
+
+
   const prepareProposal=
-    document.getElementById(
-      'prepareProposal'
-    );
+    document.getElementById('prepareProposal');
 
   if(prepareProposal){
-
+    prepareProposal.hidden=closed;
     prepareProposal.disabled=
+      !contactCompleted ||
       !!approvedProposal;
 
     prepareProposal.textContent=
@@ -1365,12 +1398,10 @@ function renderLead(){
 
 
   const approveProposal=
-    document.getElementById(
-      'approveProposal'
-    );
+    document.getElementById('approveProposal');
 
   if(approveProposal){
-
+    approveProposal.hidden=closed;
     approveProposal.disabled=
       !pendingProposal ||
       !!approvedProposal;
@@ -1382,15 +1413,79 @@ function renderLead(){
   }
 
 
+  const markWon=
+    document.getElementById('markWon');
+
+  if(markWon){
+    markWon.hidden=
+      closed ||
+      !approvedProposal;
+  }
+
+
+  const markLost=
+    document.getElementById('markLost');
+
+  if(markLost){
+    markLost.hidden=
+      closed ||
+      !contactApproved;
+  }
+
+
+  const reopenLead=
+    document.getElementById('reopenLead');
+
+  if(reopenLead){
+    reopenLead.hidden=!closed;
+  }
+
+
+  const followupSummary=
+    document.getElementById('followupSummary');
+
+  if(followupSummary){
+
+    if(closed){
+
+      followupSummary.textContent=
+        'Ciclo encerrado'+
+        (
+          lead.closed_at
+            ?' em '+formatDateTime(lead.closed_at)
+            :''
+        )+
+        '.';
+
+    }else if(nextFollowup){
+
+      followupSummary.textContent=
+        'Próximo follow-up: '+
+        (
+          nextFollowup.due_at
+            ?formatDateTime(nextFollowup.due_at)
+            :'sem data'
+        )+
+        ' · '+
+        (
+          nextFollowup.channel ||
+          'canal não definido'
+        )+
+        '.';
+
+    }else{
+
+      followupSummary.textContent=
+        'Nenhum follow-up pendente.';
+    }
+  }
+
+
   const guardTitle=
-    document.getElementById(
-      'decisionGuardTitle'
-    );
+    document.getElementById('decisionGuardTitle');
 
   const guardText=
-    document.getElementById(
-      'decisionGuardText'
-    );
+    document.getElementById('decisionGuardText');
 
 
   if(
@@ -1398,7 +1493,32 @@ function renderLead(){
     guardText
   ){
 
-    if(approvedProposal){
+    if(lead.status==='won'){
+
+      guardTitle.textContent=
+        'Negócio fechado';
+
+      guardText.textContent=
+        [
+          lead.closed_value,
+          lead.closed_at
+            ?formatDateTime(lead.closed_at)
+            :''
+        ]
+          .filter(Boolean)
+          .join(' · ') ||
+        'Oportunidade concluída com sucesso.';
+
+    }else if(lead.status==='lost'){
+
+      guardTitle.textContent=
+        'Oportunidade perdida';
+
+      guardText.textContent=
+        lead.lost_reason ||
+        'Oportunidade encerrada sem fechamento.';
+
+    }else if(approvedProposal){
 
       const payload=
         approvedProposal.action_payload || {};
@@ -1411,8 +1531,8 @@ function renderLead(){
           payload.value,
           payload.summary
         ]
-        .filter(Boolean)
-        .join(' · ') ||
+          .filter(Boolean)
+          .join(' · ') ||
         'Proposta liberada para continuidade comercial.';
 
     }else if(pendingProposal){
@@ -1428,9 +1548,21 @@ function renderLead(){
           payload.value,
           payload.summary
         ]
-        .filter(Boolean)
-        .join(' · ') ||
+          .filter(Boolean)
+          .join(' · ') ||
         'Revise a proposta antes de aprovar.';
+
+    }else if(contactCompleted){
+
+      guardTitle.textContent=
+        'Contato realizado';
+
+      guardText.textContent=
+        lead.contacted_at
+          ?'Contato registrado em '+
+            formatDateTime(lead.contacted_at)+
+            '.'
+          :'O atendimento comercial já foi iniciado.';
 
     }else if(contactApproved){
 
@@ -1438,7 +1570,7 @@ function renderLead(){
         'Contato aprovado';
 
       guardText.textContent=
-        'O atendimento comercial pode prosseguir com este lead.';
+        'Registre o contato quando o atendimento com o lead for realizado.';
 
     }else{
 
@@ -1449,8 +1581,10 @@ function renderLead(){
         'Revise os dados do lead antes de executar ações comerciais.';
     }
   }
-}
 
+
+  renderActivity();
+}
 
 
 function clearLead(){
