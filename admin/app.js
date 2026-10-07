@@ -1601,6 +1601,8 @@ function clearLead(){
 
   currentApprovals=[];
 
+  currentFollowups=[];
+
 
   [
     'fIntent',
@@ -1637,6 +1639,8 @@ function clearLead(){
   renderConversation();
 
   renderAudit();
+
+  renderActivity();
 }
 
 
