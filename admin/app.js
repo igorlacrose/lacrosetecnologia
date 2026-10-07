@@ -292,8 +292,7 @@ async function showAdmin(profile,user){
 
 
   /*
-   * Remove qualquer parâmetro antigo ?demo=
-   * do endereço do painel.
+   * Remove parâmetros legados do endereço do painel.
    */
 
   if(
@@ -553,7 +552,7 @@ function prepareInterface(){
   if(mode){
 
     mode.textContent=
-      'Dados reais · Supabase';
+      'Operacional · Supabase';
   }
 
 
@@ -842,7 +841,7 @@ async function renderDashboard(){
         .filter(
           row=>
             row.action_type==='proposal' &&
-            row.status==='approved'
+            ['pending','approved'].includes(row.status)
         )
         .length;
     }
@@ -1307,25 +1306,143 @@ function renderLead(){
       'approve'
     );
 
+  const contactApproved=
+    currentApprovals.some(
+      item=>
+        item.action_type==='contact' &&
+        item.status==='approved'
+    );
+
+  const pendingProposal=
+    currentApprovals.find(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='pending'
+    );
+
+  const approvedProposal=
+    currentApprovals.find(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='approved'
+    );
+
 
   if(approve){
 
-    const approved=
-      currentApprovals.some(
-        item=>
-          item.action_type==='contact' &&
-          item.status==='approved'
-      );
-
-
     approve.disabled=
-      approved;
-
+      contactApproved;
 
     approve.textContent=
-      approved
+      contactApproved
         ?'Contato aprovado'
         :'Aprovar para contato';
+  }
+
+
+  const prepareProposal=
+    document.getElementById(
+      'prepareProposal'
+    );
+
+  if(prepareProposal){
+
+    prepareProposal.disabled=
+      !!approvedProposal;
+
+    prepareProposal.textContent=
+      approvedProposal
+        ?'Proposta aprovada'
+        :pendingProposal
+          ?'Atualizar proposta'
+          :'Preparar proposta';
+  }
+
+
+  const approveProposal=
+    document.getElementById(
+      'approveProposal'
+    );
+
+  if(approveProposal){
+
+    approveProposal.disabled=
+      !pendingProposal ||
+      !!approvedProposal;
+
+    approveProposal.textContent=
+      approvedProposal
+        ?'Proposta aprovada'
+        :'Aprovar proposta';
+  }
+
+
+  const guardTitle=
+    document.getElementById(
+      'decisionGuardTitle'
+    );
+
+  const guardText=
+    document.getElementById(
+      'decisionGuardText'
+    );
+
+
+  if(
+    guardTitle &&
+    guardText
+  ){
+
+    if(approvedProposal){
+
+      const payload=
+        approvedProposal.action_payload || {};
+
+      guardTitle.textContent=
+        'Proposta aprovada';
+
+      guardText.textContent=
+        [
+          payload.value,
+          payload.summary
+        ]
+        .filter(Boolean)
+        .join(' · ') ||
+        'Proposta liberada para continuidade comercial.';
+
+    }else if(pendingProposal){
+
+      const payload=
+        pendingProposal.action_payload || {};
+
+      guardTitle.textContent=
+        'Proposta aguardando aprovação';
+
+      guardText.textContent=
+        [
+          payload.value,
+          payload.summary
+        ]
+        .filter(Boolean)
+        .join(' · ') ||
+        'Revise a proposta antes de aprovar.';
+
+    }else if(contactApproved){
+
+      guardTitle.textContent=
+        'Contato aprovado';
+
+      guardText.textContent=
+        'O atendimento comercial pode prosseguir com este lead.';
+
+    }else{
+
+      guardTitle.textContent=
+        'Aguardando análise';
+
+      guardText.textContent=
+        'Revise os dados do lead antes de executar ações comerciais.';
+    }
   }
 }
 
@@ -1812,7 +1929,16 @@ function eventTitle(type){
       'Mais informações solicitadas',
 
     'followup.created':
-      'Follow-up criado'
+      'Follow-up criado',
+
+    'whatsapp.prepared':
+      'Mensagem de WhatsApp preparada',
+
+    'proposal.prepared':
+      'Proposta preparada',
+
+    'proposal.approved':
+      'Proposta aprovada'
   };
 
 
@@ -1909,6 +2035,48 @@ function bindCommercialButtons(){
     followup.addEventListener(
       'click',
       createFollowup
+    );
+  }
+
+
+  const prepareProposal=
+    document.getElementById(
+      'prepareProposal'
+    );
+
+
+  if(
+    prepareProposal &&
+    !prepareProposal.dataset.bound
+  ){
+
+    prepareProposal.dataset.bound='1';
+
+
+    prepareProposal.addEventListener(
+      'click',
+      prepareCommercialProposal
+    );
+  }
+
+
+  const approveProposal=
+    document.getElementById(
+      'approveProposal'
+    );
+
+
+  if(
+    approveProposal &&
+    !approveProposal.dataset.bound
+  ){
+
+    approveProposal.dataset.bound='1';
+
+
+    approveProposal.addEventListener(
+      'click',
+      approveCommercialProposal
     );
   }
 }
@@ -2098,6 +2266,59 @@ async function requestMoreInformation(){
   }
 
 
+  const name=
+    currentContact?.person_name ||
+    'tudo bem';
+
+  const phone=
+    normalizePhone(
+      currentContact?.phone ||
+      currentLead.structured_data?.contact_raw ||
+      ''
+    );
+
+  const email=
+    currentContact?.email ||
+    extractEmail(
+      currentLead.structured_data?.contact_raw ||
+      ''
+    );
+
+  const message=
+    `Olá, ${name}! Aqui é Igor Lacrose, da Lacrose Tecnologia. Analisei o diagnóstico enviado pelo nosso site e preciso de algumas informações adicionais para dar continuidade ao atendimento. Quando puder, me responda por aqui.`;
+
+
+  if(phone){
+
+    window.open(
+      'https://wa.me/'+
+      phone+
+      '?text='+
+      encodeURIComponent(message),
+      '_blank',
+      'noopener'
+    );
+
+  }else if(email){
+
+    window.location.href=
+      'mailto:'+
+      encodeURIComponent(email)+
+      '?subject='+
+      encodeURIComponent('Continuidade do diagnóstico · Lacrose Tecnologia')+
+      '&body='+
+      encodeURIComponent(message);
+
+  }else{
+
+    toast(
+      'Este lead não possui telefone ou e-mail identificável.'
+    );
+
+    return;
+  }
+
+
   try{
 
     const {
@@ -2120,7 +2341,7 @@ async function requestMoreInformation(){
             currentUser.id,
 
           note:
-            'Administrador marcou a oportunidade como necessitando de mais informações.'
+            'Solicitação de informações adicionais preparada pelo administrador.'
         });
 
 
@@ -2130,7 +2351,7 @@ async function requestMoreInformation(){
 
 
     toast(
-      'Solicitação registrada. Nenhuma mensagem foi enviada automaticamente.'
+      'Solicitação preparada e registrada.'
     );
 
 
@@ -2143,16 +2364,15 @@ async function requestMoreInformation(){
 
     console.error(error);
 
-
     toast(
-      'Não foi possível registrar a solicitação.'
+      'A mensagem foi preparada, mas o registro da ação falhou.'
     );
   }
 }
 
 
 
-function prepareWhatsApp(){
+async function prepareWhatsApp(){
 
   if(!currentLead){
 
@@ -2164,35 +2384,15 @@ function prepareWhatsApp(){
   }
 
 
-  let raw=
-    currentContact?.phone ||
-    currentLead.structured_data?.contact_raw ||
-    '';
+  const phone=
+    normalizePhone(
+      currentContact?.phone ||
+      currentLead.structured_data?.contact_raw ||
+      ''
+    );
 
 
-  let phone=
-    String(raw)
-      .replace(/\D/g,'');
-
-
-  /*
-   * Se for telefone brasileiro
-   * informado sem DDI, acrescenta 55.
-   */
-
-  if(
-    phone.length===10 ||
-    phone.length===11
-  ){
-
-    phone=
-      '55'+phone;
-  }
-
-
-  if(
-    phone.length<10
-  ){
+  if(!phone){
 
     toast(
       'Este lead não possui um WhatsApp identificável.'
@@ -2212,18 +2412,55 @@ function prepareWhatsApp(){
 
 
   window.open(
-
     'https://wa.me/'+
     phone+
     '?text='+
-    encodeURIComponent(
-      message
-    ),
-
+    encodeURIComponent(message),
     '_blank',
-
     'noopener'
   );
+
+
+  try{
+
+    const {
+      error
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+
+          lead_id:
+            currentLead.id,
+
+          event_type:
+            'whatsapp.prepared',
+
+          actor_type:
+            'admin',
+
+          actor_id:
+            currentUser.id,
+
+          note:
+            'Mensagem de WhatsApp preparada para continuidade do atendimento.'
+        });
+
+
+    if(error){
+      throw error;
+    }
+
+
+    await loadAudit(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+  }
 }
 
 
@@ -2234,6 +2471,38 @@ async function createFollowup(){
 
     toast(
       'Selecione uma oportunidade.'
+    );
+
+    return;
+  }
+
+
+  const defaultDate=
+    defaultFollowupValue();
+
+
+  const value=
+    window.prompt(
+      'Data e hora do follow-up (AAAA-MM-DD HH:MM):',
+      defaultDate
+    );
+
+
+  if(value===null){
+    return;
+  }
+
+
+  const dueAt=
+    parseLocalDateTime(
+      value
+    );
+
+
+  if(!dueAt){
+
+    toast(
+      'Data inválida. Use o formato AAAA-MM-DD HH:MM.'
     );
 
     return;
@@ -2255,7 +2524,12 @@ async function createFollowup(){
           channel:
             currentContact?.phone
               ?'whatsapp'
-              :'other',
+              :currentContact?.email
+                ?'email'
+                :'other',
+
+          due_at:
+            dueAt,
 
           status:
             'pending',
@@ -2270,25 +2544,35 @@ async function createFollowup(){
     }
 
 
-    await sb
-      .from('lead_events')
-      .insert({
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
 
-        lead_id:
-          currentLead.id,
+          lead_id:
+            currentLead.id,
 
-        event_type:
-          'followup.created',
+          event_type:
+            'followup.created',
 
-        actor_type:
-          'admin',
+          actor_type:
+            'admin',
 
-        actor_id:
-          currentUser.id,
+          actor_id:
+            currentUser.id,
 
-        note:
-          'Follow-up comercial criado pelo administrador.'
-      });
+          note:
+            'Follow-up comercial criado para '+
+            formatDateTime(dueAt)+
+            '.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
 
 
     toast(
@@ -2310,6 +2594,468 @@ async function createFollowup(){
       'Não foi possível criar o follow-up.'
     );
   }
+}
+
+
+
+async function prepareCommercialProposal(){
+
+  if(!currentLead){
+
+    toast(
+      'Selecione uma oportunidade.'
+    );
+
+    return;
+  }
+
+
+  const existing=
+    currentApprovals.find(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='pending'
+    );
+
+
+  const existingPayload=
+    existing?.action_payload || {};
+
+
+  const summary=
+    window.prompt(
+      'Resumo da proposta / escopo:',
+      existingPayload.summary ||
+      currentLead.suggested_solution ||
+      ''
+    );
+
+
+  if(summary===null){
+    return;
+  }
+
+
+  const cleanSummary=
+    summary.trim();
+
+
+  if(!cleanSummary){
+
+    toast(
+      'Informe um resumo para a proposta.'
+    );
+
+    return;
+  }
+
+
+  const value=
+    window.prompt(
+      'Valor ou condição comercial:',
+      existingPayload.value || ''
+    );
+
+
+  if(value===null){
+    return;
+  }
+
+
+  try{
+
+    if(existing){
+
+      const {
+        error
+      }=
+        await sb
+          .from('approvals')
+          .update({
+
+            action_payload:{
+              summary:cleanSummary,
+              value:value.trim(),
+              source:'commercial_panel'
+            },
+
+            requested_at:
+              new Date().toISOString(),
+
+            decision_note:
+              null
+          })
+          .eq(
+            'id',
+            existing.id
+          );
+
+
+      if(error){
+        throw error;
+      }
+
+
+    }else{
+
+      const {
+        error
+      }=
+        await sb
+          .from('approvals')
+          .insert({
+
+            lead_id:
+              currentLead.id,
+
+            action_type:
+              'proposal',
+
+            action_payload:{
+              summary:cleanSummary,
+              value:value.trim(),
+              source:'commercial_panel'
+            },
+
+            status:
+              'pending'
+          });
+
+
+      if(error){
+        throw error;
+      }
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+
+          lead_id:
+            currentLead.id,
+
+          event_type:
+            'proposal.prepared',
+
+          actor_type:
+            'admin',
+
+          actor_id:
+            currentUser.id,
+
+          note:
+            existing
+              ?'Proposta comercial atualizada e enviada para aprovação interna.'
+              :'Proposta comercial preparada e enviada para aprovação interna.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast(
+      existing
+        ?'Proposta atualizada.'
+        :'Proposta preparada.'
+    );
+
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+
+    toast(
+      'Não foi possível preparar a proposta.'
+    );
+  }
+}
+
+
+
+async function approveCommercialProposal(){
+
+  if(!currentLead){
+
+    toast(
+      'Selecione uma oportunidade.'
+    );
+
+    return;
+  }
+
+
+  const proposal=
+    currentApprovals.find(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='pending'
+    );
+
+
+  if(!proposal){
+
+    toast(
+      'Prepare uma proposta antes de aprová-la.'
+    );
+
+    return;
+  }
+
+
+  try{
+
+    const now=
+      new Date().toISOString();
+
+
+    const {
+      error:approvalError
+    }=
+      await sb
+        .from('approvals')
+        .update({
+
+          status:
+            'approved',
+
+          decided_at:
+            now,
+
+          decided_by:
+            currentUser.id,
+
+          decision_note:
+            'Proposta comercial aprovada pelo administrador.'
+        })
+        .eq(
+          'id',
+          proposal.id
+        );
+
+
+    if(approvalError){
+      throw approvalError;
+    }
+
+
+    const {
+      error:leadError
+    }=
+      await sb
+        .from('leads')
+        .update({
+
+          status:
+            'proposal',
+
+          needs_human_review:
+            false,
+
+          updated_at:
+            now
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadError){
+      throw leadError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+
+          lead_id:
+            currentLead.id,
+
+          event_type:
+            'proposal.approved',
+
+          actor_type:
+            'admin',
+
+          actor_id:
+            currentUser.id,
+
+          note:
+            'Proposta comercial aprovada pelo administrador.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast(
+      'Proposta aprovada e registrada.'
+    );
+
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+
+    toast(
+      'Não foi possível aprovar a proposta.'
+    );
+  }
+}
+
+
+
+function normalizePhone(raw){
+
+  let phone=
+    String(raw || '')
+      .replace(/\D/g,'');
+
+
+  if(
+    phone.length===10 ||
+    phone.length===11
+  ){
+
+    phone=
+      '55'+phone;
+  }
+
+
+  return phone.length>=10
+    ?phone
+    :'';
+}
+
+
+
+function extractEmail(raw){
+
+  const match=
+    String(raw || '')
+      .match(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+      );
+
+
+  return match?.[0] || '';
+}
+
+
+
+function defaultFollowupValue(){
+
+  const date=
+    new Date();
+
+
+  date.setDate(
+    date.getDate()+1
+  );
+
+
+  date.setHours(
+    9,
+    0,
+    0,
+    0
+  );
+
+
+  const pad=
+    value=>
+      String(value)
+        .padStart(2,'0');
+
+
+  return (
+    date.getFullYear()+
+    '-'+
+    pad(date.getMonth()+1)+
+    '-'+
+    pad(date.getDate())+
+    ' '+
+    pad(date.getHours())+
+    ':'+
+    pad(date.getMinutes())
+  );
+}
+
+
+
+function parseLocalDateTime(value){
+
+  const match=
+    String(value || '')
+      .trim()
+      .match(
+        /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/
+      );
+
+
+  if(!match){
+    return'';
+  }
+
+
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour,
+    minute
+  ]=
+    match;
+
+
+  const date=
+    new Date(
+      Number(year),
+      Number(month)-1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      0,
+      0
+    );
+
+
+  if(
+    Number.isNaN(
+      date.getTime()
+    )
+  ){
+
+    return'';
+  }
+
+
+  return date.toISOString();
 }
 
 
