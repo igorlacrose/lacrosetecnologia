@@ -2931,24 +2931,85 @@ async function approveCommercialProposal(){
 
 function normalizePhone(raw){
 
-  let phone=
+  const source=
     String(raw || '')
-      .replace(/\D/g,'');
+      .replace(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig,
+        ' '
+      );
 
 
-  if(
-    phone.length===10 ||
-    phone.length===11
+  const candidates=
+    source.match(
+      /(?:\+?\d[\d\s().\-\/]{7,}\d)/g
+    ) || [];
+
+
+  for(
+    const candidate
+    of candidates
   ){
 
-    phone=
-      '55'+phone;
+    let phone=
+      candidate.replace(/\D/g,'');
+
+
+    if(
+      phone.startsWith('00') &&
+      phone.length>11
+    ){
+
+      phone=
+        phone.slice(2);
+    }
+
+
+    if(
+      phone.startsWith('0') &&
+      (
+        phone.length===11 ||
+        phone.length===12
+      )
+    ){
+
+      phone=
+        phone.slice(1);
+    }
+
+
+    if(
+      phone.length===10 ||
+      phone.length===11
+    ){
+
+      return'55'+phone;
+    }
+
+
+    if(
+      phone.startsWith('55') &&
+      (
+        phone.length===12 ||
+        phone.length===13
+      )
+    ){
+
+      return phone;
+    }
+
+
+    if(
+      candidate.trim().startsWith('+') &&
+      phone.length>=10 &&
+      phone.length<=15
+    ){
+
+      return phone;
+    }
   }
 
 
-  return phone.length>=10
-    ?phone
-    :'';
+  return'';
 }
 
 
