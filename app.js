@@ -786,6 +786,196 @@ function detectUrgency(text){
 
 
 
+function detectEmail(text){
+
+  return (
+    String(text || '')
+      .match(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+      )?.[0] || ''
+  );
+}
+
+
+
+function normalizePhoneDigits(raw){
+
+  let digits=
+    String(raw || '')
+      .replace(/\D/g,'');
+
+
+  if(
+    digits.startsWith('00') &&
+    digits.length>11
+  ){
+
+    digits=
+      digits.slice(2);
+  }
+
+
+  /*
+   * Aceita o zero de operadora/tronco usado em alguns formatos:
+   * 073 99905-0973 -> 73 99905-0973
+   */
+
+  if(
+    digits.startsWith('0') &&
+    (
+      digits.length===11 ||
+      digits.length===12
+    )
+  ){
+
+    digits=
+      digits.slice(1);
+  }
+
+
+  return digits;
+}
+
+
+
+function detectPhone(text){
+
+  const withoutEmail=
+    String(text || '')
+      .replace(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig,
+        ' '
+      );
+
+
+  const candidates=
+    withoutEmail.match(
+      /(?:\+?\d[\d\s().\-\/]{7,}\d)/g
+    ) || [];
+
+
+  for(
+    const candidate
+    of candidates
+  ){
+
+    const digits=
+      normalizePhoneDigits(
+        candidate
+      );
+
+
+    /*
+     * Brasil:
+     * 73 99905-0973
+     * (73) 99905-0973
+     * 73999050973
+     * +55 73 99905-0973
+     * 55 73 99905 0973
+     */
+
+    if(
+      digits.length===10 ||
+      digits.length===11 ||
+      (
+        digits.startsWith('55') &&
+        (
+          digits.length===12 ||
+          digits.length===13
+        )
+      )
+    ){
+
+      return digits;
+    }
+
+
+    /*
+     * Também aceita número internacional explícito com +,
+     * desde que esteja dentro do tamanho válido do E.164.
+     */
+
+    if(
+      candidate.trim().startsWith('+') &&
+      digits.length>=10 &&
+      digits.length<=15
+    ){
+
+      return digits;
+    }
+  }
+
+
+  return'';
+}
+
+
+
+function absorbContact(text){
+
+  const email=
+    detectEmail(text);
+
+  const phone=
+    detectPhone(text);
+
+
+  if(
+    !email &&
+    !phone
+  ){
+
+    return false;
+  }
+
+
+  const existing=
+    clean(
+      state.lead.contact
+    );
+
+
+  const parts=
+    existing
+      ?existing
+        .split(' · ')
+        .map(clean)
+        .filter(Boolean)
+      :[];
+
+
+  const existingText=
+    parts.join(' · ');
+
+
+  if(
+    email &&
+    !detectEmail(existingText)
+  ){
+
+    parts.push(email);
+  }
+
+
+  if(
+    phone &&
+    !detectPhone(existingText)
+  ){
+
+    parts.push(phone);
+  }
+
+
+  state.lead.contact=
+    [...new Set(parts)]
+      .join(' · ');
+
+
+  return true;
+}
+
+
+
 function absorbKnown(text){
 
   const l=
@@ -825,6 +1015,14 @@ function absorbKnown(text){
     l.urgency=
       detectUrgency(text);
   }
+
+
+  /*
+   * Contato pode ser informado em qualquer momento da conversa,
+   * inclusive depois do diagnóstico já ter sido concluído.
+   */
+
+  absorbContact(text);
 }
 
 
@@ -2283,6 +2481,14 @@ function submitText(
   }
 
 
+  const wasCompleted=
+    state.completed;
+
+
+  const contactBefore=
+    state.lead.contact;
+
+
   hideContextReplies();
 
 
@@ -2291,6 +2497,43 @@ function submitText(
     text,
     'Visitante'
   );
+
+
+  /*
+   * Depois que o diagnóstico terminou, ainda aceitamos telefone,
+   * e-mail ou informação complementar sem reiniciar o fluxo nem
+   * repetir a mensagem final do diagnóstico.
+   */
+
+  if(wasCompleted){
+
+    absorbKnown(text);
+
+
+    updatePreview();
+
+
+    if(
+      state.lead.contact !==
+      contactBefore
+    ){
+
+      agentSay(
+        'Contato atualizado. As novas informações foram adicionadas à oportunidade para continuidade do atendimento.',
+        260
+      );
+
+    }else{
+
+      agentSay(
+        'Informação recebida e adicionada ao histórico desta oportunidade.',
+        260
+      );
+    }
+
+
+    return;
+  }
 
 
   if(
@@ -2340,7 +2583,6 @@ function submitText(
     110
   );
 }
-
 
 
 /* =========================================================
