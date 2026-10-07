@@ -1086,6 +1086,9 @@ async function loadLead(
     ),
     loadAudit(
       lead.id
+    ),
+    loadFollowups(
+      lead.id
     )
   ]);
 
