@@ -3078,6 +3078,22 @@ async function prepareCommercialProposal(){
   }
 
 
+  const contactCompleted=
+    !!currentLead.contacted_at ||
+    ['contacted','proposal']
+      .includes(currentLead.status);
+
+
+  if(!contactCompleted){
+
+    toast(
+      'Registre o contato realizado antes de preparar a proposta.'
+    );
+
+    return;
+  }
+
+
   const existing=
     currentApprovals.find(
       item=>
@@ -3224,6 +3240,26 @@ async function prepareCommercialProposal(){
 
     if(eventError){
       throw eventError;
+    }
+
+
+    const {
+      error:leadUpdateError
+    }=
+      await sb
+        .from('leads')
+        .update({
+          proposal_at:new Date().toISOString(),
+          updated_at:new Date().toISOString()
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadUpdateError){
+      throw leadUpdateError;
     }
 
 
