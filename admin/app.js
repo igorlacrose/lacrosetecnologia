@@ -2650,6 +2650,7 @@ async function requestMoreInformation(){
   const phone=
     normalizePhone(
       currentContact?.phone ||
+      currentLead.structured_data?.contact_phone ||
       currentLead.structured_data?.contact_raw ||
       ''
     );
@@ -2764,6 +2765,7 @@ async function prepareWhatsApp(){
   const phone=
     normalizePhone(
       currentContact?.phone ||
+      currentLead.structured_data?.contact_phone ||
       currentLead.structured_data?.contact_raw ||
       ''
     );
