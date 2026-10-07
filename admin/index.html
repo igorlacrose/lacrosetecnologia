@@ -85,13 +85,19 @@
     <aside class="panel decision">
       <div class="panel-head"><div><small>CONTROLE HUMANO</small><h2>Próximo passo</h2></div></div>
       <div class="guard"><i>✓</i><p><b id="decisionGuardTitle">Aguardando análise</b><span id="decisionGuardText">Revise os dados do lead antes de executar ações comerciais.</span></p></div>
+      <div class="followup-summary" id="followupSummary">Nenhum follow-up pendente.</div>
       <button class="primary" id="approve">Aprovar para contato</button>
+      <button class="secondary" id="contactDone" hidden>Marcar contato realizado</button>
       <button class="secondary" id="request">Solicitar mais informações</button>
       <button class="secondary" id="whatsapp">Preparar mensagem de WhatsApp</button>
       <button class="secondary" id="followup">Criar follow-up</button>
+      <button class="secondary" id="completeFollowup" hidden>Concluir follow-up</button>
       <button class="secondary" id="prepareProposal">Preparar proposta</button>
       <button class="secondary" id="approveProposal">Aprovar proposta</button>
-      <div class="note">Ações comerciais ficam registradas no histórico da oportunidade.</div>
+      <button class="success" id="markWon" hidden>Marcar como fechado</button>
+      <button class="danger" id="markLost" hidden>Marcar como perdido</button>
+      <button class="secondary" id="reopenLead" hidden>Reabrir oportunidade</button>
+      <div class="note">Contato, proposta, follow-up e desfecho ficam registrados no histórico da oportunidade.</div>
     </aside>
   </div>
 </section>
