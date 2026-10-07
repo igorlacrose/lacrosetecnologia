@@ -2542,6 +2542,95 @@ async function approveContact(){
 
 
 
+async function markContactCompleted(){
+
+  if(!currentLead){
+    toast('Selecione uma oportunidade.');
+    return;
+  }
+
+
+  const contactApproved=
+    currentApprovals.some(
+      item=>
+        item.action_type==='contact' &&
+        item.status==='approved'
+    );
+
+
+  if(!contactApproved){
+    toast('Aprove o contato antes de registrar o atendimento.');
+    return;
+  }
+
+
+  try{
+
+    const now=
+      new Date().toISOString();
+
+
+    const {
+      error:leadError
+    }=
+      await sb
+        .from('leads')
+        .update({
+          status:'contacted',
+          contacted_at:now,
+          updated_at:now
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadError){
+      throw leadError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+          lead_id:currentLead.id,
+          event_type:'contact.completed',
+          actor_type:'admin',
+          actor_id:currentUser.id,
+          after_data:{
+            status:'contacted',
+            contacted_at:now
+          },
+          note:'Contato comercial realizado e registrado pelo administrador.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast('Contato realizado e registrado.');
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    toast('Não foi possível registrar o contato realizado.');
+  }
+}
+
+
+
 async function requestMoreInformation(){
 
   if(!currentLead){
