@@ -36,7 +36,7 @@
     <button data-view="conversation"><span>◌</span>Conversa</button>
     <button data-view="audit"><span>≡</span>Auditoria</button>
   </nav>
-  <div class="side-bottom"><span>Agente Comercial</span><small>MVP · modo demonstração</small><a href="../#agente">← Voltar ao site</a></div>
+  <div class="side-bottom"><span>Agente Comercial</span><small>Operacional · Supabase</small><a href="../#agente">← Voltar ao site</a></div>
 </aside>
 
 <main>
@@ -44,19 +44,16 @@
 
 <section class="view active" id="dashboard">
   <div class="kpis">
-    <article><span>Novos leads</span><strong>4</strong><small>+2 nesta semana</small></article>
-    <article><span>Qualificados</span><strong id="kpiQualified">2</strong><small>aguardando análise</small></article>
-    <article><span>Follow-ups</span><strong>3</strong><small>1 previsto para hoje</small></article>
-    <article><span>Propostas</span><strong>1</strong><small>sob aprovação humana</small></article>
+    <article><span>Novos leads</span><strong>0</strong><small>recebidos pelo agente</small></article>
+    <article><span>Qualificados</span><strong id="kpiQualified">0</strong><small>aguardando análise</small></article>
+    <article><span>Follow-ups</span><strong>0</strong><small>pendentes</small></article>
+    <article><span>Propostas</span><strong>0</strong><small>em preparação ou aprovação</small></article>
   </div>
   <div class="grid-main">
     <section class="panel">
       <div class="panel-head"><div><small>OPORTUNIDADES RECENTES</small><h2>Fila comercial</h2></div><button class="ghost" data-view-jump="lead">Abrir selecionado ↗</button></div>
       <div class="lead-table">
         <div class="row head"><span>Empresa / contato</span><span>Necessidade</span><span>Prioridade</span><span>Status</span></div>
-        <button class="row selected" data-view-jump="lead"><span><b id="tableCompany">Clínica · contato em diagnóstico</b><small id="tableDate">Hoje · via Agente do site</small></span><span id="tableNeed">TI, rede ou segurança</span><span><i class="priority high"></i><span id="tablePriority">Alta</span></span><span><em id="tableStatus">Qualificado</em></span></button>
-        <div class="row"><span><b>Empresa demonstrativa 02</b><small>Ontem · indicação</small></span><span>Automação</span><span><i class="priority medium"></i>Média</span><span><em class="muted">Em diagnóstico</em></span></div>
-        <div class="row"><span><b>Empresa demonstrativa 03</b><small>02 out · site</small></span><span>Software</span><span><i class="priority low"></i>Baixa</span><span><em class="muted">Novo</em></span></div>
       </div>
     </section>
     <aside class="panel activity"><div class="panel-head"><div><small>ATIVIDADE</small><h2>Próximas ações</h2></div></div><ol><li><b>Revisar diagnóstico do agente</b><span>Aguardando aprovação humana</span></li><li><b>Definir escopo técnico preliminar</b><span>Após validação do lead</span></li><li><b>Preparar mensagem de contato</b><span>Não enviada automaticamente</span></li></ol></aside>
@@ -87,12 +84,14 @@
     </section>
     <aside class="panel decision">
       <div class="panel-head"><div><small>CONTROLE HUMANO</small><h2>Próximo passo</h2></div></div>
-      <div class="guard"><i>✓</i><p><b>Nenhuma proposta foi enviada.</b><span>O agente apenas preparou e recomendou ações.</span></p></div>
+      <div class="guard"><i>✓</i><p><b id="decisionGuardTitle">Aguardando análise</b><span id="decisionGuardText">Revise os dados do lead antes de executar ações comerciais.</span></p></div>
       <button class="primary" id="approve">Aprovar para contato</button>
       <button class="secondary" id="request">Solicitar mais informações</button>
-      <button class="secondary">Preparar mensagem de WhatsApp</button>
-      <button class="secondary">Criar follow-up</button>
-      <div class="note">No MVP real, ações sensíveis serão validadas no backend e registradas na auditoria antes de qualquer execução.</div>
+      <button class="secondary" id="whatsapp">Preparar mensagem de WhatsApp</button>
+      <button class="secondary" id="followup">Criar follow-up</button>
+      <button class="secondary" id="prepareProposal">Preparar proposta</button>
+      <button class="secondary" id="approveProposal">Aprovar proposta</button>
+      <div class="note">Ações comerciais ficam registradas no histórico da oportunidade.</div>
     </aside>
   </div>
 </section>
@@ -102,17 +101,13 @@
 </section>
 
 <section class="view" id="audit">
-  <section class="panel"><div class="panel-head"><div><small>LOG / AUDITORIA</small><h2>Eventos da oportunidade</h2></div><span class="ai-tag">protótipo</span></div>
-  <div class="audit-list" id="auditList">
-    <div><time>agora</time><p><b>Lead estruturado</b><span>Agente Lacrose identificou intenção e dados do diagnóstico.</span></p><code>agent.lead.updated</code></div>
-    <div><time>agora</time><p><b>Score calculado</b><span>Regra determinística aplicada aos dados disponíveis.</span></p><code>rules.score.calculated</code></div>
-    <div><time>agora</time><p><b>Aguardando humano</b><span>Nenhuma ação externa autorizada automaticamente.</span></p><code>approval.pending</code></div>
-  </div></section>
+  <section class="panel"><div class="panel-head"><div><small>LOG / AUDITORIA</small><h2>Eventos da oportunidade</h2></div><span class="ai-tag">registro real</span></div>
+  <div class="audit-list" id="auditList"></div></section>
 </section>
 </main>
 </div>
 <div id="toast" class="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20261007-4"></script>
 </body>
 </html>
