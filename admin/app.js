@@ -70,6 +70,8 @@ let currentEvents=[];
 
 let currentApprovals=[];
 
+let currentFollowups=[];
+
 
 
 const labels={
