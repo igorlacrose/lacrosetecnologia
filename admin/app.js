@@ -1681,6 +1681,49 @@ function renderConversation(){
 
 
 /* =========================================================
+   FOLLOW-UPS
+   ========================================================= */
+
+async function loadFollowups(
+  leadId
+){
+
+  const {
+    data,
+    error
+  }=
+    await sb
+      .from('followups')
+      .select('*')
+      .eq(
+        'lead_id',
+        leadId
+      )
+      .order(
+        'due_at',
+        {
+          ascending:true,
+          nullsFirst:false
+        }
+      );
+
+
+  if(error){
+    throw error;
+  }
+
+
+  currentFollowups=
+    data || [];
+
+
+  renderLead();
+  renderActivity();
+}
+
+
+
+/* =========================================================
    AUDITORIA
    ========================================================= */
 
