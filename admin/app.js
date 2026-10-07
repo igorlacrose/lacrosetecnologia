@@ -784,11 +784,18 @@ async function renderDashboard(){
     );
 
 
+  const newCount=
+    leads.filter(
+      lead=>
+        ['new','diagnosing','human_review']
+          .includes(lead.status)
+    ).length;
+
+
   const qualified=
     leads.filter(
       lead=>
-        lead.status==='qualified' ||
-        lead.status==='human_review'
+        lead.status==='qualified'
     ).length;
 
 
@@ -858,7 +865,7 @@ async function renderDashboard(){
   if(kpis[0]){
     kpis[0].textContent=
       String(
-        leads.length
+        newCount
       );
   }
 
