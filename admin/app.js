@@ -2977,6 +2977,95 @@ async function createFollowup(){
 
 
 
+async function completeFollowup(){
+
+  if(!currentLead){
+    toast('Selecione uma oportunidade.');
+    return;
+  }
+
+
+  const pending=
+    currentFollowups
+      .filter(
+        item=>
+          item.status==='pending' ||
+          item.status==='approved'
+      )
+      .sort(
+        (a,b)=>
+          new Date(a.due_at || 0)-
+          new Date(b.due_at || 0)
+      )[0];
+
+
+  if(!pending){
+    toast('Não há follow-up pendente para concluir.');
+    return;
+  }
+
+
+  try{
+
+    const {
+      error:followupError
+    }=
+      await sb
+        .from('followups')
+        .update({
+          status:'done'
+        })
+        .eq(
+          'id',
+          pending.id
+        );
+
+
+    if(followupError){
+      throw followupError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+          lead_id:currentLead.id,
+          event_type:'followup.completed',
+          actor_type:'admin',
+          actor_id:currentUser.id,
+          after_data:{
+            followup_id:pending.id,
+            status:'done'
+          },
+          note:'Follow-up comercial concluído pelo administrador.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast('Follow-up concluído.');
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    toast('Não foi possível concluir o follow-up.');
+  }
+}
+
+
+
 async function prepareCommercialProposal(){
 
   if(!currentLead){
