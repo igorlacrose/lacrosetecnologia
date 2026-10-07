@@ -2124,7 +2124,22 @@ function eventTitle(type){
       'Proposta preparada',
 
     'proposal.approved':
-      'Proposta aprovada'
+      'Proposta aprovada',
+
+    'contact.completed':
+      'Contato realizado',
+
+    'followup.completed':
+      'Follow-up concluído',
+
+    'deal.won':
+      'Negócio fechado',
+
+    'deal.lost':
+      'Oportunidade perdida',
+
+    'deal.reopened':
+      'Oportunidade reaberta'
   };
 
 
