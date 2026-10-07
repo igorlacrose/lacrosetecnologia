@@ -2135,6 +2135,182 @@ function eventTitle(type){
 
 
 
+function renderActivity(){
+
+  const list=
+    document.getElementById('nextActions');
+
+
+  if(!list){
+    return;
+  }
+
+
+  list.innerHTML='';
+
+
+  if(!currentLead){
+
+    list.innerHTML=
+      '<li><b>Nenhuma oportunidade selecionada</b><span>Selecione um lead para ver os próximos passos.</span></li>';
+
+    return;
+  }
+
+
+  const lead=
+    currentLead;
+
+  const contactApproved=
+    currentApprovals.some(
+      item=>
+        item.action_type==='contact' &&
+        item.status==='approved'
+    );
+
+  const contactCompleted=
+    !!lead.contacted_at ||
+    ['contacted','proposal','won','lost']
+      .includes(lead.status);
+
+  const pendingProposal=
+    currentApprovals.some(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='pending'
+    );
+
+  const approvedProposal=
+    currentApprovals.some(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='approved'
+    );
+
+  const pendingFollowup=
+    currentFollowups
+      .filter(
+        item=>
+          item.status==='pending' ||
+          item.status==='approved'
+      )
+      .sort(
+        (a,b)=>
+          new Date(a.due_at || 0)-
+          new Date(b.due_at || 0)
+      )[0];
+
+
+  const items=[];
+
+
+  if(lead.status==='won'){
+
+    items.push([
+      'Negócio fechado',
+      lead.closed_at
+        ?'Encerrado em '+formatDateTime(lead.closed_at)
+        :'Ciclo comercial concluído'
+    ]);
+
+  }else if(lead.status==='lost'){
+
+    items.push([
+      'Oportunidade encerrada',
+      lead.lost_reason ||
+      'Lead marcado como perdido'
+    ]);
+
+  }else{
+
+    if(!contactApproved){
+
+      items.push([
+        'Revisar e aprovar contato',
+        'Valide o diagnóstico antes de iniciar o atendimento'
+      ]);
+
+    }else if(!contactCompleted){
+
+      items.push([
+        'Realizar contato',
+        'Após falar com o lead, registre o contato no painel'
+      ]);
+    }
+
+
+    if(pendingFollowup){
+
+      items.push([
+        'Executar follow-up',
+        pendingFollowup.due_at
+          ?formatDateTime(pendingFollowup.due_at)
+          :'Follow-up pendente'
+      ]);
+    }
+
+
+    if(
+      contactCompleted &&
+      !pendingProposal &&
+      !approvedProposal
+    ){
+
+      items.push([
+        'Preparar proposta',
+        'Defina escopo e condição comercial'
+      ]);
+    }
+
+
+    if(pendingProposal){
+
+      items.push([
+        'Aprovar proposta',
+        'Revise a proposta preparada antes de avançar'
+      ]);
+    }
+
+
+    if(approvedProposal){
+
+      items.push([
+        'Acompanhar decisão do cliente',
+        'Crie follow-up ou finalize como fechado/perdido'
+      ]);
+    }
+  }
+
+
+  items
+    .slice(0,3)
+    .forEach(
+      ([title,description])=>{
+
+        const li=
+          document.createElement('li');
+
+        const b=
+          document.createElement('b');
+
+        const span=
+          document.createElement('span');
+
+        b.textContent=title;
+        span.textContent=description;
+
+        li.append(
+          b,
+          span
+        );
+
+        list.appendChild(li);
+      }
+    );
+}
+
+
+
 /* =========================================================
    AÇÕES COMERCIAIS
    ========================================================= */
