@@ -3433,6 +3433,372 @@ async function approveCommercialProposal(){
 
 
 
+async function markLeadWon(){
+
+  if(!currentLead){
+    toast('Selecione uma oportunidade.');
+    return;
+  }
+
+
+  const approvedProposal=
+    currentApprovals.find(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='approved'
+    );
+
+
+  if(!approvedProposal){
+    toast('Aprove a proposta antes de marcar o negócio como fechado.');
+    return;
+  }
+
+
+  const defaultValue=
+    approvedProposal.action_payload?.value || '';
+
+  const value=
+    window.prompt(
+      'Valor final do fechamento (opcional):',
+      defaultValue
+    );
+
+
+  if(value===null){
+    return;
+  }
+
+
+  try{
+
+    const now=
+      new Date().toISOString();
+
+
+    const {
+      error:leadError
+    }=
+      await sb
+        .from('leads')
+        .update({
+          status:'won',
+          closed_at:now,
+          closed_value:value.trim() || null,
+          lost_reason:null,
+          needs_human_review:false,
+          updated_at:now
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadError){
+      throw leadError;
+    }
+
+
+    const {
+      error:followupError
+    }=
+      await sb
+        .from('followups')
+        .update({
+          status:'cancelled'
+        })
+        .eq(
+          'lead_id',
+          currentLead.id
+        )
+        .in(
+          'status',
+          ['pending','approved']
+        );
+
+
+    if(followupError){
+      throw followupError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+          lead_id:currentLead.id,
+          event_type:'deal.won',
+          actor_type:'admin',
+          actor_id:currentUser.id,
+          after_data:{
+            status:'won',
+            closed_at:now,
+            closed_value:value.trim() || null
+          },
+          note:
+            value.trim()
+              ?'Negócio fechado. Valor registrado: '+value.trim()+'.'
+              :'Negócio fechado pelo administrador.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast('Negócio marcado como fechado.');
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    toast('Não foi possível concluir o fechamento.');
+  }
+}
+
+
+
+async function markLeadLost(){
+
+  if(!currentLead){
+    toast('Selecione uma oportunidade.');
+    return;
+  }
+
+
+  const reason=
+    window.prompt(
+      'Motivo da perda da oportunidade:',
+      currentLead.lost_reason || ''
+    );
+
+
+  if(reason===null){
+    return;
+  }
+
+
+  const cleanReason=
+    reason.trim();
+
+
+  if(!cleanReason){
+    toast('Informe o motivo da perda.');
+    return;
+  }
+
+
+  try{
+
+    const now=
+      new Date().toISOString();
+
+
+    const {
+      error:leadError
+    }=
+      await sb
+        .from('leads')
+        .update({
+          status:'lost',
+          closed_at:now,
+          closed_value:null,
+          lost_reason:cleanReason,
+          needs_human_review:false,
+          updated_at:now
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadError){
+      throw leadError;
+    }
+
+
+    const {
+      error:followupError
+    }=
+      await sb
+        .from('followups')
+        .update({
+          status:'cancelled'
+        })
+        .eq(
+          'lead_id',
+          currentLead.id
+        )
+        .in(
+          'status',
+          ['pending','approved']
+        );
+
+
+    if(followupError){
+      throw followupError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+          lead_id:currentLead.id,
+          event_type:'deal.lost',
+          actor_type:'admin',
+          actor_id:currentUser.id,
+          after_data:{
+            status:'lost',
+            closed_at:now,
+            lost_reason:cleanReason
+          },
+          note:'Oportunidade encerrada como perdida. Motivo: '+cleanReason+'.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast('Oportunidade marcada como perdida.');
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    toast('Não foi possível encerrar a oportunidade.');
+  }
+}
+
+
+
+async function reopenLead(){
+
+  if(!currentLead){
+    toast('Selecione uma oportunidade.');
+    return;
+  }
+
+
+  if(
+    !['won','lost','archived']
+      .includes(currentLead.status)
+  ){
+    return;
+  }
+
+
+  if(
+    !window.confirm(
+      'Reabrir esta oportunidade comercial?'
+    )
+  ){
+    return;
+  }
+
+
+  const approvedProposal=
+    currentApprovals.some(
+      item=>
+        item.action_type==='proposal' &&
+        item.status==='approved'
+    );
+
+  const nextStatus=
+    approvedProposal
+      ?'proposal'
+      :currentLead.contacted_at
+        ?'contacted'
+        :'qualified';
+
+
+  try{
+
+    const now=
+      new Date().toISOString();
+
+
+    const {
+      error:leadError
+    }=
+      await sb
+        .from('leads')
+        .update({
+          status:nextStatus,
+          closed_at:null,
+          closed_value:null,
+          lost_reason:null,
+          updated_at:now
+        })
+        .eq(
+          'id',
+          currentLead.id
+        );
+
+
+    if(leadError){
+      throw leadError;
+    }
+
+
+    const {
+      error:eventError
+    }=
+      await sb
+        .from('lead_events')
+        .insert({
+          lead_id:currentLead.id,
+          event_type:'deal.reopened',
+          actor_type:'admin',
+          actor_id:currentUser.id,
+          after_data:{
+            status:nextStatus
+          },
+          note:'Oportunidade comercial reaberta pelo administrador.'
+        });
+
+
+    if(eventError){
+      throw eventError;
+    }
+
+
+    toast('Oportunidade reaberta.');
+
+    await loadPanel(
+      currentLead.id
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    toast('Não foi possível reabrir a oportunidade.');
+  }
+}
+
+
+
 function normalizePhone(raw){
 
   const source=
