@@ -71,6 +71,43 @@ let currentApprovals=[];
 
 let currentFollowups=[];
 
+const ADMIN_IDLE_MS=30*60*1000;
+let adminIdleTimer=null;
+
+function clearAdminIdleTimer(){
+  if(adminIdleTimer){
+    clearTimeout(adminIdleTimer);
+    adminIdleTimer=null;
+  }
+}
+
+function resetAdminIdleTimer(){
+  clearAdminIdleTimer();
+
+  if(!currentUser){
+    return;
+  }
+
+  adminIdleTimer=setTimeout(
+    async()=>{
+      try{
+        await sb.auth.signOut();
+      }catch(error){
+        console.error(error);
+      }
+
+      panelInitialized=false;
+      currentProfile=null;
+      currentUser=null;
+
+      showLogin(
+        'Sessão encerrada por inatividade.'
+      );
+    },
+    ADMIN_IDLE_MS
+  );
+}
+
 
 
 const labels={
@@ -234,6 +271,8 @@ async function authorizeUser(user){
 
 function showLogin(message=''){
 
+  clearAdminIdleTimer();
+
   if(adminApp){
     adminApp.hidden=true;
   }
@@ -270,6 +309,8 @@ async function showAdmin(profile,user){
 
   currentUser=
     user;
+
+  resetAdminIdleTimer();
 
 
   if(authScreen){
@@ -519,6 +560,38 @@ sb.auth.onAuthStateChange(
     ){
 
       showLogin('');
+    }
+  }
+);
+
+
+[
+  'pointerdown',
+  'keydown',
+  'touchstart',
+  'wheel'
+].forEach(
+  eventName=>
+    window.addEventListener(
+      eventName,
+      ()=>{
+        if(currentUser){
+          resetAdminIdleTimer();
+        }
+      },
+      {passive:true}
+    )
+);
+
+
+document.addEventListener(
+  'visibilitychange',
+  ()=>{
+    if(
+      !document.hidden &&
+      currentUser
+    ){
+      resetAdminIdleTimer();
     }
   }
 );

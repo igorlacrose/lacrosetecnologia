@@ -166,14 +166,26 @@ def main() -> int:
         fail("Painel deve manter sessão administrativa somente em memória", errors)
     if "storage:window.sessionStorage" in admin_js or "persistSession:true" in admin_js:
         fail("Painel não deve persistir sessão administrativa no sessionStorage", errors)
+    if "ADMIN_IDLE_MS=30*60*1000" not in admin_js:
+        fail("Painel deve encerrar sessão após inatividade", errors)
 
     flux_html = (ROOT / "flux/index.html").read_text(encoding="utf-8")
     for forbidden_flux in ['"102030"', "senhaInicial(", "resetSenha("]:
         if forbidden_flux in flux_html:
             fail(f"FluX contém autenticação local insegura: {forbidden_flux}", errors)
-    for required_flux in ["auth/v1/token?grant_type=password", "/rest/v1/profiles", "SUPABASE_PUBLISHABLE_KEY", "Content-Security-Policy"]:
+    for required_flux in [
+        "auth/v1/token?grant_type=password",
+        "/rest/v1/profiles",
+        "SUPABASE_PUBLISHABLE_KEY",
+        "Content-Security-Policy",
+        "FLUX_IDLE_MS=30*60*1000",
+        "function csvSafe(",
+        "f.size>5*1024*1024",
+    ]:
         if required_flux not in flux_html:
-            fail(f"FluX sem controle de autenticação esperado: {required_flux}", errors)
+            fail(f"FluX sem controle de segurança esperado: {required_flux}", errors)
+    if flux_html.count('$("arquivo").onchange') != 1:
+        fail("FluX deve manter apenas um handler validado de importação CSV", errors)
 
     for rel in ["card/index.html", "404.html", "lcs/index.html"]:
         text = (ROOT / rel).read_text(encoding="utf-8")
