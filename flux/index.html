@@ -118,19 +118,19 @@ header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap
 <label>Data<input id="fdata" type="date" required></label>
 <label>Tipo<select id="ftipo"><option>Entrada</option><option>Despesa</option></select></label>
 <label>Categoria<select id="fcategoria"></select></label>
-<label>Descrição<input id="fdescricao" required></label>
-<label>Fornecedor / Cliente<input id="fpessoa"></label>
+<label>Descrição<input id="fdescricao" maxlength="300" required></label>
+<label>Fornecedor / Cliente<input id="fpessoa" maxlength="200"></label>
 <label>Forma de pagamento<select id="fforma"></select></label>
 <label>Conta / Caixa<select id="fconta"></select></label>
-<label>Documento<input id="fdoc"></label>
+<label>Documento<input id="fdoc" maxlength="100"></label>
 <label>Valor (R$)<input id="fvalor" type="number" min="0" step="0.01" required></label>
 <label>Status<select id="fstatus"></select></label>
-<label class="wide">Observações<textarea id="fobs"></textarea></label>
+<label class="wide">Observações<textarea id="fobs" maxlength="1000"></textarea></label>
 <div><button>Salvar lançamento</button> <button type="button" class="secondary" onclick="limpar()">Limpar</button></div>
 </form></div>
 <div class="card"><h2>Lançamentos</h2>
 <div class="filters">
-<input id="busca" placeholder="Buscar...">
+<input id="busca" maxlength="200" placeholder="Buscar...">
 <select id="filtroTipo"><option value="">Todos</option><option>Entrada</option><option>Despesa</option></select>
 <select id="filtroCat"><option value="">Todas categorias</option></select>
 <input id="inicio" type="date"><input id="fim" type="date">
@@ -171,6 +171,7 @@ function preencher(id,arr){$(id).innerHTML=arr.map(function(x){return "<option>"
 // Dados financeiros permanecem locais neste dispositivo. Credenciais nunca são armazenadas pelo FluX.
 var memoriaLocal={};
 var authToken=null,appInicializado=false;
+var FLUX_IDLE_MS=30*60*1000,fluxIdleTimer=null;
 var SUPABASE_URL="https://icrtewhazpfauuroswri.supabase.co";
 var SUPABASE_PUBLISHABLE_KEY="sb_publishable_6PdAW2f-dpXhsaZXI0lyBg_PcGtuWgs";
 
@@ -188,6 +189,12 @@ function authHeaders(token){
 }
 function authMensagem(texto){$("erro").textContent=texto||""}
 function authBusy(ocupado){var b=$("login-btn");b.disabled=ocupado;b.textContent=ocupado?"Entrando…":"Entrar"}
+function clearFluxIdleTimer(){if(fluxIdleTimer){clearTimeout(fluxIdleTimer);fluxIdleTimer=null}}
+function resetFluxIdleTimer(){
+  clearFluxIdleTimer();
+  if(!authToken)return;
+  fluxIdleTimer=setTimeout(function(){bloquear("Sessão encerrada por inatividade.")},FLUX_IDLE_MS);
+}
 async function perfilAutorizado(token,userId){
   var url=SUPABASE_URL+"/rest/v1/profiles?id=eq."+encodeURIComponent(userId)+"&select=role,active";
   var r=await fetch(url,{headers:authHeaders(token),cache:"no-store"});
@@ -221,15 +228,17 @@ async function entrar(){
     try{window.localStorage.removeItem("lacrose_senha_v4");window.sessionStorage.removeItem("lacrose_ok")}catch(e){}
     $("senha").value="";
     $("login").style.display="none";
+    resetFluxIdleTimer();
     inicializarAplicativo();
   }catch(e){
     authMensagem("Não foi possível validar o acesso agora.");
   }finally{authBusy(false)}
 }
-async function bloquear(){
+async function bloquear(mensagem){
+  clearFluxIdleTimer();
   var token=authToken;authToken=null;
   if(token){try{await fetch(SUPABASE_URL+"/auth/v1/logout",{method:"POST",headers:authHeaders(token),cache:"no-store"})}catch(e){}}
-  $("senha").value="";$("login").style.display="flex";authMensagem("");
+  $("senha").value="";$("login").style.display="flex";authMensagem(mensagem||"");
 }
 
 function aba(id,btn){var bs=document.querySelectorAll("nav button");for(var i=0;i<bs.length;i++){bs[i].classList.remove("active");bs[i].classList.add("secondary")}btn.classList.add("active");btn.classList.remove("secondary");var vs=document.querySelectorAll(".view");for(var j=0;j<vs.length;j++)vs[j].classList.remove("active");$(id).classList.add("active");render()}
@@ -248,12 +257,12 @@ function renderCat(id){var a=cat(),max=a.length?a[0][1]:1;if(!a.length){$(id).in
 function renderGraficoCategorias(){var el=$("graficoCategorias"),a=cat();if(!a.length){el.innerHTML='<div class="empty">Sem despesas para exibir no gráfico.</div>';return}var total=a.reduce(function(n,x){return n+x[1]},0);var cores=["#2563eb","#06b6d4","#8b5cf6","#f59e0b","#ef4444","#10b981","#ec4899","#64748b","#84cc16","#f97316","#14b8a6","#6366f1","#a855f7"];var inicio=0,partes=[],leg="";a.forEach(function(x,i){var pct=total?x[1]/total*100:0,fim=inicio+pct,cor=cores[i%cores.length];partes.push(cor+" "+inicio.toFixed(2)+"% "+fim.toFixed(2)+"%");leg+='<div class="legend-row"><i class="legend-dot" style="background:'+cor+'"></i><div>'+esc(x[0])+' <span class="legend-pct">'+pct.toFixed(1).replace(".",",")+'%</span></div><div class="legend-val">'+dinheiro(x[1])+'</div></div>';inicio=fim});el.innerHTML='<div class="chart-wrap"><div class="chart-box"><div class="donut" style="background:conic-gradient('+partes.join(",")+')"><div class="donut-center"><span>Total despesas</span><b>'+dinheiro(total)+'</b></div></div></div><div class="legend">'+leg+'</div></div>'}
 function render(){var t=totais();$("receitas").textContent=dinheiro(t[0]);$("despesas").textContent=dinheiro(t[1]);$("saldo").textContent=dinheiro(t[2]);$("pendencias").textContent=dinheiro(t[3]);$("quantidade").textContent=filtrados().length;renderCat("categorias");renderGraficoCategorias();renderCat("relCat");tabela();var m={};dados.forEach(function(x){if(x.status==="Cancelado")return;var k=x.data.slice(0,7);if(!m[k])m[k]=[0,0];if(x.tipo==="Entrada")m[k][0]+=x.valor;else m[k][1]+=x.valor});var keys=Object.keys(m).sort().reverse(),h=keys.length?"<table><tr><th>Mês</th><th class='num'>Entradas</th><th class='num'>Despesas</th><th class='num'>Saldo</th></tr>":'<div class="empty">Sem dados.</div>';keys.forEach(function(k){h+="<tr><td>"+k+"</td><td class='num'>"+dinheiro(m[k][0])+"</td><td class='num'>"+dinheiro(m[k][1])+"</td><td class='num'>"+dinheiro(m[k][0]-m[k][1])+"</td></tr>"});if(keys.length)h+="</table>";$("relMes").innerHTML=h;var recent=dados.slice().sort(function(a,b){return b.data.localeCompare(a.data)}).slice(0,8);$("ultimos").innerHTML=recent.length?"<div class='table'><table><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th class='num'>Valor</th></tr>"+recent.map(function(x){return"<tr><td>"+x.data.split("-").reverse().join("/")+"</td><td>"+x.tipo+"</td><td>"+esc(x.descricao)+"</td><td class='num'>"+dinheiro(x.valor)+"</td></tr>"}).join("")+"</table></div>":'<div class="empty">Nenhum lançamento.</div>'}
 
-function linhas(){var hs=["Data","Tipo","Categoria","Descrição","Fornecedor / Cliente","Forma de Pagamento","Conta / Caixa","Documento","Valor (R$)","Observações","Status"];var out=[hs.join(";")];dados.forEach(function(x){out.push([x.data,x.tipo,x.categoria,x.descricao,x.pessoa,x.forma,x.conta,x.doc,String(x.valor).replace(".",","),x.obs,x.status].map(function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}).join(";"))});return out.join("\r\n")}
+function csvSafe(v){var s=String(v==null?"":v);if(/^[\t\r ]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
+function linhas(){var hs=["Data","Tipo","Categoria","Descrição","Fornecedor / Cliente","Forma de Pagamento","Conta / Caixa","Documento","Valor (R$)","Observações","Status"];var out=[hs.join(";")];dados.forEach(function(x){out.push([x.data,x.tipo,x.categoria,x.descricao,x.pessoa,x.forma,x.conta,x.doc,String(x.valor).replace(".",","),x.obs,x.status].map(csvSafe).join(";"))});return out.join("\r\n")}
 function baixar(txt,nome,tipo){var b=new Blob(["\ufeff"+txt],{type:tipo}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},60000)}
 function exportarCSV(){baixar(linhas(),"controle_financeiro_lacrose.csv","text/csv;charset=utf-8")}
 function exportarExcel(){var xml='<?xml version="1.0" encoding="UTF-8"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Lançamentos"><Table>';var hs=["Data","Tipo","Categoria","Descrição","Fornecedor / Cliente","Forma de Pagamento","Conta / Caixa","Documento","Valor (R$)","Observações","Status"];xml+="<Row>"+hs.map(function(h){return"<Cell><Data ss:Type='String'>"+esc(h)+"</Data></Cell>"}).join("")+"</Row>";dados.forEach(function(x){xml+="<Row>"+hs.map(function(h){var v={"Data":x.data,"Tipo":x.tipo,"Categoria":x.categoria,"Descrição":x.descricao,"Fornecedor / Cliente":x.pessoa,"Forma de Pagamento":x.forma,"Conta / Caixa":x.conta,"Documento":x.doc,"Valor (R$)":x.valor,"Observações":x.obs,"Status":x.status}[h];return"<Cell><Data ss:Type='"+(h==="Valor (R$)"?"Number":"String")+"'>"+esc(v)+"</Data></Cell>"}).join("")+"</Row>"});xml+="</Table></Worksheet></Workbook>";baixar(xml,"controle_financeiro_lacrose.xls","application/vnd.ms-excel")}
 function backup(){baixar(JSON.stringify({versao:3,lancamentos:dados},null,2),"backup_controle_financeiro.json","application/json")}
-$("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var ls=r.result.replace(/^\ufeff/,"").split(/\r?\n/).filter(Boolean);var hs=ls[0].split(";").map(function(x){return x.replace(/^"|"$/g,"")});var add=[];for(var i=1;i<ls.length;i++){var v=ls[i].split(";");if(v.length<2)continue;var o={};hs.forEach(function(h,j){o[h]=(v[j]||"").replace(/^"|"$/g,"").replace(/""/g,'"')});add.push({id:String(Date.now()+i),data:o["Data"]||"",tipo:o["Tipo"]||"Despesa",categoria:o["Categoria"]||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o["Documento"]||"",valor:Number(String(o["Valor (R$)"]||0).replace(/\./g,"").replace(",","."))||0,obs:o["Observações"]||"",status:o["Status"]||"Pendente"})}if(!add.length)throw 1;if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("CSV inválido. Use o modelo exportado por este sistema.")}};r.readAsText(f,"UTF-8")}
 function apagar(){if(confirm("Apagar TODOS os lançamentos?"))if(confirm("Confirma definitivamente?")){dados=[];salvar();render()}}
 function abrirContato(){window.open("https://lacrosetecnologia.com.br/card/","_blank","noopener,noreferrer")}
 function imprimir(){var vs=document.querySelectorAll(".view");for(var i=0;i<vs.length;i++)vs[i].classList.remove("print-target");$("relatorios").classList.add("print-target");$("gerado").textContent="Gerado em "+new Date().toLocaleString("pt-BR");window.print();setTimeout(function(){$("relatorios").classList.remove("print-target")},500)}
@@ -263,9 +272,11 @@ function avisoStorage(texto){$("storage-warning").hidden=false;$("storage-warnin
 function storeSet(k,v){try{window.localStorage.setItem(k,String(v));memoriaLocal[k]=String(v)}catch(e){avisoStorage("Não foi possível salvar neste dispositivo. Mantenha esta tela aberta e exporte um backup JSON antes de sair.");throw e}}
 function carregar(){var raw=storeGet("lacrose_financeiro_final");try{dados=JSON.parse(raw||"[]");if(!Array.isArray(dados))throw Error()}catch(e){avisoStorage("Os dados locais não puderam ser lidos. O conteúdo original foi preservado. Não salve novos lançamentos antes de recuperar seu backup.");document.querySelectorAll('#form button,#arquivo').forEach(function(el){el.disabled=true});dados=[];salvar=function(){throw Error("Dados locais inválidos preservados")}}}
 function parseCSV(text){text=text.replace(/^\ufeff/,"");var rows=[],row=[],cell="",quoted=false;for(var i=0;i<text.length;i++){var c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++}else quoted=!quoted}else if(c===';'&&!quoted){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(Boolean))rows.push(row);row=[];cell=""}else cell+=c}if(quoted)throw Error("Aspas incompletas");row.push(cell);if(row.some(Boolean))rows.push(row);return rows}
-$("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onerror=function(){alert("Não foi possível ler o arquivo.")};r.onload=function(){try{var rows=parseCSV(r.result),hs=rows.shift();if(!hs||hs.indexOf("Data")<0||hs.indexOf("Valor (R$)")<0)throw Error();var add=rows.map(function(v,i){if(v.length!==hs.length)throw Error();var o={};hs.forEach(function(h,j){o[h]=v[j]});var raw=o["Valor (R$)"]||"0",valor=Number(raw.includes(',')?raw.replace(/\./g,"").replace(',','.'):raw);if(!/^\d{4}-\d{2}-\d{2}$/.test(o.Data)||!Number.isFinite(valor)||valor<0||!["Entrada","Despesa"].includes(o.Tipo))throw Error();return{id:String(Date.now())+'-'+i,data:o.Data,tipo:o.Tipo,categoria:o.Categoria||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o.Documento||"",valor:valor,obs:o["Observações"]||"",status:o.Status||"Pendente"}});if(!add.length)throw Error();if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("Importação não concluída. Verifique o CSV e o aviso de armazenamento, se houver.")}e.target.value=""};r.readAsText(f,"UTF-8")};
+$("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;if(f.size>5*1024*1024){alert("Arquivo muito grande. O limite de importação é 5 MB.");e.target.value="";return}var r=new FileReader();r.onerror=function(){alert("Não foi possível ler o arquivo.")};r.onload=function(){try{var rows=parseCSV(r.result);if(rows.length>10001)throw Error();var hs=rows.shift();if(!hs||hs.indexOf("Data")<0||hs.indexOf("Valor (R$)")<0)throw Error();var add=rows.map(function(v,i){if(v.length!==hs.length||v.some(function(cell){return String(cell).length>2000}))throw Error();var o={};hs.forEach(function(h,j){o[h]=v[j]});var raw=o["Valor (R$)"]||"0",valor=Number(raw.includes(',')?raw.replace(/\./g,"").replace(',','.'):raw);if(!/^\d{4}-\d{2}-\d{2}$/.test(o.Data)||!Number.isFinite(valor)||valor<0||!["Entrada","Despesa"].includes(o.Tipo))throw Error();var st=statusOpcoes.includes(o.Status)?o.Status:"Pendente";return{id:String(Date.now())+'-'+i,data:o.Data,tipo:o.Tipo,categoria:String(o.Categoria||"Outros").slice(0,200),descricao:String(o["Descrição"]||"").slice(0,300),pessoa:String(o["Fornecedor / Cliente"]||"").slice(0,200),forma:String(o["Forma de Pagamento"]||"Outro").slice(0,100),conta:String(o["Conta / Caixa"]||"Outro").slice(0,100),doc:String(o.Documento||"").slice(0,100),valor:valor,obs:String(o["Observações"]||"").slice(0,1000),status:st}});if(!add.length)throw Error();if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("Importação não concluída. Verifique o CSV e o aviso de armazenamento, se houver.")}e.target.value=""};r.readAsText(f,"UTF-8")};
 $("senha").addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();entrar()}});
 $("email").addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();entrar()}});
+["pointerdown","keydown","touchstart","wheel"].forEach(function(eventName){window.addEventListener(eventName,function(){if(authToken)resetFluxIdleTimer()},{passive:true})});
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&authToken)resetFluxIdleTimer()});
 try{window.localStorage.removeItem("lacrose_senha_v4");window.sessionStorage.removeItem("lacrose_ok")}catch(e){}
 </script>
 
