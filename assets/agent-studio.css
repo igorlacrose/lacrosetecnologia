@@ -1,0 +1,245 @@
+/* LACROSE AGENT STUDIO — revisão visual restrita à seção #agente.
+   Arquivos de negócio, Supabase e handlers originais permanecem intocados. */
+#agente.agent-studio{
+ --as-cyan:#24d8ff; --as-blue:#108cff; --as-line:rgba(70,180,249,.32);
+ --as-paper:#eef8ff; --as-soft:#b2c7d9;
+ position:relative; isolation:isolate; padding:90px 0 102px;
+ background:
+   radial-gradient(ellipse 46% 33% at 51% -6%,rgba(0,116,255,.25),transparent 81%),
+   radial-gradient(ellipse 25% 45% at 91% 78%,rgba(10,84,177,.19),transparent 87%),
+   linear-gradient(165deg,#020916 0%,#041222 52%,#020914 100%);
+ overflow:hidden;color:#edf7ff;
+}
+#agente.agent-studio:before{
+ content:"";position:absolute;inset:0;top:0;right:0;width:auto;height:auto;border:0;border-radius:0;box-shadow:none;pointer-events:none;opacity:.5;
+ background:linear-gradient(90deg,transparent 48%,rgba(80,167,248,.05) 49%,transparent 50%),linear-gradient(0deg,transparent 49%,rgba(80,167,248,.045) 50%,transparent 51%);
+ background-size:74px 74px;mask-image:linear-gradient(180deg,transparent 0%,#000 23%,#000 75%,transparent 100%);
+}
+#agente.agent-studio:after{
+ content:"";position:absolute;top:40px;left:7%;right:7%;height:1px;pointer-events:none;
+ background:linear-gradient(90deg,transparent,#18aeff 20%,#72dcff 50%,#18aeff 80%,transparent);
+ box-shadow:0 0 25px rgba(40,180,255,.65),0 0 60px rgba(40,180,255,.18);
+}
+#agente .agent-studio-grid-shell{width:min(1660px,calc(100% - 52px));margin:auto;position:relative;z-index:1}
+#agente .agent-studio-grid{
+ display:grid;grid-template-columns:minmax(235px,.79fr) minmax(440px,1.48fr) minmax(280px,.81fr);
+ align-items:stretch;gap:14px;
+}
+#agente .agent-studio-intro,
+#agente .agent-studio-chat-shell,
+#agente .agent-studio-summary{
+ position:relative;min-width:0;isolation:isolate;
+ border:1px solid var(--as-line);
+ border-radius:24px;
+ background:linear-gradient(164deg,rgba(7,24,45,.86),rgba(3,11,23,.94) 70%);
+ box-shadow:inset 0 1px rgba(142,231,255,.06),0 20px 70px rgba(0,0,0,.27),0 0 36px rgba(4,112,212,.09);
+}
+#agente .agent-studio-chat-shell{border-color:rgba(76,196,255,.56);box-shadow:inset 0 1px rgba(142,231,255,.09),0 25px 90px rgba(0,0,0,.38),0 0 28px rgba(21,131,255,.17)}
+#agente .agent-studio-intro{padding:33px 25px 20px;overflow:hidden;display:flex;flex-direction:column}
+#agente .agent-studio-kicker{display:flex;align-items:center;gap:13px;font-size:10px;font-weight:750;letter-spacing:.18em;line-height:1.45;color:#5cd7ff}
+#agente .agent-studio-kicker i{display:block;width:42px;min-width:22px;height:2px;background:#21d5ef;box-shadow:0 0 13px #21cfff}
+#agente .agent-studio-intro h2{margin:30px 0 22px;font-size:clamp(34px,3.15vw,55px);letter-spacing:-.06em;line-height:1.025;font-weight:800;color:#fff;text-wrap:balance}
+#agente .agent-studio-intro h2 span{display:block;margin-top:8px;background:linear-gradient(140deg,#91edff 3%,#29deff 34%,#168dff 100%);background-clip:text;-webkit-background-clip:text;color:transparent}
+#agente .agent-studio-lede{margin:0 0 28px;font-size:clamp(13px,1.08vw,17px);line-height:1.62;color:#c6d6e3}
+#agente .agent-studio-benefits{display:grid;gap:17px}
+#agente .agent-studio-benefits>div{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:start;gap:12px}
+#agente .benefit-icon{width:43px;height:43px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(160deg,#0d2b47,#061527);border:1px solid rgba(52,201,255,.42);font-size:25px;line-height:1;color:#26d3fc;box-shadow:inset 0 0 14px rgba(21,129,234,.12)}
+#agente .agent-studio-benefits strong{display:block;color:#70e9ff;font-size:13px;line-height:1.3;font-weight:750;margin:3px 0 3px}
+#agente .agent-studio-benefits small{display:block;color:#a3bbce;font-size:11px;line-height:1.55}
+#agente .agent-studio-logo-scene{margin-top:auto;min-height:265px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:12px;padding:44px 0 2px}
+#agente .agent-studio-logo-aura{position:absolute;inset:19% 8% 3%;background:radial-gradient(ellipse at 50% 60%,rgba(8,157,250,.24),transparent 68%);filter:blur(13px);pointer-events:none}
+#agente .agent-studio-logo-object{position:relative;z-index:3;width:min(220px,82%);height:144px;display:grid;place-items:center;filter:drop-shadow(0 0 15px rgba(28,184,255,.32));animation:as-logo-breathe 6s ease-in-out infinite}
+#agente .agent-studio-logo-object img{max-height:140px;width:auto;object-fit:contain}
+#agente .agent-studio-logo-ring{position:absolute;z-index:2;bottom:45px;left:50%;width:86%;height:54px;border-radius:50%;border:1px solid rgba(76,215,255,.65);transform:translateX(-50%) rotateX(70deg);box-shadow:inset 0 0 20px rgba(27,152,255,.27),0 0 30px rgba(9,145,249,.34)}
+#agente .agent-studio-logo-ring.ring-two{width:58%;bottom:50px;border:2px solid rgba(55,174,255,.55);box-shadow:0 0 20px rgba(36,191,255,.36)}
+#agente .agent-studio-logo-scene small{position:relative;z-index:4;color:#7eaac7;font-size:9px;text-align:center;letter-spacing:.095em;line-height:1.6}
+#agente .agent-studio-chat-shell{overflow:visible;display:flex;flex-direction:column}
+#agente .agent-studio-panel-head{height:114px;min-height:114px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 130px 14px 21px;border:0;border-bottom:1px solid rgba(72,185,255,.27);background:linear-gradient(180deg,rgba(10,32,57,.94),rgba(6,20,36,.97));border-radius:24px 24px 0 0;position:relative}
+#agente .agent-studio-identity{display:flex;align-items:center;gap:14px;min-width:0}
+#agente .agent-studio-identity img{width:52px;height:62px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(42,163,240,.22))}
+#agente .agent-studio-identity strong{display:block;color:#fff;font-size:clamp(16px,1.35vw,23px);font-weight:800;letter-spacing:-.032em;white-space:nowrap}
+#agente .agent-studio-identity small{display:block;font-size:11px;line-height:1.3;color:#a7c1d5}
+#agente .agent-studio-panel-state{border:1px solid rgba(40,230,151,.26);background:#073029;color:#79f5ba;border-radius:999px;padding:7px 10px;font-size:9px;letter-spacing:.1em;white-space:nowrap;font-weight:750}
+#agente .online-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;background:#00d58d;box-shadow:0 0 14px rgba(0,222,158,.45);animation:as-online-pulse 2.6s ease-in-out infinite}
+#agente .agent-studio-sound{display:flex;align-items:center;gap:3px;margin-left:-6px;margin-right:4px}
+#agente .agent-studio-sound i{display:block;width:2px;height:10px;border-radius:5px;background:#24d7ff;box-shadow:0 0 7px rgba(51,190,255,.75);animation:as-eq 1.55s ease-in-out infinite}
+#agente .agent-studio-sound i:nth-child(2){height:19px;animation-delay:.18s}
+#agente .agent-studio-sound i:nth-child(3){height:12px;animation-delay:.45s}
+#agente .agent-studio-sound i:nth-child(4){height:24px;animation-delay:.25s}
+#agente .agent-studio-sound i:nth-child(5){height:9px;animation-delay:.7s}
+#agente .agent-studio-sound i:nth-child(6){height:18px;animation-delay:.4s}
+#agente .agent-studio-sound i:nth-child(7){height:13px;animation-delay:.61s}
+#agente .agent-studio-mascot{position:absolute;z-index:10;right:5px;top:-45px;width:136px;height:148px;display:grid;place-items:center;pointer-events:none;perspective:500px;transform-style:preserve-3d;filter:drop-shadow(0 0 10px rgba(6,172,255,.27));animation:as-mascot-float 4.8s ease-in-out infinite}
+#agente .mascot-head{position:absolute;inset:2px;transform:rotateX(var(--bot-x,0deg)) rotateY(var(--bot-y,0deg));transition:transform .15s ease-out;transform-style:preserve-3d;will-change:transform}
+#agente .mascot-head>img{width:100%;height:100%;object-fit:contain;user-select:none}
+#agente .mascot-halo{position:absolute;border:1px solid rgba(70,214,255,.72);border-radius:50%;width:120px;height:58px;transform:rotate(-22deg);box-shadow:0 0 15px rgba(60,190,255,.47);animation:as-halo-float 10s linear infinite;z-index:2}
+#agente .mascot-halo.halo-two{width:144px;height:66px;transform:rotate(26deg);opacity:.5;animation-duration:13s;animation-direction:reverse}
+#agente .mascot-visor{position:absolute;left:23%;top:32%;width:55%;height:38%;border-radius:48%;background:radial-gradient(ellipse at 50% 25%,#07182a 5%,#010716 75%);box-shadow:inset 0 0 5px #07182a,0 0 3px rgba(35,113,182,.15);display:flex;align-items:center;justify-content:center;gap:17%;overflow:hidden}
+#agente .mascot-eye{width:24%;height:29%;border-radius:55% 55% 35% 35%;background:#82f4ff;box-shadow:0 0 8px #67dafa,0 0 15px rgba(4,131,244,.85);transform:translate(var(--eye-x,0px),var(--eye-y,0px)) rotate(5deg);transition:transform .13s ease-out;will-change:transform}
+#agente .mascot-eye:nth-child(2){transform:translate(var(--eye-x,0px),var(--eye-y,0px)) rotate(-5deg)}
+#agente .mascot-signal{position:absolute;z-index:3;width:3px;height:3px;right:5px;bottom:26px;border-radius:50%;background:#78eaff;box-shadow:0 0 12px 4px #2ac3ff}
+#agente .agent-studio-mascot.is-thinking .mascot-visor{box-shadow:inset 0 0 18px rgba(28,141,229,.33),0 0 15px rgba(19,163,255,.27)}
+#agente .agent-studio-mascot.is-thinking .mascot-eye{animation:as-eyes-think 1s ease-in-out infinite alternate}
+#agente .agent-studio-chat-body{display:flex;flex-direction:column;flex:1;min-width:0;padding:0;background:linear-gradient(180deg,rgba(6,22,41,.65),rgba(3,11,25,.98));border-radius:0 0 24px 24px}
+#agente .chat-panel{border:0!important;min-height:0;min-width:0;display:flex;flex-direction:column;flex:1;padding:20px 20px 22px}
+#agente .chat-messages{min-height:155px;max-height:300px;overflow-y:auto;padding:0 5px 16px;gap:12px;scrollbar-width:thin;scrollbar-color:#195179 transparent}
+#agente .msg{max-width:92%;border-radius:12px;font-size:12.5px;line-height:1.6;padding:12px 15px;animation:as-msg-reveal .26s ease both}
+#agente .msg.agent{border:1px solid rgba(61,159,240,.32);background:linear-gradient(150deg,rgba(13,45,75,.89),rgba(8,24,44,.97));box-shadow:inset 0 1px rgba(255,255,255,.025)}
+#agente .msg.user{background:linear-gradient(140deg,#55d4ff,#167fed);color:#04111d}
+#agente .msg.agent strong{color:#83e3ff}
+#agente .msg small{font-size:9px}
+#agente .quick-starts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 5px 16px}
+#agente .quick-starts button{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr) 25px;grid-template-rows:auto auto;align-items:center;column-gap:11px;min-height:76px;padding:11px 11px;border-radius:12px;text-align:left;border:1px solid rgba(61,159,240,.44);background:linear-gradient(152deg,rgba(11,41,68,.91),rgba(5,22,41,.94));box-shadow:inset 0 1px rgba(163,234,255,.07),0 5px 24px rgba(0,0,0,.13);transition:border-color .17s ease,background .17s ease,transform .17s ease,box-shadow .17s ease}
+#agente .quick-starts button:hover,#agente .quick-starts button:focus-visible{border-color:#48ddff;background:linear-gradient(152deg,rgba(19,66,103,.91),rgba(6,29,54,.98));box-shadow:inset 0 1px rgba(180,243,255,.1),0 0 18px rgba(46,191,255,.19);transform:translateY(-2px)}
+#agente .quick-starts button b{grid-column:1;grid-row:1/3;display:grid;place-items:center;width:32px;height:38px;color:#29d7ff;font-size:initial;font-weight:initial;flex:none}
+#agente .quick-starts button b svg{width:28px;height:28px;filter:drop-shadow(0 0 6px rgba(32,179,251,.26))}
+#agente .quick-starts .agent-choice-name{grid-column:2;grid-row:1;color:#f6fbff;font-size:12px;font-weight:750;line-height:1.25;display:block}
+#agente .quick-starts .agent-choice-desc{grid-column:2;grid-row:2;color:#8eaec7;font-size:10px;line-height:1.25;display:block;margin-top:3px}
+#agente .agent-choice-arrow{grid-column:3;grid-row:1/3;align-self:center;justify-self:center;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;border:1px solid #2a98ff;color:#89ddff;font-size:13px;font-style:normal;box-shadow:inset 0 0 13px rgba(32,151,255,.12)}
+#agente .context-replies{margin:0 5px 12px;padding:12px;background:linear-gradient(145deg,rgba(8,39,66,.94),rgba(5,23,41,.96));border-radius:13px;border-color:rgba(73,171,244,.3)}
+#agente .context-replies[hidden]{display:none!important}
+#agente .context-replies-head{gap:12px}
+#agente .context-replies-head span{font-size:10px}
+#agente .context-replies-head small{font-size:10px;color:#9ab6c9}
+#agente .context-replies-head>button{font-size:10px;color:#8edfff}
+#agente .reply-options{gap:7px}
+#agente .reply-chip{font-size:10.5px;border:1px solid rgba(60,153,227,.37);background:#0b2540;padding:8px 11px;border-radius:24px}
+#agente .reply-chip.selected{border-color:#2ae2ff;color:#f4fbff;background:#144665}
+#agente .reply-chip.multi.selected .check-mark{background:#3dd3ff;color:#051322}
+#agente .reply-actions button{border-radius:9px;font-size:10.5px;padding:10px}
+#agente .agent-studio-reply-note{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 5px 9px;border-top:1px solid rgba(34,135,213,.26);padding:12px 0 2px;font-size:10.5px;color:#a2c3d7}
+#agente .agent-studio-reply-note b{color:#47d9ff;font-size:11px}
+#agente .example-row{gap:12px;padding:0 5px 11px}
+#agente .example-row button{font-size:10px;color:#7ddcff}
+#agente .example-row button+button{color:#90a8bc}
+#agente .agent-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch;margin:0 5px 11px;padding:6px!important;border:1px solid rgba(73,173,244,.43)!important;border-radius:12px!important;background:rgba(5,20,39,.98)!important;box-shadow:inset 0 1px rgba(255,255,255,.03)}
+#agente .agent-form textarea{border:0!important;background:transparent!important;min-height:48px!important;max-height:130px!important;margin:0!important;padding:10px!important;font-size:13px!important;line-height:1.38!important;color:#e9f5ff!important;resize:vertical}
+#agente .agent-form textarea::placeholder{color:#8aa6c3}
+#agente .agent-form button{align-self:stretch;background:linear-gradient(145deg,#20d0ff,#086af8);color:#fff;border-radius:8px;padding:0 15px;min-width:67px;font-size:11px;font-weight:800;box-shadow:0 0 15px rgba(13,140,255,.24)}
+#agente .agent-form button:hover{background:linear-gradient(145deg,#71e7ff,#167efe)}
+#agente .agent-privacy{padding:0 6px 3px;margin:0!important;font-size:10px!important;line-height:1.5!important;color:#7892a8!important}
+#agente .agent-studio-summary{padding:25px 19px 23px;display:flex;flex-direction:column;gap:15px}
+#agente .agent-studio-summary-head .agent-studio-kicker{font-size:10px}
+#agente .agent-studio-summary-head h3{font-size:clamp(22px,1.75vw,30px);letter-spacing:-.04em;line-height:1.09;font-weight:800;color:#fff;margin:18px 0 12px}
+#agente .agent-studio-summary-head p{color:#a6c0d4;font-size:12px;line-height:1.6;margin:0}
+#agente .lead-panel{display:flex;flex-direction:column;flex:1;border:0!important;background:none!important;padding:0!important;min-height:0;box-shadow:none!important}
+#agente .lead-title{padding:12px 0;border-top:1px solid rgba(47,146,210,.25);border-bottom:1px solid rgba(47,146,210,.25)}
+#agente .lead-title span{font-size:10px;color:#5bddff;letter-spacing:.13em}
+#agente .lead-title b{font-size:10px;color:#a4ebb9;background:#0a322a;border:1px solid rgba(52,207,140,.21);padding:5px 8px;border-radius:30px}
+#agente .lead-score{padding:13px 0;border-bottom:1px solid rgba(47,146,210,.26)}
+#agente .lead-score small{color:#94b9ce;font-size:10px}
+#agente .lead-score strong{font-size:25px;font-weight:800;color:#e9faff}
+#agente .lead-score span{font-size:10px}
+#agente .score-track{height:4px;margin-top:8px;border-radius:20px}
+#agente .score-track i{background:linear-gradient(90deg,#117bff,#40deff);box-shadow:0 0 9px rgba(0,194,255,.7)}
+#agente .lead-panel dl{margin:9px 0 0;display:grid;gap:0}
+#agente .lead-panel dl>div{display:grid;grid-template-columns:1fr;gap:2px;padding:9px 8px;border-bottom:1px solid rgba(56,159,224,.18);border-radius:3px;transition:background .25s}
+#agente .lead-panel dl>div:nth-child(even){background:rgba(6,29,50,.35)}
+#agente .lead-panel dl dt{font-size:10.5px;font-weight:750;text-transform:none;letter-spacing:0;color:#b7d9ef}
+#agente .lead-panel dl dd{color:#78d5ff;line-height:1.35;font-size:11px;overflow-wrap:anywhere}
+#agente .solution-box{background:linear-gradient(130deg,rgba(6,63,95,.65),rgba(6,28,48,.88));border-color:rgba(57,205,255,.41);border-radius:12px;margin-top:12px;padding:13px;box-shadow:inset 0 1px rgba(180,245,255,.06),0 0 18px rgba(12,161,238,.09)}
+#agente .solution-box span{color:#39e0ff;font-weight:750;letter-spacing:.13em;font-size:9px}
+#agente .solution-box p{font-size:11px!important;line-height:1.55!important;color:#cfe8f9!important;margin:6px 0 0!important}
+#agente .agent-studio-start{width:100%;margin-top:12px;border:1px solid rgba(102,228,255,.77);border-radius:12px;background:linear-gradient(115deg,#078dff,#12c9f2);box-shadow:0 0 19px rgba(4,153,250,.28),inset 0 1px rgba(255,255,255,.32);color:#fff;padding:15px 10px;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:12px;transition:transform .16s,filter .16s}
+#agente .agent-studio-start:hover{transform:translateY(-1px);filter:brightness(1.16)}
+#agente .lead-actions{margin-top:10px;padding:0}
+#agente .lead-actions button{width:100%;border-radius:8px;background:rgba(15,37,58,.66);border:1px solid rgba(78,179,244,.30);color:#bce9ff;font-size:10px;padding:10px}
+#agente .lead-actions button:hover{background:rgba(20,70,103,.45)}
+#agente .lead-actions small{font-size:9px;line-height:1.5;color:#829eb4;margin-top:9px}
+#agente .agent-studio-privacy-note{font-size:9px;color:#829eb4;text-align:center;margin:0;padding:0 6px;line-height:1.55}
+#agente .agent-studio-focus{animation:as-focus .64s ease-in-out}
+#agente .agent-studio-newinfo{animation:as-field-flash .95s ease}
+@keyframes as-online-pulse{0%,100%{box-shadow:0 0 6px rgba(0,222,158,.45)}50%{box-shadow:0 0 15px 3px rgba(0,222,158,.55)}}
+@keyframes as-eq{0%,100%{transform:scaleY(.55)}40%{transform:scaleY(1.18)}}
+@keyframes as-mascot-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes as-halo-float{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes as-logo-breathe{0%,100%{filter:drop-shadow(0 0 11px rgba(36,180,255,.27))}50%{filter:drop-shadow(0 0 20px rgba(33,191,255,.51))}}
+@keyframes as-eyes-think{0%{filter:brightness(.75)}100%{filter:brightness(1.4)}}
+@keyframes as-msg-reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes as-focus{0%,100%{box-shadow:inset 0 1px rgba(255,255,255,.03)}50%{box-shadow:0 0 0 4px rgba(43,210,255,.23),0 0 27px rgba(38,173,255,.26)}}
+@keyframes as-field-flash{0%,100%{background:transparent}45%{background:rgba(32,159,232,.22)}}
+@media(max-width:1330px){
+ #agente .agent-studio-grid{grid-template-columns:minmax(225px,.69fr) minmax(420px,1.4fr) minmax(255px,.76fr);gap:10px}
+ #agente .agent-studio-panel-head{padding-right:122px}
+ #agente .agent-studio-sound{display:none}
+ #agente .agent-studio-intro{padding:28px 18px 18px}
+ #agente .agent-studio-summary{padding:23px 15px}
+ #agente .agent-studio-lede{font-size:13px}
+ #agente .agent-studio-benefits{gap:11px}
+ #agente .agent-studio-intro h2{font-size:clamp(31px,3.1vw,43px)}
+}
+@media(max-width:1070px){
+ #agente .agent-studio-grid{grid-template-columns:minmax(270px,.87fr) minmax(0,1.45fr);gap:14px}
+ #agente .agent-studio-summary{grid-column:2}
+ #agente .agent-studio-intro{grid-row:1/3}
+ #agente .agent-studio-summary .lead-panel dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #agente .agent-studio-summary .lead-panel dl>div{padding:11px}
+ #agente .agent-studio-logo-scene{min-height:270px}
+}
+@media(max-width:730px){
+ #agente.agent-studio{padding:70px 0 80px}
+ #agente .agent-studio-grid-shell{width:calc(100% - 28px)}
+ #agente .agent-studio-grid{display:flex;flex-direction:column;gap:14px}
+ #agente .agent-studio-intro{padding:26px 22px 0}
+ #agente .agent-studio-intro h2{font-size:clamp(33px,9vw,51px);margin:20px 0 14px}
+ #agente .agent-studio-lede{font-size:14px;margin-bottom:18px}
+ #agente .agent-studio-benefits{grid-template-columns:1fr;gap:8px}
+ #agente .agent-studio-benefits>div{grid-template-columns:33px 1fr;gap:10px}
+ #agente .benefit-icon{width:32px;height:32px;font-size:19px;border-radius:10px}
+ #agente .agent-studio-benefits strong{font-size:12px;margin-top:0}
+ #agente .agent-studio-benefits small{font-size:10px}
+ #agente .agent-studio-logo-scene{min-height:155px;padding-top:0;gap:5px}
+ #agente .agent-studio-logo-object{height:108px;width:160px}
+ #agente .agent-studio-logo-object img{max-height:106px}
+ #agente .agent-studio-logo-ring{height:36px;bottom:26px;width:65%}
+ #agente .agent-studio-logo-ring.ring-two{bottom:28px;width:45%}
+ #agente .agent-studio-logo-scene small{margin-bottom:5px;font-size:8px}
+ #agente .agent-studio-panel-head{height:auto;min-height:117px;padding:16px 93px 16px 14px}
+ #agente .agent-studio-identity{gap:8px}
+ #agente .agent-studio-identity img{height:42px;width:41px}
+ #agente .agent-studio-identity strong{font-size:clamp(15px,4.2vw,19px)}
+ #agente .agent-studio-identity small{font-size:9.5px}
+ #agente .agent-studio-panel-state{position:absolute;bottom:8px;left:64px;font-size:8px;padding:4px 8px}
+ #agente .agent-studio-mascot{right:2px;top:-18px;width:95px;height:110px}
+ #agente .mascot-halo{width:88px;height:38px}
+ #agente .mascot-halo.halo-two{width:100px;height:45px}
+ #agente .agent-studio-chat-shell,#agente .agent-studio-intro,#agente .agent-studio-summary{border-radius:19px}
+ #agente .agent-studio-panel-head{border-radius:19px 19px 0 0}
+ #agente .agent-studio-chat-body{border-radius:0 0 19px 19px}
+ #agente .chat-panel{padding:13px 11px 16px}
+ #agente .chat-messages{max-height:300px;min-height:160px;padding:0 2px 12px}
+ #agente .msg{font-size:12px;padding:11px 12px;max-width:95%}
+ #agente .quick-starts{gap:8px;padding:0 1px 13px}
+ #agente .quick-starts button{grid-template-columns:27px minmax(0,1fr) 18px;gap:6px;padding:10px 7px;min-height:91px;border-radius:10px}
+ #agente .quick-starts button b{width:25px;height:29px}
+ #agente .quick-starts button b svg{width:22px;height:22px}
+ #agente .quick-starts .agent-choice-name{font-size:10.5px}
+ #agente .quick-starts .agent-choice-desc{font-size:9.2px}
+ #agente .agent-choice-arrow{width:18px;height:18px;font-size:10px}
+ #agente .agent-studio-summary{padding:20px 16px}
+ #agente .agent-studio-summary-head h3{font-size:23px}
+ #agente .agent-studio-summary .lead-panel dl{grid-template-columns:1fr}
+ #agente .agent-form textarea{font-size:16px!important}
+ #agente .agent-studio-reply-note{display:block}
+ #agente .agent-studio-reply-note span{display:block;margin-top:3px}
+}
+@media(max-width:370px){
+ #agente .agent-studio-grid-shell{width:calc(100% - 18px)}
+ #agente .agent-studio-intro{padding-left:16px;padding-right:16px}
+ #agente .agent-studio-intro h2{font-size:31px}
+ #agente .quick-starts{grid-template-columns:1fr}
+ #agente .quick-starts button{min-height:65px;grid-template-columns:34px 1fr 20px}
+ #agente .quick-starts .agent-choice-name{font-size:11px}
+ #agente .quick-starts .agent-choice-desc{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ #agente .agent-studio-mascot,#agente .agent-studio-sound i,#agente .online-dot,#agente .agent-studio-logo-object,#agente .msg,#agente .agent-studio-mascot .mascot-eye{animation:none!important}
+ #agente .quick-starts button,#agente .mascot-head,#agente .mascot-eye{transition:none!important}
+}
+
+/* Visual integration: ensure original agent retains its layout without changing Impact Studio's other sections. */
+#agente{scroll-margin-top:88px;}
+#agente .agent-studio-grid-shell{max-width:1680px;}
+#agente .agent-studio-intro h2{font-family:inherit;}
+#agente .agent-studio-logo-object img{width:auto;}
+@media(max-width:730px){#agente{scroll-margin-top:66px}}
