@@ -67,11 +67,12 @@ header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap
 
 <div id="login" class="login">
 <div class="loginbox"><div class="login-brand"><img src="./lacrose-tecnologia.png" alt="Lacrose Tecnologia"></div>
-<h2>Controle Financeiro</h2><p>Acesso protegido • Lacrose</p>
-<label>Senha<input id="senha" type="password" placeholder="Digite sua senha" autocomplete="current-password"></label>
+<h2>Controle Financeiro</h2><p>Acesso protegido • autenticação validada no servidor</p>
+<label>E-mail<input id="email" type="email" placeholder="Seu e-mail" autocomplete="username" required></label>
+<label>Senha<input id="senha" type="password" placeholder="Digite sua senha" autocomplete="current-password" required></label>
 <div id="erro" class="err"></div>
-<button style="width:100%;margin-top:8px" onclick="entrar()">Entrar</button>
-<button class="secondary" style="width:100%;margin-top:8px" onclick="novaSenha()">Alterar senha</button><button class="secondary" style="width:100%;margin-top:8px" onclick="abrirContato()">Contato / Site</button><button class="secondary" style="width:100%;margin-top:8px" onclick="resetSenha()">Restaurar senha padrão</button>
+<button id="login-btn" style="width:100%;margin-top:8px" onclick="entrar()">Entrar</button>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="abrirContato()">Contato / Site</button>
 </div>
 </div>
 
@@ -80,7 +81,7 @@ header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap
   <img src="./lacrose-tecnologia.png" alt="Lacrose Tecnologia">
   <div>
     <h1>Controle Financeiro Lacrose</h1>
-    <small>Versão offline • Lacrose Tecnologia</small>
+    <small>Dados locais • acesso autenticado • Lacrose Tecnologia</small>
   </div>
 </div>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -166,23 +167,69 @@ var dados=[],editando=null;
 function $(id){return document.getElementById(id)}
 function dinheiro(v){return Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
 function preencher(id,arr){$(id).innerHTML=arr.map(function(x){return "<option>"+x+"</option>"}).join("")}
-// Armazenamento compatível com Safari/iPhone, inclusive quando localStorage é bloqueado em arquivo local.
-var memoriaLocal={},memoriaSessao={};
+// Dados financeiros permanecem locais neste dispositivo. Credenciais nunca são armazenadas pelo FluX.
+var memoriaLocal={};
+var authToken=null,appInicializado=false;
+var SUPABASE_URL="https://icrtewhazpfauuroswri.supabase.co";
+var SUPABASE_PUBLISHABLE_KEY="sb_publishable_6PdAW2f-dpXhsaZXI0lyBg_PcGtuWgs";
+
 function storeGet(k){try{var v=window.localStorage.getItem(k);return v===null?(memoriaLocal[k]||null):v}catch(e){return memoriaLocal[k]||null}}
 function storeSet(k,v){memoriaLocal[k]=String(v);try{window.localStorage.setItem(k,String(v))}catch(e){}}
-function sessGet(k){try{var v=window.sessionStorage.getItem(k);return v===null?(memoriaSessao[k]||null):v}catch(e){return memoriaSessao[k]||null}}
-function sessSet(k,v){memoriaSessao[k]=String(v);try{window.sessionStorage.setItem(k,String(v))}catch(e){}}
-function sessRemove(k){delete memoriaSessao[k];try{window.sessionStorage.removeItem(k)}catch(e){}}
 function salvar(){storeSet("lacrose_financeiro_final",JSON.stringify(dados))}
 function carregar(){try{dados=JSON.parse(storeGet("lacrose_financeiro_final")||"[]")}catch(e){dados=[]}}
 function hoje(){$("fdata").value=dataLocal()}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 
-function senhaInicial(){if(!storeGet("lacrose_senha_v4"))storeSet("lacrose_senha_v4","102030")}
-function entrar(){if($("senha").value===storeGet("lacrose_senha_v4")){$("login").style.display="none";sessSet("lacrose_ok","1");$("erro").textContent=""}else $("erro").textContent="Senha incorreta."}
-function novaSenha(){var a=prompt("Senha atual:");if(a===null)return;if(a!==storeGet("lacrose_senha_v4")){alert("Senha atual incorreta.");return}var n=prompt("Nova senha (mínimo 6 caracteres):");if(!n||n.length<6){alert("Senha inválida.");return}var c=prompt("Confirme a nova senha:");if(n!==c){alert("As senhas não conferem.");return}storeSet("lacrose_senha_v4",n);alert("Senha alterada com sucesso.")}
-function bloquear(){sessRemove("lacrose_ok");$("senha").value="";$("login").style.display="flex"}
-function resetSenha(){if(confirm("Restaurar a senha padrão 102030?")){storeSet("lacrose_senha_v4","102030");alert("Senha restaurada. Use: 102030");$("senha").value="";}}
+function authHeaders(token){
+  var h={"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"};
+  if(token)h["Authorization"]="Bearer "+token;
+  return h;
+}
+function authMensagem(texto){$("erro").textContent=texto||""}
+function authBusy(ocupado){var b=$("login-btn");b.disabled=ocupado;b.textContent=ocupado?"Entrando…":"Entrar"}
+async function perfilAutorizado(token,userId){
+  var url=SUPABASE_URL+"/rest/v1/profiles?id=eq."+encodeURIComponent(userId)+"&select=role,active";
+  var r=await fetch(url,{headers:authHeaders(token),cache:"no-store"});
+  if(!r.ok)return false;
+  var lista=await r.json();
+  var p=Array.isArray(lista)?lista[0]:null;
+  return !!(p&&p.active===true&&(p.role==="master"||p.role==="admin"));
+}
+function inicializarAplicativo(){
+  if(appInicializado)return;
+  preencher("fcategoria",categorias);preencher("fforma",formas);preencher("fconta",contas);preencher("fstatus",statusOpcoes);preencher("filtroCat",["Todas categorias"].concat(categorias));$("filtroCat").options[0].value="";$("fdata").value=dataLocal();
+  ["busca","filtroTipo","filtroCat","inicio","fim"].forEach(function(id){$(id).oninput=render});
+  carregar();render();appInicializado=true;
+}
+async function entrar(){
+  var email=$("email").value.trim(),senha=$("senha").value;
+  authMensagem("");
+  if(!email||!senha){authMensagem("Informe e-mail e senha.");return}
+  authBusy(true);
+  try{
+    var r=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{
+      method:"POST",headers:authHeaders(),body:JSON.stringify({email:email,password:senha}),cache:"no-store"
+    });
+    if(!r.ok){authMensagem("E-mail ou senha inválidos.");return}
+    var data=await r.json();
+    if(!data.access_token||!data.user||!await perfilAutorizado(data.access_token,data.user.id)){
+      authMensagem("Conta sem permissão para acessar o FluX.");
+      return;
+    }
+    authToken=data.access_token;
+    try{window.localStorage.removeItem("lacrose_senha_v4");window.sessionStorage.removeItem("lacrose_ok")}catch(e){}
+    $("senha").value="";
+    $("login").style.display="none";
+    inicializarAplicativo();
+  }catch(e){
+    authMensagem("Não foi possível validar o acesso agora.");
+  }finally{authBusy(false)}
+}
+async function bloquear(){
+  var token=authToken;authToken=null;
+  if(token){try{await fetch(SUPABASE_URL+"/auth/v1/logout",{method:"POST",headers:authHeaders(token),cache:"no-store"})}catch(e){}}
+  $("senha").value="";$("login").style.display="flex";authMensagem("");
+}
 
 function aba(id,btn){var bs=document.querySelectorAll("nav button");for(var i=0;i<bs.length;i++){bs[i].classList.remove("active");bs[i].classList.add("secondary")}btn.classList.add("active");btn.classList.remove("secondary");var vs=document.querySelectorAll(".view");for(var j=0;j<vs.length;j++)vs[j].classList.remove("active");$(id).classList.add("active");render()}
 
@@ -216,11 +263,9 @@ function storeSet(k,v){try{window.localStorage.setItem(k,String(v));memoriaLocal
 function carregar(){var raw=storeGet("lacrose_financeiro_final");try{dados=JSON.parse(raw||"[]");if(!Array.isArray(dados))throw Error()}catch(e){avisoStorage("Os dados locais não puderam ser lidos. O conteúdo original foi preservado. Não salve novos lançamentos antes de recuperar seu backup.");document.querySelectorAll('#form button,#arquivo').forEach(function(el){el.disabled=true});dados=[];salvar=function(){throw Error("Dados locais inválidos preservados")}}}
 function parseCSV(text){text=text.replace(/^\ufeff/,"");var rows=[],row=[],cell="",quoted=false;for(var i=0;i<text.length;i++){var c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++}else quoted=!quoted}else if(c===';'&&!quoted){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(Boolean))rows.push(row);row=[];cell=""}else cell+=c}if(quoted)throw Error("Aspas incompletas");row.push(cell);if(row.some(Boolean))rows.push(row);return rows}
 $("arquivo").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onerror=function(){alert("Não foi possível ler o arquivo.")};r.onload=function(){try{var rows=parseCSV(r.result),hs=rows.shift();if(!hs||hs.indexOf("Data")<0||hs.indexOf("Valor (R$)")<0)throw Error();var add=rows.map(function(v,i){if(v.length!==hs.length)throw Error();var o={};hs.forEach(function(h,j){o[h]=v[j]});var raw=o["Valor (R$)"]||"0",valor=Number(raw.includes(',')?raw.replace(/\./g,"").replace(',','.'):raw);if(!/^\d{4}-\d{2}-\d{2}$/.test(o.Data)||!Number.isFinite(valor)||valor<0||!["Entrada","Despesa"].includes(o.Tipo))throw Error();return{id:String(Date.now())+'-'+i,data:o.Data,tipo:o.Tipo,categoria:o.Categoria||"Outros",descricao:o["Descrição"]||"",pessoa:o["Fornecedor / Cliente"]||"",forma:o["Forma de Pagamento"]||"Outro",conta:o["Conta / Caixa"]||"Outro",doc:o.Documento||"",valor:valor,obs:o["Observações"]||"",status:o.Status||"Pendente"}});if(!add.length)throw Error();if(confirm("Adicionar "+add.length+" lançamentos?")){dados=dados.concat(add);salvar();render();alert("Importação concluída.")}}catch(e){alert("Importação não concluída. Verifique o CSV e o aviso de armazenamento, se houver.")}e.target.value=""};r.readAsText(f,"UTF-8")};
-$("senha").addEventListener('keydown',function(e){if(e.key==='Enter')entrar()});
-
-preencher("fcategoria",categorias);preencher("fforma",formas);preencher("fconta",contas);preencher("fstatus",statusOpcoes);preencher("filtroCat",["Todas categorias"].concat(categorias));$("filtroCat").options[0].value="";$("fdata").value=dataLocal();
-["busca","filtroTipo","filtroCat","inicio","fim"].forEach(function(id){$(id).oninput=render});
-senhaInicial();carregar();if(sessGet("lacrose_ok")==="1")$("login").style.display="none";render();
+$("senha").addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();entrar()}});
+$("email").addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();entrar()}});
+try{window.localStorage.removeItem("lacrose_senha_v4");window.sessionStorage.removeItem("lacrose_ok")}catch(e){}
 </script>
 
 <footer class="no-print" style="text-align:center;padding:20px;color:#667085;font-size:12px">
