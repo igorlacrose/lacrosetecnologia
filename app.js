@@ -1502,25 +1502,6 @@ function updatePreview(){
   }
 
 
-  try{
-
-    localStorage.setItem(
-      'lacrose_agent_demo_lead',
-      JSON.stringify({
-
-        lead:l,
-
-        messages:
-          state.messages,
-
-        updatedAt:
-          new Date().toISOString()
-      })
-    );
-
-  }catch(e){}
-
-
   schedulePersist();
 }
 
@@ -2730,14 +2711,6 @@ function resetAgent(){
 
   hideContextReplies();
 
-
-  try{
-
-    localStorage.removeItem(
-      'lacrose_agent_demo_lead'
-    );
-
-  }catch(e){}
 
 
   addMessage(
