@@ -86,7 +86,7 @@ header{padding-top:calc(16px + env(safe-area-inset-top));gap:12px;flex-wrap:wrap
   </div>
 </div>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-  <button class="contact-btn" onclick="window.open('https://lacrosetecnologia.com.br/card/','_blank')">Contato</button>
+  <button class="contact-btn" onclick="abrirContato()">Contato</button>
   <button onclick="imprimir()">Imprimir relatório</button>
 </div>
 </header>
@@ -271,7 +271,7 @@ try{window.localStorage.removeItem("lacrose_senha_v4");window.sessionStorage.rem
 
 <footer class="no-print" style="text-align:center;padding:20px;color:#667085;font-size:12px">
   Desenvolvido por <b>Lacrose Tecnologia</b> •
-  <a href="https://lacrosetecnologia.com.br/card/" target="_blank" style="color:#2563eb;text-decoration:none">Cartão Digital</a>
+  <a href="https://lacrosetecnologia.com.br/card/" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none">Cartão Digital</a>
 </footer>
 <script src="./pwa.js"></script>
 </body>
