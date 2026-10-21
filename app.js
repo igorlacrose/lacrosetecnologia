@@ -391,10 +391,7 @@ const el={
     document.getElementById('resetAgent'),
 
   example:
-    document.getElementById('runExample'),
-
-  openAdmin:
-    document.getElementById('openAdmin')
+    document.getElementById('runExample')
 };
 
 
@@ -2927,49 +2924,6 @@ if(el.form){
     );
 
 
-
-  el.openAdmin
-    ?.addEventListener(
-      'click',
-      ()=>{
-
-        updatePreview();
-
-
-        const payload={
-
-          lead:
-            state.lead,
-
-          messages:
-            state.messages,
-
-          updatedAt:
-            new Date().toISOString()
-        };
-
-
-        let url=
-          'admin/';
-
-
-        try{
-
-          url+=
-            '?demo='+
-            encodeURIComponent(
-              encodeDemo(
-                payload
-              )
-            );
-
-        }catch(e){}
-
-
-        window.location.href=
-          url;
-      }
-    );
 
 
   resetAgent();
