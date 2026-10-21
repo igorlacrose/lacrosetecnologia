@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'lacrose-flux:' + self.registration.scope + ':';
-const CACHE = CACHE_PREFIX + 'v2';
+const CACHE = CACHE_PREFIX + 'v3-security';
 const SHELL = ['./','./index.html','./manifest.webmanifest','./pwa.js','./icon-192.png','./icon-512.png','./apple-touch-icon.png','./lacrose-tecnologia.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));

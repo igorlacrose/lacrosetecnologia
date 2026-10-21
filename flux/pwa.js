@@ -1,6 +1,6 @@
 (function(){
   var status=document.getElementById('pwa-status');
-  function show(){status.textContent=navigator.onLine?'Pronto para uso offline neste dispositivo.':'Sem conexão • trabalhando com os dados deste dispositivo.'}
+  function show(){status.textContent=navigator.onLine?'Aplicativo preparado neste dispositivo. A autenticação exige conexão.':'Sem conexão • mantenha esta sessão aberta para continuar usando os dados locais.'}
   if(!('serviceWorker' in navigator)||!window.isSecureContext){status.textContent='Para instalar e habilitar o modo offline, abra este sistema por HTTPS.';return}
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('./service-worker.js',{scope:'./',updateViaCache:'none'}).then(function(reg){

@@ -34,6 +34,12 @@ FORBIDDEN = [
     re.compile(r"\b127\.0\.0\.1\b"),
     re.compile(r"\bTODO\b"),
     re.compile(r"\bFIXME\b"),
+    re.compile(r"SUPABASE_SERVICE_ROLE_KEY"),
+    re.compile(r"\bsb_secret_[A-Za-z0-9_-]+"),
+    re.compile(r"TELEGRAM_BOT_TOKEN"),
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(r"lacrose_agent_demo_lead"),
+    re.compile(r"cdn\.jsdelivr\.net/npm/@supabase/supabase-js@(?:2|latest)(?:[\"'/]|$)"),
 ]
 
 
@@ -129,10 +135,27 @@ def main() -> int:
     if 'href="admin/"' in index or 'id="openAdmin"' in index or "Ver painel comercial" in index:
         fail("A home não deve expor link ou botão para /admin/", errors)
 
+    if 'href="flux/"' in index:
+        fail("A home não deve expor atalho público para /flux/", errors)
+
     for rel in ["admin/index.html", "lcs/index.html", "flux/index.html"]:
         text = (ROOT / rel).read_text(encoding="utf-8")
         if 'name="robots"' not in text or "noindex" not in text or "nofollow" not in text:
             fail(f"{rel} precisa permanecer noindex,nofollow", errors)
+
+    admin_html = (ROOT / "admin/index.html").read_text(encoding="utf-8")
+    if "@supabase/supabase-js@2.117.3" not in admin_html:
+        fail("Painel deve usar versão fixa do supabase-js", errors)
+    if "Content-Security-Policy" not in admin_html:
+        fail("Painel deve manter CSP explícita", errors)
+
+    flux_html = (ROOT / "flux/index.html").read_text(encoding="utf-8")
+    for forbidden_flux in ['"102030"', "senhaInicial(", "resetSenha("]:
+        if forbidden_flux in flux_html:
+            fail(f"FluX contém autenticação local insegura: {forbidden_flux}", errors)
+    for required_flux in ["auth/v1/token?grant_type=password", "/rest/v1/profiles", "SUPABASE_PUBLISHABLE_KEY"]:
+        if required_flux not in flux_html:
+            fail(f"FluX sem controle de autenticação esperado: {required_flux}", errors)
 
     robots = (ROOT / "robots.txt").read_text(encoding="utf-8")
     for rule in ["Disallow: /admin/", "Disallow: /lcs/", "Disallow: /flux/", "Sitemap: https://lacrosetecnologia.com.br/sitemap.xml"]:
