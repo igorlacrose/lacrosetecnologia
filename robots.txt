@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /lcs/
+Disallow: /flux/
+
+Sitemap: https://lacrosetecnologia.com.br/sitemap.xml
