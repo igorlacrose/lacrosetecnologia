@@ -13,8 +13,7 @@ const sb =
     SUPABASE_PUBLISHABLE_KEY,
     {
       auth:{
-        storage:window.sessionStorage,
-        persistSession:true,
+        persistSession:false,
         autoRefreshToken:true,
         detectSessionInUrl:false
       }

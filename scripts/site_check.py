@@ -26,6 +26,7 @@ REQUIRED = [
     "admin/index.html",
     "flux/index.html",
     "lcs/index.html",
+    ".github/dependabot.yml",
 ]
 
 TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".xml", ".webmanifest", ".yml", ".yaml"}
@@ -47,6 +48,7 @@ class LinkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.links: list[tuple[str, str]] = []
+        self.unsafe_blank_links: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr_map = dict(attrs)
@@ -54,6 +56,11 @@ class LinkParser(HTMLParser):
             value = attr_map.get(attr)
             if value:
                 self.links.append((attr, value))
+
+        if tag == "a" and attr_map.get("target") == "_blank":
+            rel = set((attr_map.get("rel") or "").lower().split())
+            if "noopener" not in rel:
+                self.unsafe_blank_links.append(attr_map.get("href") or "<sem href>")
 
 
 def fail(message: str, errors: list[str]) -> None:
@@ -123,11 +130,16 @@ def main() -> int:
                 if target is not None and not target.exists():
                     fail(f"Referência local quebrada em {rel}: {attr}={raw!r}", errors)
 
+            for raw in parser.unsafe_blank_links:
+                fail(f"Link target=_blank sem noopener em {rel}: {raw!r}", errors)
+
     index = (ROOT / "index.html").read_text(encoding="utf-8")
     for required_text in [
         'rel="canonical" href="https://lacrosetecnologia.com.br/"',
         'name="twitter:card"',
         'application/ld+json',
+        'Content-Security-Policy',
+        'name="referrer"',
     ]:
         if required_text not in index:
             fail(f"SEO da home incompleto: ausente {required_text}", errors)
@@ -149,13 +161,35 @@ def main() -> int:
     if "Content-Security-Policy" not in admin_html:
         fail("Painel deve manter CSP explícita", errors)
 
+    admin_js = (ROOT / "admin/app.js").read_text(encoding="utf-8")
+    if "persistSession:false" not in admin_js:
+        fail("Painel deve manter sessão administrativa somente em memória", errors)
+    if "storage:window.sessionStorage" in admin_js or "persistSession:true" in admin_js:
+        fail("Painel não deve persistir sessão administrativa no sessionStorage", errors)
+
     flux_html = (ROOT / "flux/index.html").read_text(encoding="utf-8")
     for forbidden_flux in ['"102030"', "senhaInicial(", "resetSenha("]:
         if forbidden_flux in flux_html:
             fail(f"FluX contém autenticação local insegura: {forbidden_flux}", errors)
-    for required_flux in ["auth/v1/token?grant_type=password", "/rest/v1/profiles", "SUPABASE_PUBLISHABLE_KEY"]:
+    for required_flux in ["auth/v1/token?grant_type=password", "/rest/v1/profiles", "SUPABASE_PUBLISHABLE_KEY", "Content-Security-Policy"]:
         if required_flux not in flux_html:
             fail(f"FluX sem controle de autenticação esperado: {required_flux}", errors)
+
+    for rel in ["card/index.html", "404.html", "lcs/index.html"]:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if "Content-Security-Policy" not in text:
+            fail(f"{rel} deve manter CSP explícita", errors)
+
+    workflow = (ROOT / ".github/workflows/site-check.yml").read_text(encoding="utf-8")
+    for forbidden_action_ref in ["actions/checkout@v", "actions/setup-python@v"]:
+        if forbidden_action_ref in workflow:
+            fail(f"GitHub Action deve estar fixada por SHA: {forbidden_action_ref}", errors)
+    for required_action_sha in [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+    ]:
+        if required_action_sha not in workflow:
+            fail(f"GitHub Action esperada ausente: {required_action_sha}", errors)
 
     robots = (ROOT / "robots.txt").read_text(encoding="utf-8")
     for rule in ["Disallow: /admin/", "Disallow: /lcs/", "Disallow: /flux/", "Sitemap: https://lacrosetecnologia.com.br/sitemap.xml"]:
