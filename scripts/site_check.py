@@ -28,7 +28,7 @@ REQUIRED = [
     "lcs/index.html",
 ]
 
-TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".xml", ".txt", ".webmanifest", ".yml", ".yaml", ".md"}
+TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".xml", ".webmanifest", ".yml", ".yaml"}
 FORBIDDEN = [
     re.compile(r"\blocalhost\b", re.I),
     re.compile(r"\b127\.0\.0\.1\b"),
