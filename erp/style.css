@@ -120,3 +120,24 @@ small,.muted,.sub,.hint,.footnote{color:var(--muted);font-weight:500}
  body{color:#000;background:#fff}
  .stat .name,.stat .foot,.activity small{color:#333}
 }
+
+/* Fiscal DEMO v0.2.0: elementos acessíveis e impressão segregada. */
+.fiscal-warning{border-left:4px solid #aa651a;font-size:12px;line-height:1.55}
+.fiscal-modal{max-width:720px}
+.fiscal-actions .btn{white-space:normal;text-align:center}
+.fiscal-receipt{position:relative;background:white;color:#183043;border:2px dashed #b9cbd5;border-radius:12px;padding:16px;overflow:hidden}
+.fiscal-receipt .fiscal-watermark{background:#fce9e9;color:#87252f;font-size:18px;font-weight:900;letter-spacing:1px;text-align:center;padding:10px;border:2px solid #c06767;border-radius:7px;margin-bottom:15px}
+.fiscal-receipt p{margin:7px 0}.fiscal-receipt .tablewrap{margin:14px 0}
+.fiscal-import-line{border:1px solid #cbd6df;background:#f5f8fa;border-radius:10px;padding:12px;display:grid;gap:8px;margin:7px 0}
+.fiscal-import-line strong{font-size:13px;color:#152b3c}
+.fiscal-import-line .pill{width:max-content}
+@media(max-width:760px){.bottomnav{grid-template-columns:repeat(6,minmax(0,1fr))}.bottomnav button{font-size:11px;min-width:0;word-break:normal}.bottomnav button .navicon{font-size:20px}.fiscal-modal{max-width:100%}.fiscal-warning{font-size:12px}}
+@media(min-width:761px){.mobile-preview .bottomnav{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media print{
+ .modalback{position:static!important;background:white!important;padding:0!important;display:block!important}
+ .modal.fiscal-modal{max-width:none!important;box-shadow:none!important;max-height:none!important;overflow:visible!important;border:0!important;padding:0!important}
+ .modal.fiscal-modal .modalheader,.modal.fiscal-modal .fiscal-actions,.modal.fiscal-modal>.footnote{display:none!important}
+ body:has(.fiscal-receipt) .appbar,body:has(.fiscal-receipt) .shell,body:has(.fiscal-receipt) .toast{display:none!important}
+ .fiscal-receipt{border:2px solid #222;break-inside:avoid}
+ .fiscal-receipt .fiscal-watermark{color:#000;border-color:#000;background:#fff}
+}
