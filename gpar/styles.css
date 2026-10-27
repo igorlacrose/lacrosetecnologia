@@ -125,3 +125,16 @@ footer,footer small{color:#40556b;font-size:12px}footer strong{color:#1b344c;fon
 body[data-loading="true"] .main,body[data-loading="true"] .sidebar{pointer-events:none;opacity:.68}
 #storage-status{font-weight:800;color:#126342;margin:6px 0}
 #storage-status[data-status="error"]{color:#9f2424}
+
+/* GPar: crédito do desenvolvedor e logomarca oficial, fora do White Label. */
+.developer-credit-link{display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 8px;border:1px solid #c7d7e5;border-radius:12px;background:#f3f7fb;color:#153a5e;text-align:center}
+.developer-credit-link strong{color:#153a5e;font-size:14px}
+.developer-logo{display:block;width:min(100%,145px);height:auto;object-fit:contain}
+.developer-footer-link{display:flex;align-items:center;gap:11px;min-height:60px;color:#153a5e;font-weight:800}
+.developer-footer-link strong{color:#153a5e;font-size:13px}
+.developer-footer-logo{display:block;width:84px;height:auto;flex:none;object-fit:contain;background:#f3f7fb;border-radius:8px;padding:4px}
+.developer-fixed .developer-text-link{color:#153a5e;font-size:14px;font-weight:800}
+.developer-credit-link:hover strong,.developer-footer-link:hover strong,.developer-text-link:hover{text-decoration:underline;text-underline-offset:3px}
+.developer-credit-link:focus-visible,.developer-footer-link:focus-visible,.developer-text-link:focus-visible{outline:3px solid #1769b7;outline-offset:3px}
+@media(max-width:920px){footer{justify-content:center;text-align:center}footer .developer-footer-link{order:-1;flex-basis:100%;justify-content:center}}
+@media(max-width:480px){.developer-footer-logo{width:72px}.developer-footer-link strong{font-size:12px}}
