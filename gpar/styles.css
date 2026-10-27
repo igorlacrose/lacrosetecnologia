@@ -144,3 +144,113 @@ footer>small{grid-column:3;grid-row:1;text-align:right}
   footer>span{grid-column:1;grid-row:2}
   footer>small{grid-column:1;grid-row:3;text-align:center}
 }
+
+
+/* gpar sidebar 2026-10-27: crédito visível e menu navegável em qualquer altura. */
+.sidebar{
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#90a9bf #f3f7fb;
+  min-height:0;
+  gap:5px;
+}
+.sidebar .brand{padding:10px 8px 10px;flex-shrink:0}
+.sidebar .developer-credit{
+  flex-shrink:0;
+  margin:0 4px 12px;
+  padding:10px 4px 8px;
+  border-top:1px solid #e1e9f1;
+  border-bottom:1px solid #e1e9f1;
+}
+.sidebar .developer-credit>span{font-size:11px;color:#294963}
+.sidebar .developer-credit small{font-size:11px;color:#435a70}
+.sidebar .developer-credit-link{
+  flex-direction:row;
+  justify-content:flex-start;
+  text-align:left;
+  gap:10px;
+  padding:7px 8px;
+  border-color:#bed0df;
+  min-height:82px;
+}
+.sidebar .developer-credit-link strong{
+  font-size:13px;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.35;
+}
+.sidebar .developer-logo{width:64px;max-width:64px;height:auto;flex:none}
+.sidebar .section-kicker{padding:5px 12px 8px}
+.sidebar .nav{flex-shrink:0;min-height:44px;padding:9px 12px;line-height:1.4}
+.sidebar .nav-icon{flex:none}
+.sidebar .sidebar-note{flex-shrink:0;margin-top:14px;padding:12px}
+.mobile-menu-toggle,.mobile-menu-close{display:none}
+.sidebar-scrim[hidden]{display:none!important}
+@media(max-width:920px){
+  .mobile-menu-toggle{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    position:fixed;
+    z-index:19;
+    top:calc(12px + env(safe-area-inset-top,0px));
+    left:calc(14px + env(safe-area-inset-left,0px));
+    min-height:44px;
+    padding:8px 16px;
+    border:1px solid #819eb5;
+    border-radius:11px;
+    background:#fff;
+    color:#173a59;
+    font-size:17px;
+    font-weight:750;
+    box-shadow:0 3px 12px #193b582b;
+  }
+  .mobile-menu-toggle span{font-size:15px}
+  body.sidebar-open .mobile-menu-toggle{display:none}
+  .mobile-menu-close{
+    display:grid;
+    place-items:center;
+    position:absolute;
+    top:12px;
+    right:12px;
+    width:42px;
+    height:42px;
+    border:1px solid #9aafc0;
+    border-radius:10px;
+    background:#fff;
+    color:#173a59;
+    font-size:28px;
+    z-index:1;
+  }
+  .sidebar{
+    display:flex;
+    position:fixed;
+    inset:0 auto 0 0;
+    height:100vh;
+    height:100dvh;
+    max-height:100dvh;
+    width:min(312px,88vw);
+    padding:18px 12px 24px;
+    padding-top:calc(18px + env(safe-area-inset-top,0px));
+    z-index:20;
+    transform:translateX(-105%);
+    visibility:hidden;
+    pointer-events:none;
+    transition:transform .2s ease,visibility .2s ease;
+    box-shadow:6px 0 22px #162d4924;
+  }
+  .sidebar .brand{padding-right:43px}
+  body.sidebar-open .sidebar{transform:translateX(0);visibility:visible;pointer-events:auto}
+  .sidebar-scrim:not([hidden]){display:block;position:fixed;inset:0;background:#10233da6;z-index:18}
+  body.sidebar-open{overflow:hidden}
+  .main{padding-top:76px}
+}
+@media(prefers-reduced-motion:reduce){
+  .sidebar{transition:none}
+}
+@media print{
+  .mobile-menu-toggle,.mobile-menu-close,.sidebar-scrim{display:none!important}
+}
