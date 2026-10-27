@@ -1,5 +1,5 @@
-/* Gestão de Parcerias — BI financeiro — módulo independente, sem backend.
-   Os dados não são transmitidos nem gravados persistentemente. */
+/* Gestão de Parcerias — BI local-first, sem backend nem sincronização.
+   Registros financeiros são salvos neste navegador por IndexedDB; exporte backups JSON. */
 (() => {
   'use strict';
   const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -235,7 +235,7 @@
     if(state.demo){if(!confirm('Os dados de exemplo serão substituídos pela planilha real. Continuar?'))return;state.rows=[];state.companies=[];state.files.clear();state.demo=false;}
     for(const row of p.valid){const company=ensureCompany(row.company);row.companyId=company.id;row.id=newId();row.source='import';state.rows.push(row);}
     state.files.add(state.current.hash);const count=p.valid.length;const skipped=p.invalid.length;
-    modal(false);resetFilters();render();fillShareFromCompany();toast(`${count} lançamentos importados. ${skipped?skipped+' linhas inválidas ignoradas.':'Dados prontos para análise.'}`);
+    modal(false);resetFilters();render();fillShareFromCompany();autoSave();toast(`${count} lançamentos importados. ${skipped?skipped+' linhas inválidas ignoradas.':'Dados prontos para análise.'}`);
   }
   function allCompanies(){return [...state.companies].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));}
   function ensureCompany(name){let company=state.companies.find(c=>cleanName(c.name)===cleanName(name));if(!company){company={id:newId(),name:clampText(name,100),base:'net',partners:[],active:true};state.companies.push(company);}return company;}
@@ -290,7 +290,7 @@
     $('btn-csv').disabled=!rows.length;$('btn-print').disabled=!rows.length;$('clear-data').hidden=!available&&!state.companies.length;
     const notice=$('notice');notice.classList.toggle('demo',state.demo);const strong=notice.querySelector('strong'),description=notice.querySelector('span');
     strong.textContent=state.demo?'Dados fictícios de demonstração':available?'Lançamentos prontos para análise':state.companies.length?'Empresas cadastradas. Faça seu primeiro lançamento.':'Comece cadastrando sua primeira empresa';
-    description.textContent=state.demo?'Exemplo fictício: não representa resultados reais.':available?`${state.rows.length} lançamentos · ${allCompanies().length} empresas · planilhas opcionais. Baixe uma cópia antes de sair.`:'Você pode lançar tudo manualmente ou importar Excel/CSV.';
+    description.textContent=state.demo?'Exemplo fictício: não representa resultados reais.':available?`${state.rows.length} lançamentos · ${allCompanies().length} empresas · planilhas opcionais. Faça cópias de segurança JSON periodicamente.`:'Você pode lançar tudo manualmente ou importar Excel/CSV.';
     monthlyChart(rows);categoriesChart(rows);companyChart(rows);recentTable(rows);renderCompanies();
   }
   function exportCsv(){const rows=selectedRows();if(!rows.length)return;const parts=[['Data','Empresa','Tipo','Categoria','Descricao','Valor'].join(';')];
@@ -317,9 +317,9 @@
       state.rows.push({id:newId(),source:'demo',companyId:comp.id,date,company,type:'receita',amount:r,category:'Serviços',description:'Exemplo fictício'});
       expenses.forEach(([category,p])=>state.rows.push({id:newId(),source:'demo',companyId:comp.id,date,company,type:'despesa',amount:Math.round(r*p*100)/100,category,description:'Exemplo fictício'}));
     });}
-    resetFilters();render();fillShareFromCompany();toast('Exemplo fictício carregado. Nenhum dado real foi usado.');
+    resetFilters();render();fillShareFromCompany();autoSave();toast('Exemplo fictício carregado. Nenhum dado real foi usado.');
   }
-  // Cadastros e lançamentos da prévia vivem apenas nesta sessão. Para uso contínuo, use exportação/restauração explícitas.
+  // Dados persistem no navegador, sujeitos à limpeza de armazenamento; mantenha backups JSON.
   let editingCompanyId=null,editingRowId=null,pendingManualAfterCompany=false;
   function renderCompanies(){
     const target=$('company-list');target.replaceChildren();const companies=allCompanies();
@@ -338,7 +338,7 @@
   }
   function toggleCompany(companyId){const c=state.companies.find(c=>c.id===companyId);if(!c)return;
     if(!confirm(`${c.active?'Desativar':'Reativar'} ${c.name}? Lançamentos anteriores permanecerão visíveis no histórico.`))return;
-    c.active=!c.active;resetFilters();render();fillShareFromCompany();toast('Cadastro atualizado nesta sessão. Salve uma cópia de segurança.');
+    c.active=!c.active;resetFilters();render();fillShareFromCompany();autoSave();toast('Cadastro atualizado neste navegador. Salve uma cópia de segurança.');
   }
   function partnerRow(partner={id:newId(),name:'',percent:0}){
     const el=mk('div','partner-edit-row');el.dataset.id=partner.id;
@@ -372,7 +372,7 @@
       const partners=readPartnerEditor();if(state.demo){throw Error('Saia da demonstração: limpe os dados de exemplo antes de cadastrar empresas reais.');}
       let c=state.companies.find(x=>x.id===editingCompanyId);if(c){c.name=name;c.base=$('company-base').value;c.partners=partners;}
       else{c={id:newId(),name,base:$('company-base').value,partners,active:true};state.companies.push(c);}
-      const openEntry=pendingManualAfterCompany;pendingManualAfterCompany=false;closeCompany();resetFilters();render();fillShareFromCompany();toast('Empresa salva nesta sessão. Não esqueça de baixar uma cópia.');if(openEntry)openManual();
+      const openEntry=pendingManualAfterCompany;pendingManualAfterCompany=false;closeCompany();resetFilters();render();fillShareFromCompany();autoSave();toast('Empresa salva neste navegador. Não esqueça de baixar uma cópia.');if(openEntry)openManual();
     }catch(err){toast(err.message,true);}
   }
   function fillShareFromCompany(){const c=state.companies.find(x=>x.id===$('share-company').value);
@@ -394,7 +394,7 @@
       if(state.demo)throw Error('Não altere o cadastro fictício. Limpe o exemplo para cadastrar empresas reais.');
       const parsed=parseShareText();if(!confirm(`Salvar regras de ${c.name}? Novas simulações usarão esses valores; esta prévia não altera fechamentos oficiais.`))return;
       c.base=$('share-base').value;c.partners=parsed.map(p=>({...p,id:c.partners.find(old=>cleanName(old.name)===cleanName(p.name))?.id||newId()}));
-      render();simulate();toast('Porcentagens salvas nesta sessão. Baixe uma cópia de segurança.');
+      render();simulate();autoSave();toast('Porcentagens salvas neste navegador. Baixe uma cópia de segurança.');
     }catch(err){toast(err.message,true);}
   }
   function todayIso(){const d=new Date();const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);return local.toISOString().slice(0,10);}
@@ -422,15 +422,69 @@
       const duplicate=state.rows.find(r=>r.id!==editingRowId&&r.companyId===row.companyId&&r.date===row.date&&r.type===row.type&&r.amount===row.amount&&cleanName(r.category)===cleanName(row.category)&&cleanName(r.description)===cleanName(row.description));
       if(duplicate&&!confirm('Existe um lançamento idêntico. Deseja registrar mesmo assim?'))return;
       if(previous){Object.assign(previous,row);}else state.rows.push({...row,id:newId(),source:'manual'});
-      closeManual();resetFilters();render();toast('Lançamento '+(previous?'atualizado':'registrado')+' nesta sessão. Salve uma cópia.');
+      closeManual();resetFilters();render();autoSave();toast('Lançamento '+(previous?'atualizado':'registrado')+' nesta sessão. Salve uma cópia.');
     }catch(err){toast(err.message,true);}
   }
   function editManual(id){openManual(id);}
   function deleteManual(id){const row=state.rows.find(r=>r.id===id&&r.source==='manual');if(!row)return;
     if(!confirm(`Excluir o lançamento de ${fmtMoney(row.amount)} (${formatDate(row.date)})? Esta operação não poderá ser desfeita sem uma cópia de segurança.`))return;
-    state.rows=state.rows.filter(r=>r.id!==id);resetFilters();render();toast('Lançamento excluído da sessão.');
+    state.rows=state.rows.filter(r=>r.id!==id);resetFilters();render();autoSave();toast('Lançamento excluído do navegador.');
   }
   const BACKUP_VERSION=2;
+  // O BI é local-first: dados financeiros não são enviados a servidores.
+  // IndexedDB preserva este navegador, mas não substitui um backup externo.
+  const DEVICE_DB='lacrose-gpar-local-2026-v1';
+  let deviceDb=null,deviceReady=false,saveInFlight=0,lastStorageError='';
+  function storageMessage(message,bad=false){
+    const el=$('storage-status');if(!el)return;el.textContent=message;el.dataset.status=bad?'error':'ok';
+  }
+  function storageSnapshot(){
+    return {format:'Lacrose GP BI backup',version:BACKUP_VERSION,exportedAt:new Date().toISOString(),companies:state.companies,rows:state.rows,importedHashes:[...state.files],demo:state.demo};
+  }
+  function openDeviceDB(){return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window))return reject(Error('Este navegador não oferece IndexedDB.'));
+    const req=indexedDB.open(DEVICE_DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('dados'))req.result.createObjectStore('dados');};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||Error('Não foi possível abrir o armazenamento local.'));
+    req.onblocked=()=>reject(Error('Armazenamento bloqueado por outra aba.'));
+  });}
+  function autoSave(){
+    if(!deviceReady)return;
+    if(lastStorageError){storageMessage('⚠ Há uma falha de armazenamento. Use “Salvar cópia” e restaure uma cópia válida.',true);return;}
+    if(!deviceDb){storageMessage('⚠ Salvamento automático indisponível. Use “Salvar cópia” após cada alteração.',true);return;}
+    try{
+      const tx=deviceDb.transaction('dados','readwrite');saveInFlight++;storageMessage('Salvando neste dispositivo...');
+      tx.objectStore('dados').put(storageSnapshot(),'atual');
+      let done=false;
+      const complete=(failed)=>{
+        if(done)return;done=true;saveInFlight=Math.max(0,saveInFlight-1);
+        if(failed){lastStorageError='Não foi possível gravar os dados no navegador.';storageMessage('⚠ Falha ao salvar! Baixe uma cópia JSON agora.',true);toast(lastStorageError,true);}
+        else if(saveInFlight===0&&!lastStorageError)storageMessage('✓ Salvo neste navegador · faça cópias JSON periódicas.');
+      };
+      tx.oncomplete=()=>complete(false);tx.onerror=()=>complete(true);tx.onabort=()=>complete(true);
+    }catch(_){lastStorageError='Falha no armazenamento local';storageMessage('⚠ Salvamento indisponível. Baixe uma cópia JSON agora.',true);toast(lastStorageError,true);}
+  }
+  async function restoreDeviceData(){
+    document.body.dataset.loading='true';
+    storageMessage('Abrindo os dados salvos neste dispositivo...');
+    try{
+      deviceDb=await openDeviceDB();
+      deviceDb.onversionchange=()=>{deviceDb.close();deviceDb=null;lastStorageError='Versão alterada em outra aba';storageMessage('⚠ Armazenamento atualizado em outra aba. Recarregue esta página.',true);};
+      const existing=await new Promise((resolve,reject)=>{
+        const request=deviceDb.transaction('dados','readonly').objectStore('dados').get('atual');
+        request.onsuccess=()=>resolve(request.result);
+        request.onerror=()=>reject(request.error||Error('Falha ao ler os dados locais.'));
+      });
+      if(existing){const saved=validateBackup(existing);state.companies=saved.companies;state.rows=saved.rows;state.files=saved.files;state.demo=saved.demo;state.visibleRows=30;}
+      storageMessage(existing?'✓ Seus dados anteriores foram restaurados deste navegador.':'✓ Armazenamento local pronto. Faça uma cópia JSON periodicamente.');
+    }catch(e){lastStorageError=e?.message||'Falha no armazenamento';storageMessage('⚠ Os dados anteriores não puderam ser carregados. Restaure uma cópia JSON.',true);}
+    finally{deviceReady=true;resetFilters();render();fillShareFromCompany();document.body.dataset.loading='false';}
+  }
+  window.addEventListener('beforeunload',e=>{
+    if(saveInFlight>0 || lastStorageError && (state.rows.length||state.companies.length)){e.preventDefault();e.returnValue='';}
+  });
+
   function exportBackup(){const data={format:'Lacrose GP BI backup',version:BACKUP_VERSION,exportedAt:new Date().toISOString(),companies:state.companies,rows:state.rows,importedHashes:[...state.files],demo:state.demo};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=mk('a');a.href=url;a.download='gestao-parcerias-copia-'+todayIso()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);toast('Cópia baixada. Guarde o arquivo em local seguro.');
   }
@@ -450,7 +504,7 @@
   async function importBackup(e){const file=e.target.files?.[0];e.target.value='';if(!file)return;
     try{if(file.size>15*1024*1024)throw Error('Cópia maior que 15 MB.');const validated=validateBackup(JSON.parse(await file.text()));
       if(!confirm(`Restaurar ${validated.companies.length} empresa(s) e ${validated.rows.length} lançamento(s)? Todos os dados atuais desta sessão serão substituídos.`))return;
-      state.companies=validated.companies;state.rows=validated.rows;state.files=validated.files;state.demo=validated.demo;state.visibleRows=30;resetFilters();render();fillShareFromCompany();toast('Cópia restaurada nesta sessão.');
+      state.companies=validated.companies;state.rows=validated.rows;state.files=validated.files;state.demo=validated.demo;state.visibleRows=30;resetFilters();render();fillShareFromCompany();lastStorageError='';autoSave();toast('Cópia restaurada neste navegador.');
     }catch(err){toast('Não foi possível restaurar: '+err.message,true);}
   }
   function bindManagement(){
@@ -753,7 +807,7 @@
   $('file-input').addEventListener('change',onFile);$('sheet-select').addEventListener('change',populateMapping);$('default-company').addEventListener('input',updatePreview);$('default-type').addEventListener('change',updatePreview);
   $('btn-preview').addEventListener('click',updatePreview);$('skip-invalid').addEventListener('change',updatePreview);$('commit-import').addEventListener('click',commitImport);
   $('filter-company').addEventListener('change',render);$('filter-month').addEventListener('change',()=>{render();$('share-output').replaceChildren(mk('div','empty','O período mudou. Recalcule a simulação.'));});$('share-company').addEventListener('change',fillShareFromCompany);$('save-share').addEventListener('click',saveShare);$('btn-share').addEventListener('click',simulate);
-  $('btn-demo').addEventListener('click',demo);$('clear-data').addEventListener('click',()=>{if(!confirm('Apagar todas as empresas, sócios e movimentações desta sessão? Faça uma cópia antes se precisar recuperar.'))return;state.rows=[];state.companies=[];state.files.clear();state.demo=false;state.visibleRows=30;resetFilters();render();fillShareFromCompany();toast('Dados da sessão limpos.');});
+  $('btn-demo').addEventListener('click',demo);$('clear-data').addEventListener('click',()=>{if(!confirm('Apagar todas as empresas, sócios e movimentações desta sessão? Faça uma cópia antes se precisar recuperar.'))return;state.rows=[];state.companies=[];state.files.clear();state.demo=false;state.visibleRows=30;resetFilters();render();fillShareFromCompany();lastStorageError='';autoSave();toast('Dados locais limpos.');});
   $('btn-csv').addEventListener('click',exportCsv);$('btn-print').addEventListener('click',openReports);
-  bindManagement();resetFilters();render();
+  bindManagement();restoreDeviceData();
 })();
