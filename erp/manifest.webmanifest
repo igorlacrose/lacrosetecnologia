@@ -1,0 +1,1 @@
+{"name":"LKZ ERP · Demonstração","short_name":"LKZ ERP Demo","description":"Demonstração local no navegador, sem emissão fiscal.","start_url":"./","scope":"./","display":"standalone","background_color":"#f4f7fa","theme_color":"#12283a","icons":[{"src":"./assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
