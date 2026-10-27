@@ -8,14 +8,19 @@
 <title>Gestão de Parcerias — Painel financeiro</title>
 <link rel="stylesheet" href="styles.css">
 <script defer src="app.js"></script>
+<script defer src="navigation.js"></script>
 </head>
 <body data-theme="ocean">
 <div class="shell">
-  <aside class="sidebar" aria-label="Menu principal">
+  <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-controls="gpar-sidebar" aria-expanded="false" aria-label="Abrir menu principal">☰ <span>Menu</span></button>
+  <div id="sidebar-scrim" class="sidebar-scrim" hidden></div>
+  <aside class="sidebar" id="gpar-sidebar" aria-label="Menu principal">
+    <button type="button" id="mobile-menu-close" class="mobile-menu-close" aria-label="Fechar menu principal">×</button>
     <div class="brand">
       <div class="brand-mark" id="brand-mark">GP</div>
       <div class="brand-heading"><strong id="client-name-side">Gestão de Parcerias</strong><span id="client-subtitle-side">Seu painel financeiro</span></div>
     </div>
+    <div class="developer-credit"><span>SOFTWARE DESENVOLVIDO POR</span><a class="developer-credit-link" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer" aria-label="Visitar o site da Lacrose Tecnologia"><img class="developer-logo" src="lacrose-tecnologia-logo.webp" alt="Logomarca Lacrose Tecnologia" width="152" height="150" loading="lazy" decoding="async"><strong>Lacrose Tecnologia</strong></a><small>Assinatura oficial fixa</small></div>
     <div class="section-kicker">MENU PRINCIPAL</div>
     <a class="nav active" href="#dashboard"><span class="nav-icon" aria-hidden="true">▦</span> Visão geral</a>
     <button type="button" class="nav" id="nav-import"><span class="nav-icon" aria-hidden="true">↑</span> Importar planilha</button>
@@ -25,7 +30,6 @@
     <button type="button" class="nav" id="nav-reports"><span class="nav-icon" aria-hidden="true">▤</span> Relatórios e WhatsApp</button>
     <button type="button" class="nav" id="nav-brand"><span class="nav-icon" aria-hidden="true">⚙</span> Identidade da empresa</button>
     <div class="sidebar-note"><strong>Dados somente neste navegador</strong><p>Sem conta, sincronização ou nuvem. Use dispositivo próprio e mantenha cópias JSON protegidas.</p></div>
-    <div class="developer-credit"><span>SOFTWARE DESENVOLVIDO POR</span><a class="developer-credit-link" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer" aria-label="Visitar o site da Lacrose Tecnologia"><img class="developer-logo" src="lacrose-tecnologia-logo.webp" alt="Logomarca Lacrose Tecnologia" width="152" height="150" loading="lazy" decoding="async"><strong>Lacrose Tecnologia</strong></a><small>Assinatura oficial fixa</small></div>
   </aside>
   <main class="main" id="dashboard">
     <header class="topbar">
