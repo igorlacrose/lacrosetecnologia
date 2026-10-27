@@ -10,3 +10,113 @@
 @media print{.sidebar,.topbar,.bottomnav,.appbar,.pagehead .btn,.footer,.toast{display:none!important}.shell,.workspace{display:block;min-height:auto}.card{box-shadow:none;break-inside:avoid}body{color:#000;background:white}}
 .report-heading{display:flex;align-items:center;justify-content:space-between;gap:13px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px}.report-heading strong{font-size:13px}
 @media print{.report-heading{display:flex}.report-heading .preview-logo{max-width:130px}}
+
+/* v0.1.1 — acessibilidade e contraste. Camada aditiva; layout/funcionalidades preservados. */
+:root{
+ color-scheme:light;
+ color:#182c3e;
+ background:#edf2f7;
+ --navy:#12283b;
+ --accent:#006d5a;
+ --accent-soft:#ddf3e9;
+ --border:#cbd7e1;
+ --muted:#475b6e;
+ --bg:#edf2f7;
+ --white:#ffffff;
+ --shadow:0 5px 22px rgba(22,41,59,.095);
+}
+[data-theme=indigo]{--accent:#4743ae;--accent-soft:#e9e8fc}
+[data-theme=blue]{--accent:#0b578f;--accent-soft:#e1effc}
+[data-theme=orange]{--accent:#914714;--accent-soft:#fff0e2}
+html,body{background:var(--bg);color:#182c3e}
+body{font-size:14px;line-height:1.55;-webkit-font-smoothing:auto}
+h1,h2,h3{color:#14283a;font-weight:800;line-height:1.27}
+small,.muted,.sub,.hint,.footnote{color:var(--muted);font-weight:500}
+.sub{font-size:12px}
+.tiny,.hint,.footnote{font-size:11px}
+.card,.product,.account,.modal{color:#182c3e}
+.card{border-color:var(--border);box-shadow:var(--shadow)}
+.card-title strong,.activity strong,.activity .amount,.cart-item .title,.product strong,
+.report-heading strong,.stat .number,.cart-total strong{color:#152a3d;font-weight:800}
+.stat .name{font-size:12px;color:#43576a;font-weight:650}
+.stat .number{font-size:25px}
+.stat .foot{font-size:11px;color:var(--accent);font-weight:750}
+.card-title strong{font-size:14px}
+.btn{color:#233e52;font-size:12px;border-color:#bfcbd6;min-height:40px}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.soft{background:var(--accent-soft);color:var(--accent);border-color:#b7d5c9}
+.btn.danger{color:#98292e;border-color:#e0a7a9}
+.pill{font-size:11px}
+.pill.neutral{background:#e5ebef;color:#41556b}
+.pill.warn,.alert{color:#70480c}
+.pill.red,.bad{color:#9e2532}
+.good,.threshold-low{font-weight:750}
+.input,select,textarea{color:#162e41;font-size:13px;border-color:#b7c7d4;min-height:43px}
+.input::placeholder,textarea::placeholder{color:#5c7081;opacity:1}
+.field label{color:#394e63;font-size:12px;font-weight:750}
+.appbar{background:#fff0c9;color:#62420c;border-color:#e3c785;font-size:12px;font-weight:650}
+.appbar strong{color:#62420c;font-size:12px}
+.sidebar{color:#edf5fa}
+.sidebar .brand small,.sidebar .nav-footer{color:#d1e1eb}
+.sidebar .nav-group{color:#b9cbd9;font-size:10px}
+.sidebar .nav button{color:#dbe8f0;font-size:12px}
+.sidebar .nav button.active{background:#2a5068;color:white}
+.topbar{border-color:var(--border)}
+.topbar h1{color:#152b40;font-weight:850}
+.topbar .company{color:#516579;font-size:11px;font-weight:550}
+.pagehead h2{color:#142b40}
+.footer{color:#4a5f70;font-size:11px}
+.footer a{color:#006957}
+.bars{border-color:#bfcdd8}
+.barcol span{color:#40566a;font-size:11px;font-weight:600}
+.activity small,.product small,.cart-item small{color:#4d6071;font-size:11px}
+.table th{color:#40566a;background:#edf2f6;font-size:11px;font-weight:800}
+.table td{color:#243c4d;font-size:12px}
+.filters button,.tabs button{color:#355166;border-color:#becfd9;font-size:12px}
+.filters button.active,.tabs button.active{color:var(--accent);border-color:var(--accent)}
+.product{border-color:#ccd8e0}
+.product .picture{background:#e6f1ee}
+.product .price{color:#152d40}
+.plus{color:var(--accent);font-size:21px}
+.empty{color:#465e70;font-size:12px}
+.pay-methods button{color:#2b4659;font-size:12px;border-color:#bdccd7}
+.pay-methods button.selected{color:var(--accent);border-color:var(--accent)}
+.receipt-list label{color:#263e50;font-size:12px}
+.toast{background:#153942;color:#fff;font-size:12px}
+.bottomnav{background:#fff;border-color:#b9cad5;box-shadow:0 -3px 15px rgba(13,31,47,.07)}
+.bottomnav button{background:white;color:#41576b;font-weight:750}
+.bottomnav button.active{color:var(--accent)}
+.bottomnav button.active .navicon{font-weight:900}
+.segment-info,.tour{color:#264355}
+.themechip{color:#283f51;border-color:#c7d3dd}
+@media(max-width:760px){
+ body{font-size:14px}
+ .workspace{padding:15px 12px 28px}
+ .topbar h1{font-size:17px}
+ .topbar .company{font-size:11px}
+ .pagehead h2{font-size:19px}
+ .pagehead .btn{font-size:12px}
+ .stat{min-height:128px}
+ .stat .name{font-size:12px;line-height:1.35}
+ .stat .number{font-size:20px}
+ .stat .foot{font-size:11px;line-height:1.4}
+ .stat .stat-icon{width:32px;height:32px;font-size:18px}
+ .card{padding:15px}
+ .card-title strong{font-size:15px}
+ .bottomnav button{font-size:12px;line-height:1.2;min-height:64px;padding:9px 2px;font-weight:800}
+ .bottomnav button .navicon{font-size:21px}
+ .appbar{font-size:11px}
+ .appbar strong{font-size:11px}
+ .barcol span{font-size:11px}
+ .table th,.table td{font-size:11px}
+}
+@media(max-width:420px){
+ .grid4 .stat .number{font-size:18px;letter-spacing:-.35px}
+ .pagehead h2{font-size:18px}
+ .bottomnav button{font-size:11px}
+}
+@media print{
+ :root{--bg:#fff;--muted:#444;--border:#999}
+ body{color:#000;background:#fff}
+ .stat .name,.stat .foot,.activity small{color:#333}
+}
