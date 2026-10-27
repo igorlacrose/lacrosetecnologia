@@ -1,34 +1,32 @@
-# Gestão de Parcerias (GP/BI) — candidata de produção, NÃO PUBLICAR
+# Gestão de Parcerias BI — Publicação web local-first
 
-Data: 2026-10-27. URL final pretendida: https://lacrosetecnologia.com.br/gpar/
+Data: 2026-10-27 · URL: https://lacrosetecnologia.com.br/gpar/
 
-## Estado verificado
+## Escopo liberado pelo proprietário
 
-- Os arquivos index.html, styles.css e app.js vieram da prévia v1.3 fornecida no chat.
-- Importação XLSX/CSV/TSV, cadastros, lançamentos manuais, gráficos, relatórios PDF e fluxo de WhatsApp existem no frontend.
-- O projeto do site principal está em GitHub Pages; a branch de preparação **não deve ser mesclada em main** antes do security gate.
-- A v1.3 **não tem login, banco permanente ou trilha de auditoria**, nem fechamento/vigência histórica de percentuais.
-- Sem backend, os dados não sobrevivem a um fechamento de navegador sem salvar/restaurar JSON manualmente.
-- Os valores por sócio são **SIMULAÇÕES**, nunca liquidar pagamentos a partir desse cálculo.
-- As configurações de White Label são locais; o crédito "Desenvolvido por Lacrose Tecnologia" fica fixo na UI, mas não é à prova de edição do código publicamente servido.
+- Publicar o módulo BI em `/gpar` no GitHub Pages, preservando site, ERP e FluX.
+- Implantação **local-first**: lógica de importação, cadastros, lançamentos manuais e PDFs no navegador; sem backend, conta, API ou sincronização.
+- Salvamento automático **por navegador/dispositivo**, via IndexedDB; cópias externas em JSON permanecem necessárias para migrar de máquina ou recuperar depois de limpar o armazenamento.
+- As planilhas são opcionais; a interface White Label é personalizável pelo usuário. A assinatura "Desenvolvido por Lacrose Tecnologia" permanece fixa na interface e nos relatórios (não é proteção contra alteração por alguém que modifique o código público).
+- PDFs e WhatsApp são iniciados pelo usuário; fallback exige anexar PDF manualmente.
 
-## Gate bloqueador de publicação
+## Limites e riscos que precisam ficar explícitos
 
-1. Criar autenticação real, sessões seguras e mecanismo de recuperação sem divulgar tokens/segredos. Administrador com MFA quando cabível.
-2. Implementar persistência transacional no backend (não localStorage/IndexedDB como fonte contábil). Separar parceiros, empresas e lançamentos por organização; RLS deny-by-default, testes anon, usuários indevidos e cross-tenant.
-3. Validar valores, datas, limites, categoria e permissões no backend, inclusive contra repetição de planilhas e importações parciais.
-4. Preservar **versões dos percentuais e da base bruta/líquida por vigência**, com fechamento mensal imutável, reabertura autorizada e trilha de auditoria de alterações/estornos.
-5. Implementar backups agendados, retenção e **restauração comprovada**; monitoramento de falhas, conflito de edição, indisponibilidade e inconsistências financeiras.
-6. Segurança: segredo exclusivamente no servidor; checagem de dependências, XSS/CSRF conforme arquitetura, CSP, limites de upload, logs sem dados sensíveis e revisão LGPD.
-7. Testes ponta a ponta no domínio final em desktop e celular: cadastrar/editar empresas, sócios, percentuais e lançamentos, importar XLSX/CSV, recarregar/relogar, verificar isolamento, imprimir PDF A4, baixar arquivo, enviar PDF WhatsApp por fluxo explícito e comparar totais.
-8. Revisão de regressões no ERP, FluX, home e GitHub Pages; checkpoint da branch principal e plano de rollback.
-9. Somente após validação em ambiente separado promover código revisado para main e conferir HTTPS e https://lacrosetecnologia.com.br/gpar/.
+1. A URL é pública e **não possui autenticação**. Dados ficam no próprio navegador, sem sincronização entre dispositivos. Não use em computador compartilhado; proteção depende da conta e da segurança do dispositivo.
+2. O armazenamento local **não é criptografado pelo aplicativo** e scripts executados sob o mesmo domínio podem acessar dados do mesmo origin. Não tratar como cofre financeiro, multiempresa hospedado ou arquivo contábil oficial.
+3. Limpeza de navegador, modo privado, defeitos do PC e múltiplas abas podem causar perda/conflito. Exportar backups JSON periódicos, armazenar em pasta protegida e testar restauração.
+4. Percentuais dos sócios e base bruto/líquido geram **simulações** usando a configuração corrente. Não há vigência histórica, fechamento imutável, autorização de reabertura ou trilha de auditoria; não usar como ordem de pagamento.
+5. Relatórios compartilhados podem conter informações financeiras confidenciais; revisar PDF e destinatário do WhatsApp.
+6. O instalador original Windows x64 da Jequié Telecom não foi alterado.
 
-## Política de deploy
+## Gate para uma futura versão financeira hospedada
 
-**Bloqueado por padrão**: este diretório contém código experimental v1.3, e não constitui homologação de produção. Não há dados reais, senhas ou chaves privadas neste commit. Não publicar v1.3 como se fosse segura para uso financeiro real.
+- Login e autorização por empresa/organização, banco persistente, isolamento tenant/RLS, validação server-side e controle de papéis.
+- Histórico de percentuais, competência, transações e fechamentos; auditoria e backups/restauração validados.
+- Melhorar segurança em origem isolada (ideal: subdomínio separado), proteção de dados locais quando aplicável, testes completos de regressão, UX desktop/mobile.
+- Validar PDF A4, importação XLSX/CSV, recarga do navegador, recuperação de backup, impressão e WhatsApp em dispositivos reais antes de declarar homologação completa.
 
-## Observações para continuidade
+## Rollback
 
-- Supabase conectado: o projeto ativo possui recursos de outras aplicações. Não alterar tabelas/configurações existentes; preferir projeto ou namespace dedicado e revisar custos antes da provisão.
-- Antes de integrar o executável Jequié Telecom v1.0, recuperar projeto-fonte original e conferir regras de distribuição e fechamento efetivamente implementadas.
+- Repositório `igorlacrose/lacrosetecnologia`, branch `main`. A alteração é restrita à pasta `gpar/`; revertendo o merge ou removendo a pasta, o site anterior volta a ser servido.
+- **Atenção:** rollback do frontend não recupera dados armazenados nos navegadores. Guarde backups JSON separadamente.
