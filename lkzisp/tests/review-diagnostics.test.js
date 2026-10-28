@@ -35,7 +35,9 @@ test('Gestor e Administrador avaliam e reprovação abre diagnóstico apenas ap�
  assert.match(app,/function reviewDiagnosis\(\)/);
  assert.match(app,/state\.view='analysis'/);
  assert.match(app,/state\.reviews\.find\(x=>x\.snapshot_id===s\.id\)/);
- assert.match(app,/verified\.decision!==state\.reviewIntent/);
+ assert.match(app,/const s=current\(\),tenantId=state.selectedTenant,decision=state.reviewIntent/);
+ assert.match(app,/verified\.decision!==decision/);
+ assert.match(app,/if\(state\.reviewBusy\)\{toast\('Aguarde a confirmação da avaliação no servidor\.'/);
  assert.match(sql,/m\.role IN \('gestor','administrador'\)/);
  assert.match(sql,/MFA_AAL2_REQUIRED/);
  assert.match(sql,/REPORT_NOT_FOUND/);
