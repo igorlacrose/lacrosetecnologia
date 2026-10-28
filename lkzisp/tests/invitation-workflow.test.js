@@ -77,7 +77,7 @@ test('link de convite validado permite criar senha própria antes do MFA',async(
   const outcome=await client.handleAuthCallback();
   assert.equal(outcome.invited,true);
   assert.equal(client.invitationSetupPending,true);
-  await assert.rejects(client.setInvitedPassword('123'),/12 a 200/);
+  await assert.rejects(client.setInvitedPassword('123'),/12 e 200/);
   await client.setInvitedPassword('only-a-test-long-password');
   assert.equal(updated,true);
   assert.equal(client.hasSession,true);
