@@ -14,7 +14,7 @@ export function validateHexColor(v){
 export function validateDomain(v){
  const s=String(v||'').trim().toLowerCase();
  if(!s)return '';
- if(/^\d{1,3}(?:\.\d{1,3}){3}$/.test(s)||s==='localhost'||s.endsWith('.localhost')||s.length>150||s.includes('..')||!s.includes('.')||!s.split('.').every(part=>part.length>0&&part.length<=63&&/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(part)))throw new Error('Informe somente um domínio válido (ex.: sistema.empresa.com.br).');
+ if(/^\d{1,3}(?:\.\d{1,3}){3}$/.test(s)||/(^|\.)local(?:host)?$/i.test(s)||s.length>150||s.includes('..')||!s.includes('.')||!s.split('.').every(part=>part.length>0&&part.length<=63&&/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(part)))throw new Error('Informe somente um domínio válido (ex.: sistema.empresa.com.br).');
  return s;
 }
 function previewCanvas(bitmap,size,fill=.85){
