@@ -1,6 +1,7 @@
 import {evaluateDataQuality, QUALITY_STATUS} from './quality.js';
 import {detectMapping, buildSnapshot, subjectGroups,radarItems,calculateCost,moneyBRL,sampleCost} from './engine.js';
 import {readReport} from './importer.js';
+import {buildEmployeeMetrics} from './employee-analytics.js';
 import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} from './db.js';
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
@@ -12,7 +13,7 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
- selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
+ selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const fmt=n=>new Intl.NumberFormat('pt-BR').format(Number(n)||0);
@@ -49,7 +50,7 @@ function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.
 function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role));}
 function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor'].includes(m.role));}
 function clearWorkspace(){
- state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;
+ state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;state.employeeMetrics={};
  state.cloudReady=false;state.selectedTenant=null;
  deleteSnapshots().catch(()=>{});
 }
@@ -61,7 +62,7 @@ async function loadCloudWorkspace(tenantId=null){
  if(!authorized.some(m=>m.tenant_id===chosen))throw Error('A empresa selecionada não está autorizada.');
  state.cloudReady=false;
  // Somente o servidor com RLS pode fornecer registros. Nenhuma sessão anterior é reaproveitada.
- state.snapshots=[];state.snapshot=null;state.demo=false;
+ state.snapshots=[];state.snapshot=null;state.demo=false;state.employeeMetrics={};
  const records=await cloud.listAggregateSnapshots(chosen);
  state.selectedTenant=chosen;state.snapshots=records;state.snapshot=records[0]||null;
  state.cloudReady=true;
@@ -111,9 +112,44 @@ function radar(){const s=current();const items=s?radarItems(s):[];return heading
  <div class="cards">${cardKpi('Sinais encontrados',fmt(items.length),'Regras analíticas explicáveis','radar','red')}${cardKpi('Alta prioridade',fmt(items.filter(x=>x.priority==='Alta').length),'Verificar com gestor','alert','orange')}${cardKpi('Pendências antigas',fmt(s.pendingOlder7d),'Acima de sete dias na fotografia','clock')}${cardKpi('Impacto financeiro','Não calculado','Faltam custos e receitas','finance')}</div>
  <section class="card card-pad"><div class="section-head"><div><h2>Problemas detectados</h2><p>São hipóteses a investigar, não atribuição automática de culpa ou perda.</p></div></div>${items.map((r,i)=>`<div class="radar-item"><div class="heading"><h3>${i+1}. ${esc(r.category)} · ${esc(r.name)}</h3><span class="badge ${r.priority==='Alta'?'red':'orange'}">${esc(r.priority)} prioridade</span></div><p><b>Evidência:</b> ${esc(r.evidence)}</p><div class="action"><b>Ação recomendada:</b> ${esc(r.action)}</div></div>`).join('')||'<div class="empty">Nenhum gargalo ultrapassou os critérios iniciais.</div>'}</section>`);
 }
+function employeeProductivity(){
+ const s=current();if(!s)return noData();
+ const records=state.employeeMetrics[s.fingerprint];
+ if(!records){
+  return '<div class="notice"><b>Produtividade por colaborador:</b> os nomes e indicadores ficam separados dos dados de clientes e são acessíveis apenas a gestores autorizados após MFA.</div>'+
+   '<section class="card card-pad"><h2>Atendimentos por colaborador</h2><p class="muted">Os indicadores individuais são consultados exclusivamente no Supabase, usando seu perfil de acesso.</p>'+
+   '<button class="btn primary" data-load-employees="true" '+(state.employeeLoading?'disabled':'')+'>'+(state.employeeLoading?'Consultando…':'Consultar colaboradores deste relatório')+'</button></section>';
+ }
+ const sectors=['Todos',...new Set(records.map(x=>x.sector))].sort((a,b)=>a==='Todos'?-1:b==='Todos'?1:a.localeCompare(b,'pt-BR'));
+ const sector=sectors.includes(state.employeeSectorFilter)?state.employeeSectorFilter:'Todos';
+ const list=records.filter(x=>sector==='Todos'||x.sector===sector).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+ const total=list.reduce((v,x)=>v+x.total,0),closed=list.reduce((v,x)=>v+x.finalized,0);
+ return '<div class="notice"><b>Informações restritas de colaboradores:</b> nomes e desempenho operacional são acessíveis apenas aos perfis gerenciais autorizados. Nenhum dado identificável de cliente é incluído. Comparações exigem considerar carga, função, complexidade e horas trabalhadas.</div>'+
+ '<div class="cards">'+cardKpi('Colaboradores',fmt(new Set(list.map(x=>x.name)).size),'Com atendimentos atribuídos','users')+
+ cardKpi('Atendimentos atribuídos',fmt(total),'Somente equipe filtrada','activity')+
+ cardKpi('Finalizados',fmt(closed),'Não equivale sozinho a desempenho','check','green')+
+ cardKpi('Sem atribuição',fmt(Math.max(0,(s.total||0)-state.employeeMetrics[s.fingerprint].reduce((v,x)=>v+x.total,0))),'Sem responsável válido no relatório','alert','orange')+'</div>'+
+ '<section class="card card-pad"><div class="section-head"><div><h2>Desempenho operacional identificado</h2><p>Contagens por pessoa e setor; nenhuma bonificação ou penalidade é automática.</p></div></div>'+
+ '<label class="field" style="max-width:300px;margin-bottom:18px">Filtrar setor<select id="employee-sector">'+sectors.map(x=>'<option value="'+esc(x)+'" '+(x===sector?'selected':'')+'>'+esc(x)+'</option>').join('')+'</select></label>'+
+ (list.length?'<div class="table-scroll"><table><thead><tr><th>Colaborador</th><th>Setor</th><th class="num">Atribuídos</th><th class="num">Concluídos</th><th class="num">Pendentes</th><th class="num">Abertos há +7 dias</th><th class="num">Fechamento +24h</th><th>Taxa de conclusão*</th></tr></thead><tbody>'+
+ list.map(x=>'<tr><td><strong>'+esc(x.name)+'</strong></td><td>'+esc(x.sector)+'</td><td class="num">'+fmt(x.total)+'</td><td class="num">'+fmt(x.finalized)+'</td><td class="num">'+fmt(x.pending)+'</td><td class="num">'+fmt(x.pendingOlder7d)+'</td><td class="num">'+fmt(x.closedOver24)+'</td><td>'+(x.total>=5?pct(x.finalized,x.total):'Amostra pequena')+'</td></tr>').join('')+
+ '</tbody></table></div>':'<div class="empty">Nenhum colaborador identificado para este relatório. Confira se a coluna Colaborador foi mapeada na importação.</div>')+
+ '<p class="footnote" style="margin-top:16px">* Taxa de conclusão considera o estoque exportado, não produtividade por hora. Fechamento acima de 24h é duração cronológica, não violação oficial de SLA. Avaliações, treinamento e bônus exigem critérios definidos e revisão humana.</p>'+
+ '<div class="action-row" style="margin-top:14px"><button class="btn" data-load-employees="true">Atualizar dados individuais</button></div></section>';
+}
+async function loadEmployeeMetrics(){
+ const s=current();
+ if(!s||!canUseAggregateWorkspace()||!state.selectedTenant||!s.fingerprint||state.employeeLoading)return;
+ state.employeeLoading=true;render();
+ try{
+  const rows=await cloud.readEmployeeMetrics(state.selectedTenant,s.fingerprint);
+  state.employeeMetrics[s.fingerprint]=rows;
+ }catch(err){toast(err?.message||'Não foi possível consultar dados individuais.',true);}
+ finally{state.employeeLoading=false;render();}
+}
 function productivity(){const s=current();return heading('Produtividade','Produtividade de setores e colaboradores, sem rankings injustos.')+`
  <div class="subtabs"><button class="subtab ${state.productivityTab==='sector'?'active':''}" data-productivity="sector">Por setor</button><button class="subtab ${state.productivityTab==='person'?'active':''}" data-productivity="person">Por colaborador</button></div>`+
- (state.productivityTab==='person'?`<div class="notice warning"><b>Proteção de dados:</b> a análise individual está bloqueada neste protótipo. Não é seguro fazer correlação de colaboradores por nome, ID bruto ou hash simples. Será habilitada com pseudonimização HMAC no backend, segredo fora do navegador, RBAC e autorização do gestor.</div><section class="card card-pad"><h2>Fase seguinte — indicadores individuais</h2><p class="muted">Volume, tempo ponderado por complexidade, retrabalho e prazo; os resultados só serão publicados após revisão de critérios e proteção LGPD.</p></section>`:
+ (state.productivityTab==='person'?employeeProductivity():
  (!s?noData():dataBanner()+`<div class="cards">${cardKpi('Setores reconhecidos',fmt(Object.keys(s.sectors||{}).length),'Categorias canônicas','users')}${cardKpi('Concluídos',fmt(s.finalized),'No período exportado','check','green')}${cardKpi('Em aberto',fmt(s.pending),'Sem atribuição individual','clock','orange')}${cardKpi('Índice de eficiência','A definir','Requer jornada, complexidade e metas','chart')}</div><section class="card card-pad"><div class="section-head"><div><h2>Fluxo operacional por setor</h2><p>Volume e pendências — não representam sozinho produtividade ou desempenho.</p></div></div>${pendingTable(sorted(s.sectors,'total'),30)}</section><div class="notice warning" style="margin-top:16px"><b>Atenção:</b> setores executam tarefas de complexidades distintas. Comparações justas exigem jornada, capacidade, tipo de atendimento, dificuldade e motivos externos de atraso.</div>`));
 }
 function finance(){
@@ -124,15 +160,15 @@ function finance(){
  <section class="card card-pad"><div class="section-head"><div><h2>Próximos relatórios previstos</h2><p>Importação modular por tipo de fonte</p></div></div><div class="safe-list">${['Faturamento e receitas por competência','Contas a pagar, despesas e centros de custo','Custos diretos, indiretos e deslocamentos','Horas trabalhadas e capacidade por setor','Indicadores financeiros e custo médio por atendimento','Histórico e custo por cliente pseudonimizado'].map(x=>`<div>${ic('clock')}<span>${esc(x)} <span class="badge orange">Planejado</span></span></div>`).join('')}</div></section></div>`;
 }
 function mappingForm(){const stage=state.staged;if(!stage)return '';
- const fields=['Status','Assunto','Abertura','Setor','Cidade','Fechamento','Prioridade'];
- return `<section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Validar mapeamento de colunas</h2><p>${fmt(stage.rows.length)} linhas identificadas. Não mostramos valores da planilha para proteger os dados.</p></div><button class="btn" data-action="cancel-stage">Cancelar</button></div><div class="privacy-banner">${ic('lock')} Os dados brutos estão temporariamente na memória do navegador. Somente indicadores agregados de categorias aprovadas serão transmitidos ao Supabase, após validação no servidor.</div><div class="mapping-grid">${fields.map(f=>`<label class="field">${esc(f)}${['Status','Assunto','Abertura'].includes(f)?' *':''}<select data-map="${f}"><option value="-1">Não mapear</option>${stage.headers.map((h,i)=>Object.values(detectMapping(stage.headers)).includes(i)?`<option value="${i}" ${state.mapping[f]===i?'selected':''}>${esc(h||'Coluna '+(i+1))}</option>`:'').join('')}</select></label>`).join('')}</div><div class="action-row" style="margin-top:20px"><button class="btn primary" data-action="process-file">${ic('lock')} Processar e salvar no Supabase</button><button class="btn" data-action="cancel-stage">Descartar arquivo</button></div></section>`;
+ const fields=['Status','Assunto','Abertura','Setor','Cidade','Fechamento','Prioridade','Colaborador'];
+ return `<section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Validar mapeamento de colunas</h2><p>${fmt(stage.rows.length)} linhas identificadas. Não mostramos valores da planilha para proteger os dados.</p></div><button class="btn" data-action="cancel-stage">Cancelar</button></div><div class="privacy-banner">${ic('lock')} Os dados brutos estão temporariamente na memória do navegador. Somente indicadores operacionais agregados e nomes de colaboradores são transmitidos ao Supabase após validação. Os dados pessoais dos clientes nunca são incluídos.</div><div class="mapping-grid">${fields.map(f=>`<label class="field">${esc(f)}${['Status','Assunto','Abertura'].includes(f)?' *':''}<select data-map="${f}"><option value="-1">Não mapear</option>${stage.headers.map((h,i)=>Object.values(detectMapping(stage.headers)).includes(i)?`<option value="${i}" ${state.mapping[f]===i?'selected':''}>${esc(h||'Coluna '+(i+1))}</option>`:'').join('')}</select></label>`).join('')}</div><div class="action-row" style="margin-top:20px"><button class="btn primary" data-action="process-file">${ic('lock')} Processar e salvar no Supabase</button><button class="btn" data-action="cancel-stage">Descartar arquivo</button></div></section>`;
 }
 function imports(){return heading('Importar relatório','XLSX/CSV do IXC · processamento local antes de qualquer armazenamento.',false)+`
  <div class="columns"><section class="card card-pad"><div class="section-head"><div><h2>Selecione um arquivo</h2><p>Suporte inicial a relatórios de atendimentos do IXC</p></div></div>
  <div class="upload-zone" id="drop-zone"><span class="icon-sq blue">${ic('upload')}</span><b>Arraste o arquivo aqui ou selecione no dispositivo</b><p>Somente XLSX ou CSV · Até 15 MB<br/>O arquivo original não sai do navegador.</p><button class="btn primary" data-action="choose-file">Selecionar arquivo</button></div><input type="file" id="file-input" accept=".xlsx,.csv" hidden />
  <p class="footnote" style="margin-top:12px">Os arquivos são processados apenas no navegador. Indicadores agregados padronizados serão salvos no Supabase com autenticação, MFA, RLS e auditoria.</p>
  </section><section class="card card-pad"><div class="section-head"><div><h2>${ic('lock')} Proteção na importação</h2></div></div>
- <div class="safe-list">${['Arquivo bruto não enviado ou armazenado','Descartar Cliente, CPF, telefone e endereço','Descartar login, senha, hashes e tokens','Ignorar campos de mensagem e texto livre','Aceitar somente categorias padronizadas','Registrar apenas estatísticas e datas diárias'].map(x=>`<div>${ic('check')}<span>${esc(x)}</span></div>`).join('')}</div><div class="notice warning" style="margin-top:17px;margin-bottom:0"><b>Não utilizamos identificadores pessoais.</b> Dados por colaborador dependem do serviço de pseudonimização seguro, ainda não implementado.</div></section></div>
+ <div class="safe-list">${['Arquivo bruto não enviado ou armazenado','Descartar Cliente, CPF, telefone e endereço','Descartar login, senha, hashes e tokens','Ignorar campos de mensagem e texto livre','Aceitar somente categorias padronizadas','Registrar métricas individuais dos colaboradores com acesso gerencial restrito'].map(x=>`<div>${ic('check')}<span>${esc(x)}</span></div>`).join('')}</div><div class="notice warning" style="margin-top:17px;margin-bottom:0"><b>Clientes protegidos:</b> o nome do colaborador é usado exclusivamente para gestão de produtividade, sob RLS/MFA. Nome e contato de clientes, login e senha não são enviados.</div></section></div>
  ${mappingForm()}
  <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do Supabase</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no Supabase.</p>'}</section>`;
 }
@@ -285,7 +321,9 @@ function bindActions(){
  root.querySelector('#cloud-reset-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('reset')});
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
- root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render()}));
+ root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
+ root.querySelectorAll('[data-load-employees]').forEach(b=>b.addEventListener('click',()=>loadEmployeeMetrics()));
+ root.querySelector('#employee-sector')?.addEventListener('change',e=>{state.employeeSectorFilter=e.target.value;render()});
  root.querySelectorAll('[data-map]').forEach(sel=>sel.addEventListener('change',()=>state.mapping[sel.dataset.map]=Number(sel.value)));
  root.querySelectorAll('[data-snapshot]').forEach(b=>b.addEventListener('click',()=>{state.snapshot=state.snapshots.find(s=>s.id===b.dataset.snapshot);state.demo=false;setView('dashboard')}));
  root.querySelectorAll('[data-cost]').forEach(el=>el.addEventListener('input',()=>{state.cost[el.dataset.cost]=el.value.replace(/[^0-9,.]/g,'').slice(0,12);document.getElementById('cost-result').textContent=moneyBRL(calculateCost(state.cost));saveSetting('cost',state.cost).catch(()=>toast('Não foi possível salvar a configuração local.',true))}));
@@ -345,16 +383,18 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
   if(!canImportToCloud()){toast('Sem conexão autorizada ao Supabase. Não descartamos a planilha.',true);return;}
   if(!state.staged)return;
   try{const snap=buildSnapshot(state.staged.rows,state.mapping,{source:'IXC · Relatório de atendimentos'});
-   const distinct=JSON.stringify({total:snap.total,earliest:snap.earliest,latest:snap.latest,statuses:snap.statuses,subjects:snap.subjects,sectors:snap.sectors,cities:snap.cities,daily:snap.daily});
+   const staff=buildEmployeeMetrics(state.staged.rows,state.mapping,snap.referenceDate);
+   const distinct=JSON.stringify({total:snap.total,earliest:snap.earliest,latest:snap.latest,statuses:snap.statuses,subjects:snap.subjects,sectors:snap.sectors,cities:snap.cities,daily:snap.daily,employees:staff.metrics});
    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(distinct));
    snap.fingerprint=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
-   const previous=state.snapshots.find(s=>s.fingerprint===snap.fingerprint);
-   if(previous){state.staged=null;state.snapshot=previous;state.demo=false;setView('dashboard');toast('Relatório já existente na nuvem: aberto sem duplicação.');return;}
-   const confirmed=await cloud.saveAggregateSnapshot(state.selectedTenant,snap);
-   // Só apagar os dados brutos após leitura comprovada do banco com MFA/RLS.
+   const confirmed=await cloud.saveSnapshotWithEmployees(state.selectedTenant,snap,staff.metrics);
+   // Dados brutos descartados apenas após leitura de volta do servidor.
    state.staged=null;state.mapping=null;state.sourceName='';
-   state.snapshots=confirmed.records;state.snapshot=confirmed.snapshot;state.demo=false;
-   setView('dashboard');toast(`${fmt(snap.total)} atendimentos confirmados no Supabase. Apenas indicadores agregados foram gravados.`);
+   state.snapshots=confirmed.records;state.snapshot=confirmed.snapshot;
+   state.employeeMetrics[snap.fingerprint]=confirmed.employees;
+   state.demo=false;
+   setView('dashboard');
+   toast(`${fmt(snap.total)} atendimentos salvos na nuvem, com ${fmt(staff.assigned)} atribuições por colaborador. Dados de clientes excluídos.`);
   }catch(err){toast(err?.message||'Erro na importação.',true)}return;
  }
  if(name==='reset'){
