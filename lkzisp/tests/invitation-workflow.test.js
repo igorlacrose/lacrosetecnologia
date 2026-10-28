@@ -15,7 +15,7 @@ test('SMTP Resend indisponível mantém convite pendente; não declara envio',as
  const client=new CloudAccess(async(url,options)=>{
   paths.push({url,method:options.method,body:options.body});
   if(url.includes('grant_type=password'))return response(session('aal2'));
-  if(url.includes('lkz_isp_memberships'))return response([{tenant_id:tenant,role:'gestor',sector_id:null}]);
+  if(url.includes('lkz_isp_memberships'))return response([{tenant_id:tenant,role:'master',sector_id:null}]);
   if(url.includes('lkz_isp_user_invitations?select='))return response([{id:invitation,status:'pending'}],201);
   if(url.includes('functions/v1/lkzisp-user-invitations'))return response({error:'resend_smtp_not_configured'},409);
   throw Error('Unexpected request '+url);

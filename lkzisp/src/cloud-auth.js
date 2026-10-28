@@ -275,6 +275,53 @@ export class CloudAccess {
       return {...row.snapshot,id:row.id,tenant_id:row.tenant_id};
     });
   }
+  async listSectorSnapshots(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para consultar seu setor.');
+    if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
+    // O RPC SQL filtra por auth.uid(), vínculo setorial e AAL2.
+    // Jamais requisitar a tabela global para perfis de setor.
+    const rows=await this.#request('/rest/v1/rpc/lkz_isp_get_sector_snapshots',{
+      method:'POST',body:{p_tenant:tenant_id}});
+    if(!Array.isArray(rows))throw Error('Resposta de setor inválida.');
+    return rows.map(row=>{
+      if(row.tenant_id!==tenant_id||!row.snapshot?.sectorOnly ||
+         row.snapshot.fingerprint!==row.fingerprint ||
+         Object.keys(row.snapshot.sectors||{}).length!==1)
+        throw Error('Dados setoriais não verificados.');
+      return {...row.snapshot,id:row.id,tenant_id:row.tenant_id};
+    });
+  }
+  async listSnapshotReviews(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para revisar resultados.');
+    if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
+    const data=await this.#request('/rest/v1/lkz_isp_snapshot_reviews?select=id,tenant_id,snapshot_id,decision,rationale,reviewed_at&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&order=reviewed_at.desc&limit=200');
+    if(!Array.isArray(data))throw Error('Pareceres não disponíveis.');
+    return data;
+  }
+  async submitSnapshotReview({tenant_id,snapshot_id,decision,rationale}){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para aprovar ou reprovar.');
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const note=String(rationale||'').trim();
+    if(!uuid.test(String(tenant_id))||!uuid.test(String(snapshot_id))||
+       !['approve','reject'].includes(decision)||note.length<20||note.length>2000)
+      throw Error('Informe resultado válido e justificativa entre 20 e 2.000 caracteres.');
+    if(!this.#userId)throw Error('Identidade não verificada.');
+    let uncertain=null;
+    try{
+      await this.#request('/rest/v1/lkz_isp_snapshot_reviews',{
+        method:'POST',body:{tenant_id,snapshot_id,decision,rationale:note,reviewed_by:this.#userId}});
+    }catch(error){uncertain=error;}
+    // Confirma a gravação e o estado definitivo por leitura do servidor.
+    const reviews=await this.listSnapshotReviews(tenant_id);
+    const actual=reviews.find(x=>x.snapshot_id===snapshot_id);
+    if(!actual||actual.decision!==decision||actual.rationale!==note)
+      throw uncertain||Error('Parecer não confirmado. Nenhuma conclusão deve ser assumida.');
+    return actual;
+  }
   async saveAggregateSnapshot(tenant_id,snapshot){
     await this.#ensureSession();
     if(this.aal!=='aal2')throw Error('MFA obrigatório para importar.');
@@ -353,9 +400,7 @@ export class CloudAccess {
     if(needSector!==Boolean(sector_id) || (sector_id&&!uuid.test(sector_id)))
       throw Error('Setor deve ser informado apenas para Líder ou Financeiro.');
     const memberships=await this.readMemberships();
-    const authorized=memberships.some(m=>m.tenant_id===tenant_id &&
-      ['master','gestor','administrador'].includes(m.role) &&
-      (requested_role!=='gestor'||['master','gestor'].includes(m.role)));
+    const authorized=memberships.some(m=>m.tenant_id===tenant_id && m.role==='master');
     if(!authorized)throw Error('Seu perfil não autoriza esse convite.');
     const data=await this.#request('/rest/v1/lkz_isp_user_invitations?select=id,status',{
       method:'POST',extraHeaders:{Prefer:'return=representation'},
