@@ -4103,7 +4103,10 @@ const titles={
     'Conversa',
 
   audit:
-    'Auditoria'
+    'Auditoria',
+
+  infra:
+    'Infraestrutura'
 };
 
 
