@@ -14,6 +14,8 @@ async function api(path,method='GET',body=null,useAuth=true){
   ...(body===null?{}:{body:JSON.stringify(body)})});
  let data={};try{data=await r.json()}catch{}
  if(!r.ok)throw Error(r.status===429?'Muitas tentativas: tente novamente mais tarde.':
+  data?.error_code==='mfa_factor_name_conflict'?'Este autenticador ja existe. Saia e entre novamente, depois use seu codigo TOTP.':
+  data?.error_code==='mfa_verification_failed'?'Codigo TOTP incorreto ou expirado. Confira o relogio do celular.':
   r.status===401||r.status===400?'Credenciais, código ou confirmação inválidos.':
   r.status===403?'Acesso não autorizado.':'Serviço indisponível (HTTP '+r.status+').');
  return data;
@@ -44,10 +46,18 @@ function clear(){
 }
 async function factors(){
  await current();
- const d=await api('/auth/v1/factors');
- const list=Array.isArray(d)?d:[...(d.factors||[]),...(d.totp||[])];
- factorId=list.find(x=>(x.factor_type==='totp'||x.type==='totp')&&x.status==='verified')?.id||'';
- visible('enroll',!factorId);msg(factorId?'Informe o código do seu autenticador.':'Configure o autenticador para ativar a proteção da sua conta.');
+ // A API de listagem do Supabase utiliza user.factors, retornado por GET /auth/v1/user.
+ // GET /auth/v1/factors responde 405 e nao deve ser usado para listagem.
+ const user=await api('/auth/v1/user');
+ const list=Array.isArray(user?.factors)?user.factors:[];
+ const totp=list.filter(x=>x?.factor_type==='totp');
+ const verified=totp.find(x=>x.status==='verified');
+ const unverified=totp.find(x=>x.status==='unverified');
+ factorId=(verified||unverified)?.id||'';
+ visible('enroll',!factorId);
+ if(verified)msg('Seu autenticador ja esta configurado. Informe o codigo de seis digitos do aplicativo.');
+ else if(unverified)msg('Existe um autenticador em configuracao. Informe o codigo do aplicativo usado na configuracao inicial.');
+ else msg('Nenhum autenticador cadastrado. Configure um segundo fator para continuar.');
 }
 async function memberships(){
  await current();
@@ -93,6 +103,8 @@ el('recover').addEventListener('click',()=>exec(async()=>{
 }));
 el('enroll').addEventListener('click',()=>exec(async()=>{
  await current();
+ await factors();
+ if(factorId)throw Error('Autenticador existente encontrado. Informe o codigo TOTP sem cadastrar novamente.');
  const d=await api('/auth/v1/factors','POST',{factor_type:'totp',friendly_name:'LKZ ISP Intelligence'});
  if(!d.id||!d.totp?.secret)throw Error('O autenticador não pôde ser cadastrado.');
  factorId=d.id;el('secret').textContent=d.totp.secret;visible('secretBox',true);
