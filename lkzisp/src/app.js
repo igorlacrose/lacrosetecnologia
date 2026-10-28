@@ -404,7 +404,7 @@ function usersPage(){
    <span class="tiny muted">Obrigatório somente para Líder de Setor ou Financeiro. O acesso ficará limitado ao setor selecionado.</span>
    ${cloudUi.sectorsLoading?'<span class="tiny muted">Consultando setores autorizados…</span>':''}
   </label>
-  <p class="footnote">O envio só é liberado após testar o SMTP do Supabase com Resend. Enquanto estiver desativado, o convite será registrado como aguardando envio. Nenhuma senha deve ser compartilhada.</p>
+  <p class="footnote">O envio só é liberado após validar o SMTP de autenticação com Resend. Enquanto estiver desativado, o convite será registrado como aguardando envio. Nenhuma senha deve ser compartilhada.</p>
   <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Convidar por e-mail</button>
  </form></section>
  <section class="card card-pad" style="margin-top:18px"><div class="section-head"><div><h2>Convites da empresa</h2><p>Confirme quem recebeu convite e quem ainda precisa finalizar o primeiro acesso.</p></div>
