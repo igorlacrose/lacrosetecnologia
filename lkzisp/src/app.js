@@ -283,7 +283,7 @@ function cloudPage(){
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
  const name=esc(cloud.email||'—');
  return heading('Conta e Nuvem','Autenticação real no ambiente exclusivo: MFA obrigatório para leitura por empresa/setor.',false)+
- `<div class="notice warning"><b>Operação inicial controlada:</b> esta seção conecta à identidade e aos vínculos. Os arquivos originais do IXC não são enviados. Os indicadores agregados aprovados são gravados no ambiente seguro; aprovações financeiras permanecem bloqueadas. Sessões e senhas não são gravadas no navegador.</div>`+
+ `<div class="notice warning"><b>Operação inicial controlada:</b> esta seção conecta à identidade e aos vínculos. Os arquivos originais do IXC não são enviados. Os indicadores agregados aprovados são gravados no ambiente seguro; aprovações financeiras permanecem bloqueadas. Senhas não são armazenadas. Em dispositivo confiável, o acesso de retorno é protegido por criptografia e limitado a 6 horas de inatividade.</div>`+
  `<section class="card card-pad" style="max-width:790px"><div class="section-head"><div><h2>${logged?'Sua sessão':'Acesso protegido'}</h2><p>Banco exclusivo LKZ ISP Intelligence · região São Paulo</p></div><span class="badge ${verified?'green':'orange'}">${verified?'MFA confirmado':logged?'MFA necessário':'Não autenticado'}</span></div>`+
  (cloudUi.error?`<div class="notice warning" role="alert">${esc(cloudUi.error)}</div>`:'')+
  (cloudUi.message?`<div class="notice" role="status">${esc(cloudUi.message)}</div>`:'')+
@@ -296,7 +296,7 @@ function cloudPage(){
  ` <p class="muted">Ainda não existe um autenticador verificado nesta sessão. Use "Configurar autenticador" para gerar um segredo temporário, salvando-o em um app autenticador.</p><button class="btn" data-cloud="enroll" ${cloudUi.busy?'disabled':''}>Configurar autenticador</button>`)+
  (cloudUi.secret?`<div class="notice warning"><strong>Segredo TOTP — não compartilhe nem salve em print:</strong><p class="break-all"><code>${esc(cloudUi.secret)}</code></p><p>Adicione esse segredo ao seu autenticador e confirme o código abaixo. O segredo só existe em memória durante esta sessão.</p></div>`:'')+
  `<form id="cloud-mfa-form" autocomplete="off"><label class="field">Código de seis dígitos<input id="cloud-totp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Confirmar MFA</button></form><div class="action-row"><button class="btn danger" data-cloud="logout">Sair sem acessar dados</button></div>`))+
- `</section><p class="footnote">Esta página usa autenticação em memória, sem localStorage/IndexedDB para tokens. Recarregar a página requer entrar novamente. Autorizações são aplicadas no banco, não pela navegação.</p>`;
+ `</section><p class="footnote">Sem a opção de dispositivo confiável, a sessão fica apenas em memória. Com a opção ativada, o token de retorno é criptografado localmente por até 6 horas de inatividade, sujeito à validação do servidor e ao MFA. Autorizações são aplicadas no banco.</p>`;
 }
 async function cloudAction(type){
  if(cloudUi.busy)return;
@@ -369,7 +369,7 @@ function render(){
  else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();window.scrollTo({top:0,behavior:'instant'});}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
