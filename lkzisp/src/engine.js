@@ -18,10 +18,11 @@ export const COLUMN_ALIASES = {
   Cidade:['CIDADE','MUNICIPIO'],
   Abertura:['ABERTURA','DATA ABERTURA','DATA DE ABERTURA','CRIADO EM'],
   Fechamento:['FECHAMENTO','DATA FECHAMENTO','DATA DE FECHAMENTO','ENCERRAMENTO'],
-  Prioridade:['PRIORIDADE','URGENCIA']
+  Prioridade:['PRIORIDADE','URGENCIA'],
+  Colaborador:['COLABORADOR','RESPONSAVEL','RESPONSAVEL ATENDIMENTO','TECNICO RESPONSAVEL']
 };
 export function detectMapping(headers) {
-  return Object.fromEntries(SAFE_COLUMNS.map(c => [c, headers.findIndex(h=>COLUMN_ALIASES[c].includes(plain(h))) ]));
+  return Object.fromEntries([...SAFE_COLUMNS,'Colaborador'].map(c => [c, headers.findIndex(h=>COLUMN_ALIASES[c].includes(plain(h))) ]));
 }
 export function cleanStatus(value) {
   const s=plain(value); return ({'FINALIZADA':'Finalizada','FECHADA':'Finalizada','CONCLUIDA':'Finalizada','ENCERRADA':'Finalizada','ABERTA':'Aberta','ENCAMINHADA':'Encaminhada','EXECUCAO':'Execução','EM EXECUCAO':'Execução','ASSUMIDA':'Assumida'})[s] || 'Outros';
