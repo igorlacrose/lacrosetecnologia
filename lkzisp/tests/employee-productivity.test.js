@@ -31,6 +31,7 @@ test('colaborador invalido e identificador potencialmente sensivel nao entra no 
  }
  assert.equal(cleanEmployeeName('José de Souza'),'José de Souza');
  assert.equal(cleanEmployeeName('Ana Maria (N2)'),'Ana Maria (N2)');
+ assert.equal(cleanEmployeeName('Ana-Maria Silva'),'Ana-Maria Silva');
 });
 test('sem coluna Colaborador o sistema avisa, sem inventar pessoas',()=>{
  const headers=['Status','Assunto','Abertura'];
