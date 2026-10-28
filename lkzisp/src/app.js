@@ -14,7 +14,7 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
-const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],recovery:false};
+const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
@@ -263,21 +263,38 @@ function usersPage(){
    '<div class="notice warning">Você não possui permissão para gerenciar usuários.</div>';
  const selected=editable.find(m=>m.tenant_id===state.selectedTenant)||editable[0];
  const allowed=['gestor','administrador','lider_setor','financeiro'].filter(r=>mayInvite(selected.role,r));
- return heading('Usuários e Permissões','Cadastre solicitações de acesso sem criar senhas para terceiros.',false)+
- `<div class="notice"><b>Convite seguro:</b> o novo usuário define sua própria senha e configura o autenticador. O acesso somente é concedido depois da confirmação e do vínculo autorizado. O grupo MASTER nunca pode ser convidado.</div>
+ return heading('Usuários e Permissões','Convide colaboradores por e-mail, com senha própria e MFA obrigatório.',false)+
+ `<div class="notice"><b>Convite seguro:</b> o usuário recebe um e-mail, define a própria senha e confirma o MFA. Só depois o vínculo da empresa é ativado. O grupo MASTER nunca pode ser convidado. <strong>Remetente provisório: lacrose.igor@gmail.com.</strong></div>
  <section class="card card-pad" style="max-width:850px"><div class="section-head"><div><h2>Convidar usuário</h2><p>Permissões aplicadas pela empresa e pelo perfil da conta atual.</p></div></div>
  <form id="cloud-invite-form" class="safe-list">
   <label class="field">Empresa<select id="invite-tenant" required>${editable.map(m=>`<option value="${esc(m.tenant_id)}" ${m.tenant_id===selected.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label>
   <label class="field">E-mail do colaborador<input id="invite-email" type="email" autocomplete="off" placeholder="colaborador@empresa.com.br" maxlength="254" required></label>
   <label class="field">Perfil<select id="invite-role" required>${allowed.map(r=>`<option value="${esc(r)}">${esc(GROUPS.find(g=>g.id===r)?.name||r)}</option>`).join('')}</select></label>
   <label class="field">Setor (exigido para líder ou financeiro)<input id="invite-sector" maxlength="36" autocomplete="off" placeholder="Identificador UUID do setor"></label>
-  <p class="footnote">Nesta fase, o botão registra um <strong>convite pendente</strong> e gera auditoria; o envio automático de e-mail e a habilitação do novo vínculo ainda não estão ativos. Não compartilhe senhas.</p>
-  <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Registrar convite pendente</button>
+  <p class="footnote">Quando o Gmail estiver habilitado no servidor, o convite é enviado automaticamente. Se não estiver, permanece pendente para envio posterior. Nunca compartilhe senhas.</p>
+  <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Convidar por e-mail</button>
  </form></section>
+ <section class="card card-pad" style="margin-top:18px"><div class="section-head"><div><h2>Convites da empresa</h2><p>Confirme quem recebeu convite e quem ainda precisa finalizar o primeiro acesso.</p></div>
+ <button type="button" class="btn" data-cloud="reload-invites" ${cloudUi.busy?'disabled':''}>Atualizar lista</button></div>
+ ${cloudUi.invitationsLoading?'<p class="muted">Consultando convites autorizados…</p>':''}
+ ${cloudUi.invitations.length?'<div class="table-scroll"><table><thead><tr><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
+ cloudUi.invitations.map(i=>'<tr><td>'+esc(i.invited_email)+'</td><td>'+esc(i.requested_role)+'</td><td>'+esc(i.status==='sent'?'Enviado; aguardando MFA':i.status==='accepted'?'Acesso ativado':i.status==='pending'?'Aguardando envio':i.status==='sending'?'Envio em processamento':i.status==='expired'?'Expirado':i.status)+'</td><td>'+
+ (i.status==='pending'&&new Date(i.expires_at)>new Date()?'<button class="btn" type="button" data-invite-send="'+esc(i.id)+'">Enviar e-mail</button>':'—')+'</td></tr>').join('')+
+ '</tbody></table></div>':'<p class="muted">Nenhum convite encontrado para esta empresa.</p>'}
+ </section>
  <section class="card card-pad" style="margin-top:18px"><h2>Quem pode convidar quem?</h2>
  <div class="table-scroll"><table><thead><tr><th>Perfil atual</th><th>Gestor</th><th>Administrador</th><th>Líder</th><th>Financeiro</th></tr></thead><tbody>
  ${['master','gestor','administrador'].map(r=>`<tr><td>${esc(GROUPS.find(g=>g.id===r)?.name)}</td>${['gestor','administrador','lider_setor','financeiro'].map(target=>`<td><span class="badge ${mayInvite(r,target)?'green':'orange'}">${mayInvite(r,target)?'Permitido':'Negado'}</span></td>`).join('')}</tr>`).join('')}
  </tbody></table></div></section>`;
+}
+async function loadInvitations(){
+ if(!cloud.hasSession || cloud.aal!=='aal2'||!state.selectedTenant ||
+  !cloudUi.memberships.some(m=>m.tenant_id===state.selectedTenant&&['master','gestor','administrador'].includes(m.role)))return;
+ if(cloudUi.invitationsLoading)return;
+ cloudUi.invitationsLoading=true;
+ try{cloudUi.invitations=await cloud.listInvitations(state.selectedTenant);}
+ catch(err){cloudUi.error=err?.message||'Não foi possível consultar convites.';}
+ finally{cloudUi.invitationsLoading=false;render();}
 }
 function cloudPage(){
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
@@ -289,7 +306,7 @@ function cloudPage(){
  (cloudUi.message?`<div class="notice" role="status">${esc(cloudUi.message)}</div>`:'')+
  (!logged?`<form id="cloud-login-form" class="safe-list" autocomplete="on"><label class="field">E-mail<input id="cloud-email" type="email" autocomplete="username" maxlength="250" required></label><label class="field">Senha<input id="cloud-password" type="password" autocomplete="current-password" minlength="1" maxlength="250" required></label><div class="action-row"><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Entrar com segurança</button><button class="btn" type="button" data-cloud="signup" ${cloudUi.busy?'disabled':''}>Primeiro acesso · definir minha senha</button><button class="btn" type="button" data-cloud="recover">Recuperar acesso</button></div></form><p class="footnote">O cadastro não concede acesso empresarial. O MASTER inicial só será ativado depois de confirmar o e-mail e concluir o cadastro protegido. Usuários convidados definem sua própria senha. Nunca informe senhas por mensagem.</p>`:
  `<div class="safe-list"><div>${ic('check')}<span>Identidade: <strong>${name}</strong> · sessão ${esc(cloud.aal.toUpperCase())}</span></div></div>`+
- (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
+ (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:cloud.invitationSetupPending?`<h3>Primeiro acesso por convite</h3><p class="muted">Seu e-mail foi validado. Defina sua senha exclusiva antes de configurar o segundo fator.</p><form id="cloud-invite-password-form" class="safe-list"><label class="field">Crie sua senha (mínimo 12 caracteres)<input id="cloud-invite-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Salvar senha e configurar MFA</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
  ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
  `<h3>Segundo fator obrigatório (TOTP)</h3><p class="muted">Sem código do aplicativo autenticador, as políticas do banco impedem consultar os dados empresariais.</p>`+
  (cloudUi.factors.length?`<p class="muted">Autenticador verificado encontrado. Digite o código atual.</p>`:
@@ -312,6 +329,12 @@ async function cloudAction(type){
    const email=document.getElementById('cloud-email')?.value||'';
    await cloud.requestPasswordReset(email);
    cloudUi.message='Se a conta existir, um link de recuperação será enviado. Verifique o e-mail e o spam.';
+  }else if(type==='invite-password'){
+   const input=document.getElementById('cloud-invite-password');const password=input?.value||'';
+   if(input)input.value='';
+   await cloud.setInvitedPassword(password);
+   cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
+   cloudUi.message='Senha definida. Agora confirme seu aplicativo autenticador para ativar o convite.';
   }else if(type==='reset'){
    const password=document.getElementById('cloud-new-password')?.value||'';
    await cloud.setRecoveredPassword(password);
@@ -326,7 +349,7 @@ async function cloudAction(type){
    lastActivity=Date.now();
    cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
    cloudUi.message='Identidade confirmada; prossiga com o segundo fator.';
-   if(cloud.aal==='aal2'){cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
+   if(cloud.aal==='aal2'){await cloud.acceptInvitations();cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
   }else if(type==='enroll'){
    const d=await cloud.enrollTotp();cloudUi.factorId=d.id;cloudUi.secret=d.secret;
    cloudUi.message='Registre o segredo no aplicativo autenticador e confirme o código.';
@@ -334,7 +357,9 @@ async function cloudAction(type){
    const code=document.getElementById('cloud-totp')?.value?.trim()||'';
    await cloud.verifyTotp(code,cloudUi.factorId||cloudUi.factors[0]?.id);
    cloudUi.secret='';cloudUi.factorId='';cloudUi.factors=[];
+   const activated=await cloud.acceptInvitations();
    cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();
+   if(activated.accepted)cloudUi.message=activated.accepted+' convite(s) confirmado(s); acesso empresarial habilitado.';
    lastActivity=Date.now();
    cloudUi.message='MFA confirmado. A leitura respeita as permissões do banco.';
   }else if(type==='bootstrap'){
@@ -348,15 +373,25 @@ async function cloudAction(type){
    const invited_email=document.getElementById('invite-email')?.value||'';
    const requested_role=document.getElementById('invite-role')?.value||'';
    const sector_id=document.getElementById('invite-sector')?.value?.trim()||null;
-   await cloud.createInvitation({tenant_id,invited_email,requested_role,sector_id});
-   cloudUi.message='Convite pendente registrado. Nenhum e-mail foi enviado ainda; a ativação do vínculo exige serviço seguro.';
+   const result=await cloud.createInvitation({tenant_id,invited_email,requested_role,sector_id});
+   cloudUi.message=result.sent?'Envio solicitado por lacrose.igor@gmail.com. O destinatário deve confirmar o e-mail e o MFA.':
+     'Convite registrado, mas ainda não enviado. '+(result.reason||'Configure o remetente Gmail no servidor.');
+   if(state.selectedTenant===tenant_id)cloudUi.invitations=await cloud.listInvitations(tenant_id);
+  }else if(type==='reload-invites'){
+   cloudUi.invitations=await cloud.listInvitations(state.selectedTenant);
+   cloudUi.message='Lista de convites atualizada.';
+  }else if(type.startsWith('retry-invite:')){
+   const id=type.slice('retry-invite:'.length);
+   await cloud.sendInvitation(id);
+   cloudUi.invitations=await cloud.listInvitations(state.selectedTenant);
+   cloudUi.message='E-mail enviado à fila do provedor. Aguarde a confirmação do destinatário.';
   }else if(type==='audit'){
    const approved=cloudUi.memberships.find(m=>['master','gestor'].includes(m.role));
    if(!approved)throw Error('Esta conta não tem acesso à auditoria.');
    cloudUi.audit=await cloud.readAudit(approved.tenant_id);
    cloudUi.message='Auditoria consultada com filtros de acesso aplicados pelo ambiente seguro.';
   }else if(type==='logout'){
-   await cloud.signOut();clearWorkspace();cloudUi.secret='';cloudUi.factorId='';cloudUi.memberships=[];cloudUi.audit=[];cloudUi.factors=[];
+   await cloud.signOut();clearWorkspace();cloudUi.secret='';cloudUi.factorId='';cloudUi.memberships=[];cloudUi.audit=[];cloudUi.invitations=[];cloudUi.factors=[];
    cloudUi.message='Sessão encerrada.';
   }
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
@@ -369,7 +404,7 @@ function render(){
  else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
@@ -378,6 +413,8 @@ function bindActions(){
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
  root.querySelector('#cloud-reset-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('reset')});
+ root.querySelector('#cloud-invite-password-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite-password')});
+ root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
@@ -501,12 +538,13 @@ function exportSafe(){const s=current();if(!s)return;
 }
 async function init(){
  try{const cb=await cloud.handleAuthCallback();if(cb){
-  cloudUi.message=cb.recovery?'Defina sua nova senha antes de continuar.':'E-mail confirmado. Confirme o MFA para acessar.';
-  if(!cb.recovery && cloud.aal!=='aal2')cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
-  if(!cb.recovery && cloud.aal==='aal2'){cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
+  cloudUi.message=cb.recovery?'Defina sua nova senha antes de continuar.':cb.invited?'Convite confirmado. Defina uma senha e ative seu MFA.':'E-mail confirmado. Confirme o MFA para acessar.';
+  if(!cb.recovery && !cb.invited && cloud.aal!=='aal2')cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
+  if(!cb.recovery && !cb.invited && cloud.aal==='aal2'){await cloud.acceptInvitations();cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
  }else{
   const resumed=await cloud.restoreTrustedDevice();
   if(resumed){
+   await cloud.acceptInvitations();
    cloudUi.memberships=await cloud.readMemberships();
    await loadCloudWorkspace();
    cloudUi.message='Dispositivo confiável reconhecido. Sessão protegida restaurada.';
