@@ -44,10 +44,17 @@ function clear(){
 }
 async function factors(){
  await current();
- const d=await api('/auth/v1/factors');
- const list=Array.isArray(d)?d:[...(d.factors||[]),...(d.totp||[])];
+ // GoTrue lists factors in the authenticated /user response, not GET /factors.
+ // Never interpret an unavailable response as "no authenticator" and re-enroll.
+ const d=await api('/auth/v1/user');
+ if(!d || !d.id || (d.factors!==undefined && !Array.isArray(d.factors)))
+  throw Error('Não foi possível consultar os autenticadores desta conta.');
+ if(email && d.email?.toLowerCase()!==email.toLowerCase())
+  throw Error('A conta autenticada não corresponde à sessão.');
+ const list=Array.isArray(d.factors)?d.factors:[];
  factorId=list.find(x=>(x.factor_type==='totp'||x.type==='totp')&&x.status==='verified')?.id||'';
- visible('enroll',!factorId);msg(factorId?'Informe o código do seu autenticador.':'Configure o autenticador para ativar a proteção da sua conta.');
+ visible('enroll',!factorId);
+ msg(factorId?'Seu autenticador já está ativo. Informe o código atual de seis dígitos.':'Configure o autenticador para ativar a proteção da sua conta.');
 }
 async function memberships(){
  await current();
