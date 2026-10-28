@@ -68,45 +68,36 @@ test('não guarda sessão em storage e não usa chave secreta',async()=>{
   assert.doesNotMatch(sw,/https:\/\/syysqoieyycclpfbadwp\.supabase\.co/);
 });
 
-test('gestor registra solicitação de convite sem enviar e-mail ou criar MASTER',async()=>{
-  const tenant='12345678-1234-4234-8234-123456789abc';
-  const user='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
-  const requests=[];
-  const fake=async(url,options)=>{
-    requests.push({url,...options});
-    if(url.includes('/token?grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test-refresh',expires_in:3600,user:{id:user,email:'leader@example.invalid'}});
-    if(url.includes('/rest/v1/lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role:'gestor',sector_id:null}]);
-    if(url.includes('/rest/v1/lkz_isp_user_invitations?select='))return fakeResponse([{id:'11111111-2222-4333-8444-555555555555'}],201);
-    if(url.includes('/functions/v1/lkzisp-user-invitations'))return fakeResponse({status:'submitted_to_email_provider'});
-    throw Error('Unexpected '+url);
-  };
-  const cloud=new CloudAccess(fake);
-  await cloud.signIn('leader@example.invalid','senha-ficticia');
-  await cloud.createInvitation({tenant_id:tenant,invited_email:'  NOVO@EXAMPLE.COM  ',requested_role:'gestor'});
-  const posted=requests.find(x=>x.url.includes('/rest/v1/lkz_isp_user_invitations?select='));
-  assert.ok(posted);
-  assert.equal(posted.method,'POST');
-  assert.deepEqual(JSON.parse(posted.body),{tenant_id:tenant,invited_email:'novo@example.com',requested_role:'gestor',created_by:user});
-  assert.equal(requests.filter(x=>x.url.includes('invite')&&x.url.includes('auth')).length,0);
-  await assert.rejects(cloud.createInvitation({tenant_id:tenant,invited_email:'root@example.invalid',requested_role:'master'}),/MASTER/);
-});
-
-test('administrador não convida gestor, mas pode solicitar grupos comuns',async()=>{
-  const tenant='12345678-1234-4234-8234-123456789abc';
-  const user='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
-  let posts=0;
-  const cloud=new CloudAccess(async(url)=>{
-    if(url.includes('grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test-refresh',expires_in:3600,user:{id:user,email:'admin@example.invalid'}});
-    if(url.includes('/rest/v1/lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role:'administrador',sector_id:null}]);
-    if(url.includes('lkz_isp_user_invitations?select=')){posts++;return fakeResponse([{id:'22222222-2222-4333-8444-555555555555'}],201);}
-    if(url.includes('/functions/v1/lkzisp-user-invitations'))return fakeResponse({status:'submitted_to_email_provider'});
-    throw Error('unexpected URL');
+test('apenas MASTER consegue solicitar convites de usuário',async()=>{
+ const tenant='12345678-1234-4234-8234-123456789abc';
+ const user='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+ for(const role of ['gestor','administrador','lider_setor','financeiro']){
+  let sends=0;
+  const c=new CloudAccess(async(url)=>{
+   if(url.includes('grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test',expires_in:3600,user:{id:user}});
+   if(url.includes('lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role,sector_id:null}]);
+   if(url.includes('lkz_isp_user_invitations')){sends++;throw Error('Unexpected direct DB invitation');}
+   throw Error('Unexpected request '+url);
   });
-  await cloud.signIn('admin@example.invalid','senha-de-exemplo');
-  await assert.rejects(cloud.createInvitation({tenant_id:tenant,invited_email:'gestor@example.invalid',requested_role:'gestor'}),/não autoriza/);
-  assert.equal(posts,0);
-  await cloud.createInvitation({tenant_id:tenant,invited_email:'outro@example.invalid',requested_role:'administrador'});
-  assert.equal(posts,1);
+  await c.signIn('gestao@example.invalid','senha-de-teste');
+  await assert.rejects(c.createInvitation({tenant_id:tenant,invited_email:'novo@example.invalid',requested_role:'administrador'}),/não autoriza/);
+  assert.equal(sends,0);
+ }
+ let posted=0;
+ const master=new CloudAccess(async(url,options)=>{
+  if(url.includes('grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test',expires_in:3600,user:{id:user}});
+  if(url.includes('lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role:'master',sector_id:null}]);
+  if(url.includes('lkz_isp_user_invitations?select=')){
+   posted++;assert.equal(JSON.parse(options.body).created_by,user);
+   return fakeResponse([{id:'11111111-2222-4333-8444-555555555555'}],201);
+  }
+  if(url.includes('/functions/v1/lkzisp-user-invitations'))return fakeResponse({status:'submitted_to_email_provider'});
+  throw Error('Unexpected request '+url);
+ });
+ await master.signIn('master@example.invalid','senha-de-teste');
+ await master.createInvitation({tenant_id:tenant,invited_email:'novo@example.invalid',requested_role:'gestor'});
+ assert.equal(posted,1);
+ await assert.rejects(master.createInvitation({tenant_id:tenant,invited_email:'root@example.invalid',requested_role:'master'}),/MASTER/);
 });
 
 test('auditoria exige MFA e nunca aceita tenant malformado',async()=>{
