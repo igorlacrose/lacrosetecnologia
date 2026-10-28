@@ -1,4 +1,5 @@
 import {evaluateDataQuality, QUALITY_STATUS} from './quality.js';
+import {analyzeRejectedReport} from './review-analysis.js';
 import {detectMapping, buildSnapshot, subjectGroups,radarItems,calculateCost,moneyBRL,sampleCost} from './engine.js';
 import {readReport} from './importer.js';
 import {buildEmployeeMetrics} from './employee-analytics.js';
@@ -38,7 +39,7 @@ function mockSnapshot(){
 function current(){return state.snapshot;}
 function getMenu(){
  let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
- if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
+ if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],...(state.reviews.some(x=>x.snapshot_id===state.snapshot?.id&&x.decision==='reject')?[['analysis','alert','Diagnóstico']]:[]),['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  if(sectorMode())items=[['dashboard','dashboard','Meu setor'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
  // Perfis setoriais consultam exclusivamente snapshots minimizados pelo servidor, com MFA e vínculo.
@@ -143,7 +144,7 @@ function executiveDashboard(){
  '<section class="card card-pad"><div class="section-head"><div><h2>O que merece atenção?</h2><p>Alertas calculados com base nos dados disponíveis.</p></div><span class="badge orange">'+fmt(signals.length)+' alertas</span></div>'+
  (signals.slice(0,4).map(x=>'<div class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></div>').join('')||'<p class="muted">Nenhum alerta identificado pelos critérios atuais.</p>')+'</section>'+
  '<div class="executive-actions"><button class="btn primary" data-view="reports">Gerar relatório</button>'+
- (role==='gestor'?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
+ (['gestor','administrador'].includes(role)?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
  '<p class="footnote">Os resultados não comprovam responsabilidade individual e devem ser interpretados com contexto operacional.</p>');
 }
 function tickets(){const s=current();return heading('Atendimentos','Análise por assunto, setor, cidade e status.')+(!s?noData():dataBanner()+`
@@ -225,15 +226,15 @@ function reports(){const s=current();return heading('Relatórios executivos','Im
  '<div class="action-row executive-report-actions"><button class="btn primary" data-action="print-report">Imprimir / salvar PDF</button><button class="btn" data-action="export">Baixar CSV</button></div>');
 }
 function access(){
- const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER'];
+ const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER','Aprovar/reprovar relatório'];
  return heading('Grupos de acesso','Perfis padronizados · autorização real será verificada no backend e no banco.',false)+`
- <div class="notice warning"><b>Funcionalidades liberadas:</b> identidade com MFA, consulta e gravação de agregados no ambiente seguro sob RLS, histórico e auditoria. Convites ainda não enviam mensagens nem concedem vínculos; ajustes financeiros, decisões e planos corretivos aguardam APIs autorizadas.</div>
+ <div class="notice warning"><b>Funcionalidades liberadas:</b> MFA, indicadores protegidos por RLS, importações exclusivas do MASTER e avaliações imutáveis por Gestor/Administrador. Convites dependem de SMTP validado; ajustes financeiros e planos corretivos ainda exigem APIs específicas.</div>
  <section class="card card-pad"><div class="section-head"><div><h2>Cinco perfis e convites controlados</h2><p>MASTER e Gestor podem solicitar convites a Gestores; Administrador só solicita outros grupos. Vínculo efetivo exige confirmação segura no backend.</p></div></div>
  <div class="table-scroll"><table><thead><tr><th>Grupo</th>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>
  ${GROUPS.map(g=>`<tr><td><strong>${esc(g.name)}</strong><div class="tiny muted">${esc(g.description)}</div></td>${PERMISSIONS.map(perm=>`<td><span class="badge ${describeAccess(g.id,perm)==='Permitido'?'green':'orange'}">${describeAccess(g.id,perm)}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
  <section class="card card-pad" style="margin-top:17px"><h2>Regras obrigatórias</h2><div class="safe-list">
  <div>${ic('lock')}<span>Líder e Financeiro: filtros por setor são aplicados na consulta do servidor, e não apenas no navegador.</span></div>
- <div>${ic('lock')}<span>Administrador: dados globais somente leitura, mas pode convidar usuários comuns. Gestor também pode convidar Gestores. MASTER é autoridade global, não pode ser criado por outros usuários.</span></div>
+ <div>${ic('lock')}<span>Administrador: consulta dados globais e pode aprovar ou reprovar relatórios com justificativa, sem importar ou modificar configurações. Gestor também pode convidar Gestores. MASTER é autoridade global, não pode ser criado por outros usuários.</span></div>
  <div>${ic('lock')}<span>Registros financeiros são append-only; correção exige justificativa, comprovante, autoria e histórico. Acesso financeiro dependerá de função de backend autenticada.</span></div>
  <div>${ic('lock')}<span>Correção e exclusão pelo MASTER serão revisões/estornos com justificativa e auditoria exclusiva, preservando originais e recuperação. Só o MASTER vê suas próprias ações na auditoria; o histórico não pode ser apagado.</span></div>
  <div>${ic('lock')}<span>Fora da internet: visualização permitida somente em cache autorizado e protegido. Escritas financeiras exigirão confirmação do servidor.</span></div>
@@ -265,7 +266,7 @@ function dataQuality(){
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
 function executiveReviews(){
- const s=current(),manager=activeRole()==='gestor';
+ const s=current(),manager=['gestor','administrador'].includes(activeRole());
  const previous=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
  const signals=s?radarItems(s):[];
  return heading('Avaliações','Revisão dos resultados consolidados do período.',false)+
@@ -280,33 +281,67 @@ function executiveReviews(){
  '<p class="footnote">A avaliação aprova ou reprova o <strong>conjunto de indicadores deste relatório</strong>, não pessoas, alertas isolados ou metas financeiras.</p>'+
  (previous?
  '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
- '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p></div>':
+ '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p>'+(previous.decision==='reject'?'<div class="action-row"><button class="btn primary" data-view="analysis">Abrir diagnóstico e possíveis motivos</button></div>':'')+'</div>':
  manager?
- '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
+ '<div class="executive-actions"><button class="btn primary" data-review-choice="approve" '+(state.reviewBusy?'disabled':'')+'>Aprovar resultado</button><button class="btn danger" data-review-choice="reject" '+(state.reviewBusy?'disabled':'')+'>Reprovar resultado</button></div>'+
  (state.reviewIntent?
  '<form id="executive-review-form" class="safe-list"><h3>'+ (state.reviewIntent==='approve'?'Confirmar aprovação':'Confirmar reprovação')+
  '</h3><p>Explique o motivo da decisão para preservar um histórico claro de avaliação.</p>'+
  '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="2000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
- '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel>Cancelar</button></div></form>':'')+
+ '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel '+(state.reviewBusy?'disabled':'')+'>Cancelar</button></div></form>':'')+
  (state.reviewError?'<div class="notice warning">'+esc(state.reviewError)+'</div>':''):
  '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
  '</section>');
 }
 async function submitExecutiveReview(){
- if(activeRole()!=='gestor'||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
+ if(!['gestor','administrador'].includes(activeRole())||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
   toast('Ação não autorizada para este perfil.',true);return;
  }
- const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
+ const s=current(),tenantId=state.selectedTenant,decision=state.reviewIntent,reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
  if(reason.length<20||reason.length>2000){toast('Escreva uma justificativa com 20 a 2000 caracteres.',true);return;}
  if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
  state.reviewBusy=true;state.reviewError='';render();
  try{
-  await cloud.reviewSnapshot(state.selectedTenant,s.id,state.reviewIntent,reason);
-  state.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
-  state.reviewIntent=null;toast('Decisão registrada e auditada com sucesso.');
+  await cloud.reviewSnapshot(tenantId,s.id,decision,reason);
+  const confirmedReviews=await cloud.listSnapshotReviews(tenantId);
+  if(state.selectedTenant!==tenantId||current()?.id!==s.id)throw Error('Contexto do relatório mudou durante a avaliação. Recarregue para consultar a decisão.');
+  state.reviews=confirmedReviews;
+  const verified=state.reviews.find(x=>x.snapshot_id===s.id);
+  if(!verified||verified.decision!==decision)throw Error('Decisão não confirmada no servidor. Recarregue antes de tentar novamente.');
+  if(decision==='reject')state.view='analysis';
+  state.reviewIntent=null;toast('Decisão registrada, confirmada e auditada com sucesso.');
  }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
- finally{state.reviewBusy=false;render();}
+ finally{state.reviewBusy=false;render();if(state.view==='analysis')window.scrollTo({top:0,behavior:'instant'});}
 }
+function reviewDiagnosis(){
+ const s=current(),review=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
+ if(!executiveMode()||!review||review.decision!=='reject')
+  return heading('Diagnóstico indisponível','A análise depende de uma reprovação registrada e de acesso gerencial autorizado.',false)+
+   '<section class="card card-pad"><p>Não existe reprovação confirmada para este relatório ou seu perfil não está autorizado.</p><button class="btn" data-view="results">Voltar às avaliações</button></section>';
+ const diagnostic=analyzeRejectedReport(s);
+ return heading('Diagnóstico do relatório reprovado','Análise de sinais operacionais com base nos dados importados e na justificativa registrada.',false)+
+  dataBanner()+
+  '<section class="card card-pad"><h2>Decisão registrada</h2><span class="badge red">Reprovado</span><p><strong>Justificativa do responsável:</strong> '+esc(review.rationale)+'</p>'+
+  '<p class="footnote">Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'. O registro da decisão é imutável.</p></section>'+
+  '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'No relatório','activity')+
+  cardKpi('Pendentes',fmt(s.pending),pct(s.pending,s.total)+' do total','clock','orange')+
+  cardKpi('Pendentes há +7 dias',fmt(s.pendingOlder7d||0),'Na data de referência','alert','red')+
+  cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total)+' do total','check','green')+'</div>'+
+  '<section class="card card-pad"><div class="section-head"><div><h2>Sinais encontrados e possíveis motivos</h2>'+
+  '<p>Evidência numérica e hipóteses a investigar. Nenhuma causa-raiz é afirmada automaticamente.</p></div></div>'+
+  (diagnostic.findings.length?diagnostic.findings.map((item,i)=>
+   '<article class="radar-item"><div class="heading"><h3>'+esc(String(i+1)+'. '+item.title)+'</h3><span class="badge orange">Hipótese</span></div>'+
+   '<p><strong>Dado observado:</strong> '+esc(item.evidence)+'</p>'+
+   '<p><strong>Possíveis motivos (não confirmados):</strong> '+esc(item.hypothesis)+'</p>'+
+   '<div class="action"><strong>Como investigar:</strong> '+esc(item.action)+'</div></article>').join(''):
+   '<div class="notice warning">Os indicadores disponíveis não revelam um motivo quantitativo específico. Confira os critérios utilizados na reprovação e solicite informações operacionais adicionais.</div>')+
+  '</section>'+
+  '<section class="card card-pad"><h2>Limitações da análise</h2><ul>'+
+  diagnostic.limitations.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+
+  '<p class="footnote">A avaliação não altera os dados de origem, não gera punições e não substitui análise humana.</p></section>'+
+  '<div class="action-row"><button class="btn primary" data-view="results">Voltar às avaliações</button><button class="btn" data-view="reports">Ver relatório completo</button></div>';
+}
+
 function results(){
  if(executiveMode())return executiveReviews();
  const s=current(),signals=s?radarItems(s):[];
@@ -502,18 +537,19 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
-const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
+const pages={dashboard,results,analysis:reviewDiagnosis,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
  if(!canUseAggregateWorkspace())state.view='cloud';
- else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(state.view))state.view='dashboard';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
 function setView(v){
+ if(state.reviewBusy){toast('Aguarde a confirmação da avaliação no servidor.',true);return;}
  if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';
- else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';
+ else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(v))v='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(v))v='dashboard';
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(v))v='dashboard';
  state.view=v;state.menuOpen=false;state.reviewIntent=null;
@@ -523,8 +559,8 @@ function setView(v){
 }
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
- root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
- root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>cloudAction(b.dataset.cloud)));
+ root.querySelector('#active-tenant')?.addEventListener('change',e=>{if(state.reviewBusy){toast('Aguarde a confirmação da avaliação.',true);render();return;}cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
+ root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy){toast('Aguarde a avaliação terminar.',true);return;}cloudAction(b.dataset.cloud)}));
  root.querySelector('#password-toggle')?.addEventListener('click',e=>{const inp=root.querySelector('#cloud-password');if(!inp)return;const showing=inp.type==='text';inp.type=showing?'password':'text';e.currentTarget.textContent=showing?'Mostrar':'Ocultar';e.currentTarget.setAttribute('aria-pressed',String(!showing));});
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
@@ -533,8 +569,8 @@ function bindActions(){
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
- root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(activeRole()!=='gestor')return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
- root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewIntent=null;state.reviewError='';render();});
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy||!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
+ root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{if(state.reviewBusy)return;state.reviewIntent=null;state.reviewError='';render();});
  root.querySelector('#executive-review-form')?.addEventListener('submit',e=>{e.preventDefault();submitExecutiveReview();});
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
  root.querySelectorAll('[data-load-employees]').forEach(b=>b.addEventListener('click',()=>loadEmployeeMetrics()));
