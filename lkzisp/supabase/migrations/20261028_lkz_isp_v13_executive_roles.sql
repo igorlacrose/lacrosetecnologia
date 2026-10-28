@@ -55,13 +55,13 @@ CREATE TABLE IF NOT EXISTS public.lkz_isp_snapshot_reviews(
  tenant_id uuid NOT NULL,
  snapshot_id uuid NOT NULL,
  decision text NOT NULL CHECK (decision IN ('approve','reject')),
- rationale text NOT NULL CHECK (length(btrim(rationale)) BETWEEN 20 AND 4000),
- decided_by uuid NOT NULL,
- decided_at timestamptz NOT NULL DEFAULT now(),
+ rationale text NOT NULL CHECK (length(btrim(rationale)) BETWEEN 20 AND 2000),
+ reviewed_by uuid NOT NULL,
+ reviewed_at timestamptz NOT NULL DEFAULT now(),
  CONSTRAINT lkz_isp_snapshot_reviews_one UNIQUE(tenant_id,snapshot_id),
  CONSTRAINT lkz_isp_snapshot_reviews_snapshot FOREIGN KEY(tenant_id,snapshot_id)
    REFERENCES public.lkz_isp_aggregate_snapshots(tenant_id,id) ON DELETE RESTRICT,
- CONSTRAINT lkz_isp_snapshot_reviews_actor FOREIGN KEY(tenant_id,decided_by)
+ CONSTRAINT lkz_isp_snapshot_reviews_actor FOREIGN KEY(tenant_id,reviewed_by)
    REFERENCES public.lkz_isp_memberships(tenant_id,user_id) ON DELETE RESTRICT
 );
 ALTER TABLE public.lkz_isp_snapshot_reviews ENABLE ROW LEVEL SECURITY;
@@ -90,14 +90,14 @@ BEGIN
   RAISE EXCEPTION 'GESTOR_REQUIRED' USING ERRCODE='42501';
  END IF;
  IF p_decision NOT IN ('approve','reject') OR p_decision IS NULL
-   OR p_rationale IS NULL OR pg_catalog.length(pg_catalog.btrim(p_rationale)) NOT BETWEEN 20 AND 4000 THEN
+   OR p_rationale IS NULL OR pg_catalog.length(pg_catalog.btrim(p_rationale)) NOT BETWEEN 20 AND 2000 THEN
   RAISE EXCEPTION 'INVALID_REVIEW' USING ERRCODE='22023';
  END IF;
  IF NOT EXISTS(SELECT 1 FROM public.lkz_isp_aggregate_snapshots a
                WHERE a.tenant_id=p_tenant AND a.id=p_snapshot) THEN
   RAISE EXCEPTION 'REPORT_NOT_FOUND' USING ERRCODE='42501';
  END IF;
- INSERT INTO public.lkz_isp_snapshot_reviews(tenant_id,snapshot_id,decision,rationale,decided_by)
+ INSERT INTO public.lkz_isp_snapshot_reviews(tenant_id,snapshot_id,decision,rationale,reviewed_by)
  VALUES(p_tenant,p_snapshot,p_decision,pg_catalog.btrim(p_rationale),uid)
  RETURNING id INTO out_id;
  INSERT INTO public.lkz_isp_audit_events(tenant_id,actor_id,event_name,target_id,audit_visibility,details)
