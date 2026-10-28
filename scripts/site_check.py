@@ -173,6 +173,17 @@ def main() -> int:
         fail("Painel não deve persistir sessão administrativa no sessionStorage", errors)
     if "ADMIN_IDLE_MS=30*60*1000" not in admin_js:
         fail("Painel deve encerrar sessão após inatividade", errors)
+    for required_mfa in [
+        'id="mfaScreen"',
+        "auth.mfa.enroll",
+        "auth.mfa.challenge",
+        "auth.mfa.verify",
+        "getAuthenticatorAssuranceLevel",
+        "currentLevel==='aal2'",
+    ]:
+        target = admin_html if required_mfa.startswith('id="') else admin_js
+        if required_mfa not in target:
+            fail(f"Painel sem MFA obrigatório esperado: {required_mfa}", errors)
 
     flux_html = (ROOT / "flux/index.html").read_text(encoding="utf-8")
     flux_js = (ROOT / "flux/app.js").read_text(encoding="utf-8")
