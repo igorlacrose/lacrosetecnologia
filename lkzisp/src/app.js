@@ -8,7 +8,7 @@ import {encryptBackup, decryptBackup} from './backup.js';
 import {CloudAccess} from './cloud-auth.js';
 
 const root=document.getElementById('app');
-const IS_PUBLIC_HOMOLOGATION=!['localhost','127.0.0.1'].includes(location.hostname); // gate externo: operações requerem RLS/MFA e leitura de volta
+const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: operações requerem RLS/MFA e leitura de volta
 const cloud=new CloudAccess();
 const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
@@ -404,7 +404,7 @@ async function init(){
  try{const setting=await getSetting('cost');if(setting?.value)state.cost={...sampleCost,...setting.value};}
  catch{state.cost={...sampleCost};}
  if(!state.cloudReady){state.snapshots=[];state.snapshot=null;}
- render();if('serviceWorker'in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 window.addEventListener('online',()=>render());window.addEventListener('offline',()=>render());
 init();
