@@ -84,20 +84,20 @@ el('signup').addEventListener('click',()=>exec(async()=>{
  const d=await api('/auth/v1/signup?redirect_to='+encodeURIComponent(REDIRECT),'POST',{email:address,password},false);
  if(d.access_token){adopt(d);await factors();}
  else msg('Cadastro solicitado. Confirme o e-mail recebido. O endereço de retorno deve estar autorizado no Supabase.');
-})});
+}));
 el('recover').addEventListener('click',()=>exec(async()=>{
  const address=el('email').value.trim();
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))throw Error('Informe um e-mail válido.');
  await api('/auth/v1/recover?redirect_to='+encodeURIComponent(REDIRECT),'POST',{email:address},false);
  msg('Se a conta existir, será enviado um link de recuperação. Verifique também a caixa de spam.');
-})});
+}));
 el('enroll').addEventListener('click',()=>exec(async()=>{
  await current();
  const d=await api('/auth/v1/factors','POST',{factor_type:'totp',friendly_name:'LKZ ISP Intelligence'});
  if(!d.id||!d.totp?.secret)throw Error('O autenticador não pôde ser cadastrado.');
  factorId=d.id;el('secret').textContent=d.totp.secret;visible('secretBox',true);
  msg('Adicione o segredo ao autenticador e confirme o código abaixo.');
-})});
+}));
 el('mfaForm').addEventListener('submit',e=>{e.preventDefault();exec(async()=>{
  const code=el('code').value.trim();el('code').value='';
  if(!/^\d{6}$/.test(code)||!factorId)throw Error('Cadastre o autenticador e informe seis dígitos.');
@@ -112,7 +112,7 @@ el('activate').addEventListener('click',()=>exec(async()=>{
  const data=await api('/functions/v1/lkzisp-owner-bootstrap','POST',{action:'activate_master'});
  if(!['activated','already_active'].includes(data.status))throw Error('Ativação não confirmada.');
  await memberships();msg('MASTER ativado. Permissões verificadas no Supabase.');
-})});
+}));
 el('reload').addEventListener('click',()=>exec(async()=>{await memberships();msg('Permissões atualizadas.')}));
 el('signout').addEventListener('click',()=>exec(async()=>{
  if(token)try{await api('/auth/v1/logout','POST',{})}catch{}
