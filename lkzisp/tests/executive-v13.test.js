@@ -52,7 +52,7 @@ test('Decisões enviadas exclusivamente ao servidor e precisam de justificativa'
   throw Error('URL não autorizada: '+url);
  });
  await client.signIn('gestor@example.invalid','senha-teste');
- await assert.rejects(client.reviewSnapshot(tenant,snap,'reject','curto'),/20 a 4000/);
+ await assert.rejects(client.reviewSnapshot(tenant,snap,'reject','curto'),/20 a 2000/);
  assert.equal(await client.reviewSnapshot(tenant,snap,'approve','Indicadores validados pelo gestor do período.'),'77777777-7777-4777-8777-777777777777');
  const req=calls.find(c=>c.url.includes('rpc/lkz_isp_review_snapshot'));
  assert.equal(req.opts.method,'POST');
