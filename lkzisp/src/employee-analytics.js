@@ -4,7 +4,7 @@
  */
 import {MAX_ROWS,cleanStatus,cleanSector,parseDate} from './engine.js';
 
-const namePattern=/^[\p{L}\p{N} .'-()]{2,80}$/u;
+const namePattern=/^[\p{L}\p{N} .'()\-]{2,80}$/u;
 export function cleanEmployeeName(value){
   if(typeof value!=='string')return null;
   const s=value.normalize('NFC').replace(/\s+/g,' ').trim();
