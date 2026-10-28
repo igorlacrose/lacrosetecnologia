@@ -210,10 +210,20 @@ export class CloudAccess {
     await this.#ensureSession();
     if(this.aal!=='aal2')throw Error('MFA obrigatório para indicadores.');
     if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
-    const result=await this.#request('/rest/v1/lkz_isp_aggregate_snapshots?select=id,tenant_id,fingerprint,snapshot,created_at&tenant_id=eq.'+
-      encodeURIComponent(tenant_id)+'&order=created_at.desc&limit=250');
-    if(!Array.isArray(result))throw Error('Resposta de indicadores inválida.');
-    return result.map(row=>{
+    const results=[];
+    // Paginação determinística: a versão anterior consultava somente os últimos 250.
+    // O bloqueio de duplicidade já existe no banco; esta paginação permite
+    // reconhecer também importações anteriores após meses de uso.
+    const pageSize=250;
+    for(let offset=0;offset<10000;offset+=pageSize){
+      const batch=await this.#request('/rest/v1/lkz_isp_aggregate_snapshots?select=id,tenant_id,fingerprint,snapshot,created_at&tenant_id=eq.'+
+        encodeURIComponent(tenant_id)+'&order=created_at.desc,id.desc&limit='+pageSize+'&offset='+offset);
+      if(!Array.isArray(batch))throw Error('Resposta de indicadores inválida.');
+      results.push(...batch);
+      if(batch.length<pageSize)break;
+      if(offset+pageSize>=10000)throw Error('Histórico acima do limite de consulta. Use filtros por período.');
+    }
+    return results.map(row=>{
       if(row.tenant_id!==tenant_id || !row.snapshot || row.fingerprint!==row.snapshot.fingerprint)
         throw Error('Falha de integridade no histórico de indicadores.');
       return {...row.snapshot,id:row.id,tenant_id:row.tenant_id};
