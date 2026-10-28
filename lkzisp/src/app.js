@@ -15,7 +15,7 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
-const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false};
+const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false,inviteSectors:[],sectorsTenant:null,sectorsLoading:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false,reviews:[],reviewIntent:null,reviewBusy:false,reviewError:''};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
@@ -62,6 +62,7 @@ function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships
 function clearWorkspace(){
  state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;state.employeeMetrics={};
  state.cloudReady=false;state.selectedTenant=null;state.reviews=[];state.reviewIntent=null;state.reviewError='';
+ cloudUi.inviteSectors=[];cloudUi.sectorsTenant=null;cloudUi.sectorsLoading=false;
  deleteSnapshots().catch(()=>{});
 }
 function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role))?.tenant_id||null;}
@@ -395,8 +396,15 @@ function usersPage(){
   <label class="field">Empresa<select id="invite-tenant" required>${editable.map(m=>`<option value="${esc(m.tenant_id)}" ${m.tenant_id===selected.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label>
   <label class="field">E-mail do colaborador<input id="invite-email" type="email" autocomplete="off" placeholder="colaborador@empresa.com.br" maxlength="254" required></label>
   <label class="field">Perfil<select id="invite-role" required>${allowed.map(r=>`<option value="${esc(r)}">${esc(GROUPS.find(g=>g.id===r)?.name||r)}</option>`).join('')}</select></label>
-  <label class="field">Setor (exigido para líder ou financeiro)<input id="invite-sector" maxlength="36" autocomplete="off" placeholder="Identificador UUID do setor"></label>
-  <p class="footnote">Quando o Resend estiver configurado e o domínio verificado, o convite é enviado automaticamente. Se não estiver, permanece pendente para envio posterior. Nunca compartilhe senhas.</p>
+  <label class="field" id="invite-sector-field" style="display:none">Setor autorizado
+   <select id="invite-sector" disabled>
+    <option value="">Selecione um setor</option>
+    ${cloudUi.sectorsTenant===selected.tenant_id?cloudUi.inviteSectors.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join(''):''}
+   </select>
+   <span class="tiny muted">Obrigatório somente para Líder de Setor ou Financeiro. O acesso ficará limitado ao setor selecionado.</span>
+   ${cloudUi.sectorsLoading?'<span class="tiny muted">Consultando setores autorizados…</span>':''}
+  </label>
+  <p class="footnote">O envio só é liberado após testar o SMTP do Supabase com Resend. Enquanto estiver desativado, o convite será registrado como aguardando envio. Nenhuma senha deve ser compartilhada.</p>
   <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Convidar por e-mail</button>
  </form></section>
  <section class="card card-pad" style="margin-top:18px"><div class="section-head"><div><h2>Convites da empresa</h2><p>Confirme quem recebeu convite e quem ainda precisa finalizar o primeiro acesso.</p></div>
@@ -411,6 +419,25 @@ function usersPage(){
  <div class="table-scroll"><table><thead><tr><th>Perfil atual</th><th>Gestor</th><th>Administrador</th><th>Líder</th><th>Financeiro</th></tr></thead><tbody>
  ${['master','gestor','administrador'].map(r=>`<tr><td>${esc(GROUPS.find(g=>g.id===r)?.name)}</td>${['gestor','administrador','lider_setor','financeiro'].map(target=>`<td><span class="badge ${mayInvite(r,target)?'green':'orange'}">${mayInvite(r,target)?'Permitido':'Negado'}</span></td>`).join('')}</tr>`).join('')}
  </tbody></table></div></section>`;
+}
+async function loadInviteSectors(tenant_id=state.selectedTenant){
+ if(!cloud.hasSession||cloud.aal!=='aal2'||!canAdministerLocalWorkspace())return;
+ if(!cloudUi.memberships.some(m=>m.tenant_id===tenant_id&&m.role==='master'))return;
+ if(cloudUi.sectorsLoading)return;
+ cloudUi.sectorsLoading=true;cloudUi.sectorsTenant=tenant_id;cloudUi.inviteSectors=[];
+ try{cloudUi.inviteSectors=await cloud.listSectors(tenant_id);}
+ catch(err){cloudUi.error=err?.message||'Não foi possível carregar os setores.';}
+ finally{cloudUi.sectorsLoading=false;render();}
+}
+function syncInviteSectorField(){
+ const role=root.querySelector('#invite-role')?.value;
+ const required=['lider_setor','financeiro'].includes(role);
+ const field=root.querySelector('#invite-sector-field'),select=root.querySelector('#invite-sector');
+ if(!field||!select)return;
+ field.style.display=required?'':'none';
+ select.disabled=!required||cloudUi.sectorsLoading||cloudUi.sectorsTenant!==root.querySelector('#invite-tenant')?.value;
+ select.required=required;
+ if(!required)select.value='';
 }
 async function loadInvitations(){
  if(!cloud.hasSession || cloud.aal!=='aal2'||!state.selectedTenant ||
@@ -512,7 +539,11 @@ async function cloudAction(type){
    const tenant_id=document.getElementById('invite-tenant')?.value||'';
    const invited_email=document.getElementById('invite-email')?.value||'';
    const requested_role=document.getElementById('invite-role')?.value||'';
-   const sector_id=document.getElementById('invite-sector')?.value?.trim()||null;
+   const needSector=['lider_setor','financeiro'].includes(requested_role);
+   const sector_id=needSector?(document.getElementById('invite-sector')?.value||null):null;
+   if(needSector && (!sector_id||cloudUi.sectorsTenant!==tenant_id||
+      !cloudUi.inviteSectors.some(s=>s.id===sector_id)))
+     throw Error('Escolha um setor válido na lista antes de convidar.');
    const result=await cloud.createInvitation({tenant_id,invited_email,requested_role,sector_id});
    cloudUi.message=result.sent?'Envio solicitado por convites@lacrosetecnologia.com.br. O destinatário deve confirmar o e-mail e o MFA.':
      'Convite registrado, mas ainda não enviado. '+(result.reason||'Configure o SMTP do Resend no servidor.');
@@ -554,7 +585,7 @@ function setView(v){
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(v))v='dashboard';
  state.view=v;state.menuOpen=false;state.reviewIntent=null;
  if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}
- render();if(v==='users'&&canAdministerLocalWorkspace())loadInvitations();
+ render();if(v==='users'&&canAdministerLocalWorkspace()){loadInvitations();loadInviteSectors();}
  window.scrollTo({top:0,behavior:'instant'});
 }
 function bindActions(){
@@ -568,6 +599,9 @@ function bindActions(){
  root.querySelector('#cloud-invite-password-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite-password')});
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
+ root.querySelector('#invite-role')?.addEventListener('change',syncInviteSectorField);
+ root.querySelector('#invite-tenant')?.addEventListener('change',e=>loadInviteSectors(e.target.value));
+ syncInviteSectorField();
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
  root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy||!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
  root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{if(state.reviewBusy)return;state.reviewIntent=null;state.reviewError='';render();});
