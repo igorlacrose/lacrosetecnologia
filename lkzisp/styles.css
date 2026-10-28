@@ -162,3 +162,16 @@ input:autofill,input:-webkit-autofill{
  .executive-report .table-scroll{overflow:visible!important}
  .executive-report .progress-track{print-color-adjust:exact}
 }
+
+
+/* Cadastro MFA: QR temporário emitido pelo Supabase, renderizado sem serviços externos. */
+.mfa-enrollment{margin:18px 0;padding:18px;border:1px solid #cde1ed;background:#f5faff;border-radius:14px}
+.mfa-enrollment h4{margin:12px 0 8px;font-size:15px;color:#153857}
+.mfa-enrollment h4:first-child{margin-top:0}
+.mfa-enrollment p{line-height:1.55}
+.mfa-qr-wrap{width:min(264px,100%);margin:16px auto;padding:15px;background:#fff;border:1px solid #d9e4ea;border-radius:13px;box-shadow:0 7px 20px #0b284012}
+.mfa-qr{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:contain;image-rendering:auto}
+.mfa-enrollment details{border:1px solid #cadfea;border-radius:9px;padding:10px 14px;background:#fff;margin:12px 0}
+.mfa-enrollment summary{cursor:pointer;font-weight:700}
+.mfa-enrollment details code{user-select:text}
+@media(max-width:500px){.mfa-enrollment{padding:14px}.mfa-qr-wrap{width:min(240px,100%)}}

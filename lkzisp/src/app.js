@@ -7,7 +7,7 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=133';
+import {CloudAccess} from './cloud-auth.js?v=134';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
@@ -15,7 +15,7 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
-const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false,inviteSectors:[],sectorsTenant:null,sectorsLoading:false};
+const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',qr:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false,inviteSectors:[],sectorsTenant:null,sectorsLoading:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false,reviews:[],reviewIntent:null,reviewBusy:false,reviewError:''};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
@@ -477,8 +477,18 @@ function cloudPage(){
  ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
  `<h3>Segundo fator obrigatório (TOTP)</h3><p class="muted">Sem código do aplicativo autenticador, as políticas do banco impedem consultar os dados empresariais.</p>`+
  (cloudUi.factors.length?`<p class="muted">Autenticador verificado encontrado. Digite o código atual.</p>`:
- ` <p class="muted">Ainda não existe um autenticador verificado nesta sessão. Use "Configurar autenticador" para gerar um segredo temporário, salvando-o em um app autenticador.</p><button class="btn" data-cloud="enroll" ${cloudUi.busy?'disabled':''}>Configurar autenticador</button>`)+
- (cloudUi.secret?`<div class="notice warning"><strong>Segredo TOTP — não compartilhe nem salve em print:</strong><p class="break-all"><code>${esc(cloudUi.secret)}</code></p><p>Adicione esse segredo ao seu autenticador e confirme o código abaixo. O segredo só existe em memória durante esta sessão.</p></div>`:'')+
+ ` <p class="muted">Primeiro acesso: abra um aplicativo autenticador no celular e escaneie o QR Code. Se já iniciou e perdeu o QR, gere um novo: o anterior será invalidado.</p><button class="btn" data-cloud="enroll" ${cloudUi.busy?'disabled':''}>${cloudUi.secret?'Gerar novo QR Code':'Gerar QR Code do autenticador'}</button>`)+
+ (cloudUi.secret?`<section class="mfa-enrollment" aria-label="Configuração do aplicativo autenticador">
+   <h4>1. Escaneie o QR Code com seu celular</h4>
+   <p>Abra Google Authenticator, Microsoft Authenticator ou outro app TOTP e escolha adicionar conta.</p>
+   ${cloudUi.qr?`<div class="mfa-qr-wrap"><img class="mfa-qr" src="${esc(cloudUi.qr)}" alt="QR Code temporário do aplicativo autenticador" referrerpolicy="no-referrer"></div>`:
+    '<div class="notice warning">Este dispositivo não conseguiu exibir o QR Code. Use a chave manual abaixo.</div>'}
+   <details><summary>Usar chave manual (caso não consiga escanear)</summary>
+    <p class="footnote">No aplicativo escolha inserir chave e tipo baseado em tempo (TOTP).</p>
+    <p class="break-all"><code>${esc(cloudUi.secret)}</code></p></details>
+   <p class="footnote">Não compartilhe esta chave nem tire fotos do QR. Essas informações ficam só na sessão atual.</p>
+   <h4>2. Confirme os seis números mostrados no aplicativo</h4>
+  </section>`:'')+
  `<form id="cloud-mfa-form" autocomplete="off"><label class="field">Código de seis dígitos<input id="cloud-totp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Confirmar MFA</button></form><div class="action-row"><button class="btn danger" data-cloud="logout">Sair sem acessar dados</button></div>`))+
  `</section><p class="footnote">Sem a opção de dispositivo confiável, a sessão fica apenas em memória. Com a opção ativada, o token de retorno é criptografado localmente por até 6 horas de inatividade, sujeito à validação do servidor e ao MFA. Autorizações são aplicadas no banco.</p>`;
 }
@@ -501,7 +511,13 @@ async function cloudAction(type){
    if(input)input.value='';
    await cloud.setInvitedPassword(password);
    cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
-   cloudUi.message='Senha definida. Agora confirme seu aplicativo autenticador para ativar o convite.';
+   cloudUi.secret='';cloudUi.qr='';cloudUi.factorId='';
+   if(!cloudUi.factors.length){
+     const enrollment=await cloud.enrollTotp();
+     cloudUi.factorId=enrollment.id;cloudUi.secret=enrollment.secret;cloudUi.qr=enrollment.qr||'';
+   }
+   cloudUi.message=cloudUi.factors.length?'Senha definida. Confirme o código existente.':
+     'Senha definida. Escaneie o QR Code ou utilize a chave manual para confirmar o autenticador.';
   }else if(type==='reset'){
    const password=document.getElementById('cloud-new-password')?.value||'';
    await cloud.setRecoveredPassword(password);
@@ -511,6 +527,7 @@ async function cloudAction(type){
    const input=document.getElementById('cloud-password'); const password=input?.value||'';
    if(input)input.value='';
    const trustRequested=Boolean(document.getElementById('remember-device')?.checked);
+   cloudUi.secret='';cloudUi.qr='';cloudUi.factorId='';
    await cloud.signIn(email,password);
    await cloud.setDeviceTrust(trustRequested);
    lastActivity=Date.now();
@@ -518,12 +535,12 @@ async function cloudAction(type){
    cloudUi.message='Identidade confirmada; prossiga com o segundo fator.';
    if(cloud.aal==='aal2'){await cloud.acceptInvitations();cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
   }else if(type==='enroll'){
-   const d=await cloud.enrollTotp();cloudUi.factorId=d.id;cloudUi.secret=d.secret;
-   cloudUi.message='Registre o segredo no aplicativo autenticador e confirme o código.';
+   const d=await cloud.enrollTotp();cloudUi.factorId=d.id;cloudUi.secret=d.secret;cloudUi.qr=d.qr||'';
+   cloudUi.message='Escaneie o QR Code ou utilize a chave manual e confirme o código de seis dígitos.';
   }else if(type==='verify'){
    const code=document.getElementById('cloud-totp')?.value?.trim()||'';
    await cloud.verifyTotp(code,cloudUi.factorId||cloudUi.factors[0]?.id);
-   cloudUi.secret='';cloudUi.factorId='';cloudUi.factors=[];
+   cloudUi.secret='';cloudUi.qr='';cloudUi.factorId='';cloudUi.factors=[];
    const activated=await cloud.acceptInvitations();
    cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();
    if(activated.accepted)cloudUi.message=activated.accepted+' convite(s) confirmado(s); acesso empresarial habilitado.';
@@ -562,7 +579,7 @@ async function cloudAction(type){
    cloudUi.audit=await cloud.readAudit(approved.tenant_id);
    cloudUi.message='Auditoria consultada com filtros de acesso aplicados pelo ambiente seguro.';
   }else if(type==='logout'){
-   await cloud.signOut();clearWorkspace();cloudUi.secret='';cloudUi.factorId='';cloudUi.memberships=[];cloudUi.audit=[];cloudUi.invitations=[];cloudUi.factors=[];
+   await cloud.signOut();clearWorkspace();cloudUi.secret='';cloudUi.qr='';cloudUi.factorId='';cloudUi.memberships=[];cloudUi.audit=[];cloudUi.invitations=[];cloudUi.factors=[];
    cloudUi.message='Sessão encerrada.';
   }
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
@@ -753,7 +770,7 @@ async function verifyInactivity(){
  if(sessionEnding||!cloud.hasSession)return;
  if(Date.now()-lastActivity<IDLE_LIMIT_MS)return;
  sessionEnding=true;
- try{await cloud.signOut();clearWorkspace();cloudUi.memberships=[];cloudUi.factors=[];cloudUi.secret='';cloudUi.message='Sua sessão foi encerrada após 6 horas de inatividade.';state.view='cloud';render();}
+ try{await cloud.signOut();clearWorkspace();cloudUi.memberships=[];cloudUi.factors=[];cloudUi.secret='';cloudUi.qr='';cloudUi.factorId='';cloudUi.message='Sua sessão foi encerrada após 6 horas de inatividade.';state.view='cloud';render();}
  catch{cloud.clear();clearWorkspace();render();}
  finally{sessionEnding=false;}
 }

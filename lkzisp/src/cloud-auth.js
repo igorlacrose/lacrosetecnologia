@@ -15,6 +15,18 @@ export function jwtAssurance(jwt) {
 }
 
 import {saveTrustedSession,loadTrustedSession,clearTrustedSession} from './trusted-session.js';
+/**
+ * O QR do Supabase é um SVG em data URI (ou SVG bruto em versões compatíveis).
+ * Nunca consultar serviços externos: o QR contém o segredo do autenticador.
+ */
+export function normalizeTotpQrImage(value){
+  if(typeof value!=='string'||value.length<24||value.length>180000)return null;
+  const qr=value.trim();
+  if(/^data:image\/svg\+xml(?:;(?:utf8|charset=utf-8|base64))?,/i.test(qr))return qr;
+  if(/^<svg(?:\s|>)/i.test(qr)&&/<\/svg>\s*$/i.test(qr))
+    return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(qr);
+  return null;
+}
 export class CloudAccess {
   #token = null;
   #refreshToken = null;
@@ -34,7 +46,7 @@ export class CloudAccess {
   get hasSession() { return Boolean(this.#token); }
   get aal() { return this.#token ? jwtAssurance(this.#token) : 'none'; }
   get trustDeviceEnabled(){return this.#trustThisDevice;}
-  get factor() { return this.#factor ? {id:this.#factor.id,secret:this.#factor.secret||null} : null; }
+  get factor() { return this.#factor ? {id:this.#factor.id,secret:this.#factor.secret||null,qr:this.#factor.qr||null} : null; }
 
   async #request(path, options={}) {
     const {method='GET',body=null,auth=true,extraHeaders={}}=options;
@@ -214,10 +226,20 @@ export class CloudAccess {
     await this.#ensureSession();
     const factors=await this.listFactors();
     if(factors.some(f=>f.status==='verified')) throw Error('Seu autenticador já está ativo. Confirme o código existente.');
-    if(factors.length) throw Error('Há um autenticador pendente nesta conta. Não crie um duplicado.');
+    // Uma configuração iniciada antes da correção pode ter um fator não verificado.
+    // Após novo clique em "Configurar", remova SOMENTE esses fatores, jamais MFA verificado.
+    const pending=factors.filter(f=>f.status==='unverified');
+    if(pending.length!==factors.length||pending.length>3)
+      throw Error('Cadastro do autenticador inconsistente. Entre em contato com o administrador.');
+    for(const f of pending){
+      if(!/^[0-9a-f-]{20,50}$/i.test(String(f.id||'')))
+        throw Error('Identificador do autenticador pendente inválido.');
+      await this.#request('/auth/v1/factors/'+encodeURIComponent(f.id),{method:'DELETE'});
+    }
     const d=await this.#request('/auth/v1/factors',{method:'POST',body:{factor_type:'totp',friendly_name:'LKZ ISP Intelligence'}});
     if (!d.id || !d.totp?.secret) throw Error('Não foi possível iniciar autenticação em dois fatores.');
-    this.#factor={id:d.id,secret:d.totp.secret};
+    const qr=normalizeTotpQrImage(d.totp.qr_code);
+    this.#factor={id:d.id,secret:d.totp.secret,qr};
     return this.factor;
   }
   async verifyTotp(code,factorId=null) {
