@@ -115,7 +115,7 @@ test('primeiro acesso inicia QR, UI mantém chave manual e apaga segredo na veri
  assert.match(app,/cloudUi\.secret='';cloudUi\.qr='';cloudUi\.factorId='';cloudUi\.factors=\[\]/);
  assert.match(app,/cloud\.verifyTotp\(code/);
  assert.match(app,/Usar chave manual/);
- assert.match(html,/src\/app\.js\?v=134/);
- assert.match(sw,/lkz-isp-static-v134/);
+ assert.match(html,/src\/app\.js\?v=135/);
+ assert.match(sw,/lkz-isp-static-v135/);
  assert.doesNotMatch(app,/qrserver|chart\.googleapis|api\.qrserver/i);
 });
