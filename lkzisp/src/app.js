@@ -384,14 +384,19 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
   if(!state.staged)return;
   try{const snap=buildSnapshot(state.staged.rows,state.mapping,{source:'IXC · Relatório de atendimentos'});
    const staff=buildEmployeeMetrics(state.staged.rows,state.mapping,snap.referenceDate);
-   const distinct=JSON.stringify({total:snap.total,earliest:snap.earliest,latest:snap.latest,statuses:snap.statuses,subjects:snap.subjects,sectors:snap.sectors,cities:snap.cities,daily:snap.daily,employees:staff.metrics});
-   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(distinct));
-   snap.fingerprint=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
-   const confirmed=await cloud.saveSnapshotWithEmployees(state.selectedTenant,snap,staff.metrics);
+   const base=JSON.stringify({total:snap.total,earliest:snap.earliest,latest:snap.latest,statuses:snap.statuses,subjects:snap.subjects,sectors:snap.sectors,cities:snap.cities,daily:snap.daily});
+   const encodeFingerprint=async str=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str))),x=>x.toString(16).padStart(2,'0')).join('');
+   const oldFingerprint=await encodeFingerprint(base);
+   snap.fingerprint=await encodeFingerprint(JSON.stringify({...JSON.parse(base),employees:staff.metrics}));
+   // Atualizar um relatório anterior já sincronizado sem duplicar seus totais.
+   // O hash legado foi criado com exatamente o mesmo resumo, sem a coluna Colaborador.
+   const previous=state.snapshots.find(x=>x.fingerprint===snap.fingerprint) ||
+     state.snapshots.find(x=>x.fingerprint===oldFingerprint);
+   const confirmed=await cloud.saveSnapshotWithEmployees(state.selectedTenant,previous||snap,staff.metrics);
    // Dados brutos descartados apenas após leitura de volta do servidor.
    state.staged=null;state.mapping=null;state.sourceName='';
    state.snapshots=confirmed.records;state.snapshot=confirmed.snapshot;
-   state.employeeMetrics[snap.fingerprint]=confirmed.employees;
+   state.employeeMetrics[confirmed.snapshot.fingerprint]=confirmed.employees;
    state.demo=false;
    setView('dashboard');
    toast(`${fmt(snap.total)} atendimentos salvos na nuvem, com ${fmt(staff.assigned)} atribuições por colaborador. Dados de clientes excluídos.`);
