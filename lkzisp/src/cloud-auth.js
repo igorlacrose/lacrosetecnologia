@@ -235,6 +235,37 @@ export class CloudAccess {
     if (this.aal!=='aal2') throw Error('Segundo fator não confirmado pelo servidor.');
     return {email:this.#email,aal:this.aal};
   }
+  async listMasterSecurityUsers(){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('Confirme o segundo fator.');
+    const result=await this.#request('/functions/v1/lkzisp-master-account-security',{
+      method:'POST',body:{action:'list'}});
+    if(!Array.isArray(result.users)||result.users.length>200)
+      throw Error('Lista de usuários inválida.');
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    return result.users.map(x=>{
+      if(!uuid.test(String(x.user_id||''))||!uuid.test(String(x.tenant_id||''))||
+         typeof x.email!=='string'||x.email.length>254||
+         !['master','gestor','administrador','lider_setor','financeiro'].includes(x.role))
+        throw Error('Usuário retornado pelo servidor é inválido.');
+      return {user_id:x.user_id,tenant_id:x.tenant_id,
+       email:x.email,role:x.role,is_self:x.is_self===true,
+       email_confirmed:x.email_confirmed===true};
+    });
+  }
+  async masterAccountSecurityAction({target_id,action,factor_id,code}){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório.');
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(String(target_id||''))||!uuid.test(String(factor_id||''))||
+       !['password_recovery','mfa_reset'].includes(action)||!/^\d{6}$/.test(String(code||'')))
+      throw Error('Parâmetros ou código de verificação inválidos.');
+    const result=await this.#request('/functions/v1/lkzisp-master-account-security',{
+      method:'POST',body:{target_id,action,factor_id,code:String(code)}});
+    if(!['recovery_requested','mfa_reset_completed'].includes(result.status))
+      throw Error('Operação não confirmada pelo servidor.');
+    return result;
+  }
   async readMemberships() {
     await this.#ensureSession();
     if (this.aal!=='aal2') throw Error('Ative e confirme a autenticação em dois fatores antes de acessar os dados.');
