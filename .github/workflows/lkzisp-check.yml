@@ -24,7 +24,7 @@ jobs:
       - name: Testes locais
         run: |
           node --check lkzisp/portal.js
-          node --test lkzisp/tests/portal.test.mjs
+          node --test lkzisp/tests/*.test.mjs
       - name: Backend nao exposto sem login
         run: |
           node --input-type=module -e '
