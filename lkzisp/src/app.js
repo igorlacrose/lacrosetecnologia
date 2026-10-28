@@ -226,15 +226,15 @@ function reports(){const s=current();return heading('Relatórios executivos','Im
  '<div class="action-row executive-report-actions"><button class="btn primary" data-action="print-report">Imprimir / salvar PDF</button><button class="btn" data-action="export">Baixar CSV</button></div>');
 }
 function access(){
- const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER'];
+ const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER','Aprovar/reprovar relatório'];
  return heading('Grupos de acesso','Perfis padronizados · autorização real será verificada no backend e no banco.',false)+`
- <div class="notice warning"><b>Funcionalidades liberadas:</b> identidade com MFA, consulta e gravação de agregados no ambiente seguro sob RLS, histórico e auditoria. Convites ainda não enviam mensagens nem concedem vínculos; ajustes financeiros, decisões e planos corretivos aguardam APIs autorizadas.</div>
+ <div class="notice warning"><b>Funcionalidades liberadas:</b> MFA, indicadores protegidos por RLS, importações exclusivas do MASTER e avaliações imutáveis por Gestor/Administrador. Convites dependem de SMTP validado; ajustes financeiros e planos corretivos ainda exigem APIs específicas.</div>
  <section class="card card-pad"><div class="section-head"><div><h2>Cinco perfis e convites controlados</h2><p>MASTER e Gestor podem solicitar convites a Gestores; Administrador só solicita outros grupos. Vínculo efetivo exige confirmação segura no backend.</p></div></div>
  <div class="table-scroll"><table><thead><tr><th>Grupo</th>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>
  ${GROUPS.map(g=>`<tr><td><strong>${esc(g.name)}</strong><div class="tiny muted">${esc(g.description)}</div></td>${PERMISSIONS.map(perm=>`<td><span class="badge ${describeAccess(g.id,perm)==='Permitido'?'green':'orange'}">${describeAccess(g.id,perm)}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
  <section class="card card-pad" style="margin-top:17px"><h2>Regras obrigatórias</h2><div class="safe-list">
  <div>${ic('lock')}<span>Líder e Financeiro: filtros por setor são aplicados na consulta do servidor, e não apenas no navegador.</span></div>
- <div>${ic('lock')}<span>Administrador: dados globais somente leitura, mas pode convidar usuários comuns. Gestor também pode convidar Gestores. MASTER é autoridade global, não pode ser criado por outros usuários.</span></div>
+ <div>${ic('lock')}<span>Administrador: consulta dados globais e pode aprovar ou reprovar relatórios com justificativa, sem importar ou modificar configurações. Gestor também pode convidar Gestores. MASTER é autoridade global, não pode ser criado por outros usuários.</span></div>
  <div>${ic('lock')}<span>Registros financeiros são append-only; correção exige justificativa, comprovante, autoria e histórico. Acesso financeiro dependerá de função de backend autenticada.</span></div>
  <div>${ic('lock')}<span>Correção e exclusão pelo MASTER serão revisões/estornos com justificativa e auditoria exclusiva, preservando originais e recuperação. Só o MASTER vê suas próprias ações na auditoria; o histórico não pode ser apagado.</span></div>
  <div>${ic('lock')}<span>Fora da internet: visualização permitida somente em cache autorizado e protegido. Escritas financeiras exigirão confirmação do servidor.</span></div>
