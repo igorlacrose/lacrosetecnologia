@@ -25,6 +25,8 @@ jobs:
         run: |
           node --check lkzisp/portal.js
           node --test lkzisp/tests/portal.test.mjs
+          node --check lkzisp/portal-mfa-v2.js
+          node --test lkzisp/tests/mfa-v2.test.mjs
       - name: Backend nao exposto sem login
         run: |
           node --input-type=module -e '
