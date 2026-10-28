@@ -23,7 +23,7 @@ export class CloudAccess {
   #expiresAt = 0;
   #recovery = false;
   #fetch;
-  constructor(fetchImpl = fetch) { this.#fetch = fetchImpl; }
+  constructor(fetchImpl = null) { this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis); }
   get email() { return this.#email; }
   get recoveryPending() { return this.#recovery; }
   get hasSession() { return Boolean(this.#token); }
