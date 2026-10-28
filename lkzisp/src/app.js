@@ -168,7 +168,7 @@ function mappingForm(){const stage=state.staged;if(!stage)return '';
  return `<section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Validar mapeamento de colunas</h2><p>${fmt(stage.rows.length)} linhas identificadas. Não mostramos valores da planilha para proteger os dados.</p></div><button class="btn" data-action="cancel-stage">Cancelar</button></div><div class="privacy-banner">${ic('lock')} Os dados brutos estão temporariamente na memória do navegador. Somente indicadores operacionais agregados e nomes de colaboradores são transmitidos ao ambiente seguro após validação. Os dados pessoais dos clientes nunca são incluídos.</div><div class="mapping-grid">${fields.map(f=>`<label class="field">${esc(f)}${['Status','Assunto','Abertura'].includes(f)?' *':''}<select data-map="${f}"><option value="-1">Não mapear</option>${stage.headers.map((h,i)=>Object.values(detectMapping(stage.headers)).includes(i)?`<option value="${i}" ${state.mapping[f]===i?'selected':''}>${esc(h||'Coluna '+(i+1))}</option>`:'').join('')}</select></label>`).join('')}</div><div class="action-row" style="margin-top:20px"><button class="btn primary" data-action="process-file">${ic('lock')} Processar e salvar no ambiente seguro</button><button class="btn" data-action="cancel-stage">Descartar arquivo</button></div></section>`;
 }
 function imports(){return heading('Importar relatório','XLSX/CSV do IXC · processamento local antes de qualquer armazenamento.',false)+`
- <div class="columns"><section class="card card-pad"><div class="section-head"><div><h2>Selecione um arquivo</h2><p>Suporte inicial a relatórios de atendimentos do IXC</p></div></div>
+ <div class="columns"><section class="card card-pad"><div class="section-head"><div><h2>Selecione um arquivo</h2><p>Suporte inicial a relatórios de atendimentos do IXC. Modelos financeiros, comerciais ou desconhecidos exigem um mapeamento específico antes de gerar indicadores.</p></div></div>
  <div class="upload-zone" id="drop-zone"><span class="icon-sq blue">${ic('upload')}</span><b>Arraste o arquivo aqui ou selecione no dispositivo</b><p>Somente XLSX ou CSV · Até 15 MB<br/>O arquivo original não sai do navegador.</p><button class="btn primary" data-action="choose-file">Selecionar arquivo</button></div><input type="file" id="file-input" accept=".xlsx,.csv" hidden />
  <p class="footnote" style="margin-top:12px">Os arquivos são processados apenas no navegador. Indicadores agregados padronizados serão salvos no ambiente seguro com autenticação, MFA, RLS e auditoria.</p>
  </section><section class="card card-pad"><div class="section-head"><div><h2>${ic('lock')} Proteção na importação</h2></div></div>
@@ -451,7 +451,8 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
    // O hash legado foi criado com exatamente o mesmo resumo, sem a coluna Colaborador.
    const previous=state.snapshots.find(x=>x.fingerprint===snap.fingerprint) ||
      state.snapshots.find(x=>x.fingerprint===oldFingerprint);
-   const alreadyImported=Boolean(previous&&state.employeeMetrics[previous.fingerprint]?.length);
+   const priorEmployees=previous?await cloud.readEmployeeMetrics(state.selectedTenant,previous.fingerprint):[];
+   const alreadyImported=Boolean(previous&&priorEmployees.length===staff.metrics.length);
    const confirmed=await cloud.saveSnapshotWithEmployees(state.selectedTenant,previous||snap,staff.metrics);
    // Dados brutos descartados apenas após leitura de volta do servidor.
    state.staged=null;state.mapping=null;state.sourceName='';
