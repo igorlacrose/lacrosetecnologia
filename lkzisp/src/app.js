@@ -6,7 +6,7 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=090';
+import {CloudAccess} from './cloud-auth.js?v=100';
 
 const root=document.getElementById('app');
 const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: operações requerem RLS/MFA e leitura de volta
@@ -34,16 +34,17 @@ function mockSnapshot(){
 }
 function current(){return state.snapshot;}
 function getMenu(){
- let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['settings','settings','Administração'],['cloud','cloud','Conta e Nuvem']];
+ let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
  // Perfis setoriais terão visualização própria apenas após servidor filtrar snapshots por setor.
  if (!canUseAggregateWorkspace()) items=items.filter(([v])=>v==='cloud');
- else if (!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
+ else {if(!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
+  if(!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))items=items.filter(([v])=>v!=='users');}
  return `<aside class="sidebar ${state.menuOpen?'open':''}" id="sidebar">
   <div class="logo">${state.brand.logo?`<img class="brand-logo" src="${state.brand.logo}" alt="Logotipo da empresa">`:`LKZ<span class="mark">ISP</span>`}<small>${esc(state.brand.name)}</small></div>
   <div class="side-heading">GESTÃO E INTELIGÊNCIA</div>
   <nav aria-label="Navegação principal">${items.map(([view,icon,label])=>`<button class="side-link ${state.view===view?'active':''}" data-view="${view}">${ic(icon)}<span>${esc(label)}</span></button>`).join('')}</nav>
-  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V0.8</div></div>
+  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V1.0</div></div>
  </aside>`;
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
@@ -73,7 +74,7 @@ function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Histórico no Supabase':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
@@ -226,6 +227,33 @@ function results(){
  `</section><section class="card card-pad" style="margin-top:17px"><h2>Próximo passo para um dossiê preciso</h2><p class="muted">Precisamos dos históricos, horas e custos, correlação pseudonimizada e evidência de conclusão antes de atribuir causas e responsáveis.</p><button class="btn primary" data-view="quality">Ver dados necessários e pendentes</button></section>`);
 }
 
+function loginLanding(){
+ return `<main class="auth-layout"><section class="auth-story">
+  <div class="auth-mark">LKZ <span>ISP</span><small>INTELLIGENCE</small></div>
+  <div class="auth-story-body"><span class="auth-eyebrow">INTELIGÊNCIA PARA PROVEDORES</span>
+   <h1>Uma visão mais clara.<em>Decisões mais fortes.</em></h1>
+   <p>Operação, produtividade e resultados da sua empresa, reunidos em um ambiente de gestão seguro.</p>
+   <div class="auth-benefits"><span>◎ Indicadores confiáveis</span><span>◎ Gestão por equipe</span><span>◎ Acesso protegido</span></div>
+  </div><div class="auth-story-foot"><span class="auth-dot"></span> LKZ ISP Intelligence <span>·</span> Lacrose Tecnologia</div>
+ </section><section class="auth-login">
+  <div class="auth-login-inner"><div class="auth-mobile-logo">LKZ <b>ISP</b> <span>INTELLIGENCE</span></div>
+   <div class="auth-secure">◈ ÁREA RESTRITA</div><h2>Bem-vindo de volta</h2>
+   <p class="auth-desc">Acesse seu ambiente gerencial com a sua conta.</p>
+   ${cloudUi.error?'<div class="auth-alert" role="alert">'+esc(cloudUi.error)+'</div>':''}
+   ${cloudUi.message?'<div class="auth-notice" role="status">'+esc(cloudUi.message)+'</div>':''}
+   <form id="cloud-login-form" class="auth-form" autocomplete="on">
+    <label for="cloud-email">E-mail corporativo</label>
+    <input id="cloud-email" name="email" type="email" autocomplete="username" placeholder="seu@email.com" maxlength="254" required>
+    <div class="auth-pass-head"><label for="cloud-password">Senha</label><button type="button" class="auth-link" data-cloud="recover">Esqueci minha senha</button></div>
+    <div class="auth-pass-row"><input id="cloud-password" name="password" type="password" autocomplete="current-password" placeholder="Sua senha de acesso" maxlength="250" required><button type="button" id="password-toggle" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></div>
+    <label class="auth-remember"><input id="remember-device" type="checkbox"><span>Confiar neste dispositivo por até 6 horas de inatividade</span></label>
+    <button class="auth-submit" type="submit" ${cloudUi.busy?'disabled':''}>Entrar na plataforma <span>→</span></button>
+   </form><div class="auth-register"><span>Recebeu um convite ou está acessando pela primeira vez?</span>
+    <button type="button" data-cloud="signup">Definir minha senha</button></div>
+   <div class="auth-security-note">🔒 Acesso com verificação em duas etapas. Em dispositivos compartilhados, não marque a opção de confiança.</div>
+  </div><div class="auth-footer"><a href="https://lacrosetecnologia.com.br/" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></div>
+ </section></main>`;
+}
 function cloudPage(){
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
  const name=esc(cloud.email||'—');
@@ -305,8 +333,9 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
-const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,settings,cloud:cloudPage};
+const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
+ if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
  if (!canUseAggregateWorkspace()) state.view='cloud';
  else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
  const page=pages[state.view]||cloudPage;
@@ -316,6 +345,7 @@ function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
  root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>cloudAction(b.dataset.cloud)));
+ root.querySelector('#password-toggle')?.addEventListener('click',e=>{const inp=root.querySelector('#cloud-password');if(!inp)return;const showing=inp.type==='text';inp.type=showing?'password':'text';e.currentTarget.textContent=showing?'Mostrar':'Ocultar';e.currentTarget.setAttribute('aria-pressed',String(!showing));});
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
  root.querySelector('#cloud-reset-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('reset')});
