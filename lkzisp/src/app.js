@@ -283,12 +283,12 @@ function executiveReviews(){
  '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
  '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p>'+(previous.decision==='reject'?'<div class="action-row"><button class="btn primary" data-view="analysis">Abrir diagnóstico e possíveis motivos</button></div>':'')+'</div>':
  manager?
- '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
+ '<div class="executive-actions"><button class="btn primary" data-review-choice="approve" '+(state.reviewBusy?'disabled':'')+'>Aprovar resultado</button><button class="btn danger" data-review-choice="reject" '+(state.reviewBusy?'disabled':'')+'>Reprovar resultado</button></div>'+
  (state.reviewIntent?
  '<form id="executive-review-form" class="safe-list"><h3>'+ (state.reviewIntent==='approve'?'Confirmar aprovação':'Confirmar reprovação')+
  '</h3><p>Explique o motivo da decisão para preservar um histórico claro de avaliação.</p>'+
  '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="2000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
- '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel>Cancelar</button></div></form>':'')+
+ '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel '+(state.reviewBusy?'disabled':'')+'>Cancelar</button></div></form>':'')+
  (state.reviewError?'<div class="notice warning">'+esc(state.reviewError)+'</div>':''):
  '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
  '</section>');
@@ -297,16 +297,18 @@ async function submitExecutiveReview(){
  if(!['gestor','administrador'].includes(activeRole())||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
   toast('Ação não autorizada para este perfil.',true);return;
  }
- const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
+ const s=current(),tenantId=state.selectedTenant,decision=state.reviewIntent,reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
  if(reason.length<20||reason.length>2000){toast('Escreva uma justificativa com 20 a 2000 caracteres.',true);return;}
  if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
  state.reviewBusy=true;state.reviewError='';render();
  try{
-  await cloud.reviewSnapshot(state.selectedTenant,s.id,state.reviewIntent,reason);
-  state.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
+  await cloud.reviewSnapshot(tenantId,s.id,decision,reason);
+  const confirmedReviews=await cloud.listSnapshotReviews(tenantId);
+  if(state.selectedTenant!==tenantId||current()?.id!==s.id)throw Error('Contexto do relatório mudou durante a avaliação. Recarregue para consultar a decisão.');
+  state.reviews=confirmedReviews;
   const verified=state.reviews.find(x=>x.snapshot_id===s.id);
-  if(!verified||verified.decision!==state.reviewIntent)throw Error('Decisão não confirmada no servidor. Recarregue antes de tentar novamente.');
-  if(state.reviewIntent==='reject')state.view='analysis';
+  if(!verified||verified.decision!==decision)throw Error('Decisão não confirmada no servidor. Recarregue antes de tentar novamente.');
+  if(decision==='reject')state.view='analysis';
   state.reviewIntent=null;toast('Decisão registrada, confirmada e auditada com sucesso.');
  }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
  finally{state.reviewBusy=false;render();if(state.view==='analysis')window.scrollTo({top:0,behavior:'instant'});}
@@ -545,6 +547,7 @@ function render(){
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
 function setView(v){
+ if(state.reviewBusy){toast('Aguarde a confirmação da avaliação no servidor.',true);return;}
  if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';
  else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(v))v='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(v))v='dashboard';
@@ -556,8 +559,8 @@ function setView(v){
 }
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
- root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
- root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>cloudAction(b.dataset.cloud)));
+ root.querySelector('#active-tenant')?.addEventListener('change',e=>{if(state.reviewBusy){toast('Aguarde a confirmação da avaliação.',true);render();return;}cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
+ root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy){toast('Aguarde a avaliação terminar.',true);return;}cloudAction(b.dataset.cloud)}));
  root.querySelector('#password-toggle')?.addEventListener('click',e=>{const inp=root.querySelector('#cloud-password');if(!inp)return;const showing=inp.type==='text';inp.type=showing?'password':'text';e.currentTarget.textContent=showing?'Mostrar':'Ocultar';e.currentTarget.setAttribute('aria-pressed',String(!showing));});
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
@@ -566,8 +569,8 @@ function bindActions(){
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
- root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
- root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewIntent=null;state.reviewError='';render();});
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy||!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
+ root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{if(state.reviewBusy)return;state.reviewIntent=null;state.reviewError='';render();});
  root.querySelector('#executive-review-form')?.addEventListener('submit',e=>{e.preventDefault();submitExecutiveReview();});
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
  root.querySelectorAll('[data-load-employees]').forEach(b=>b.addEventListener('click',()=>loadEmployeeMetrics()));
