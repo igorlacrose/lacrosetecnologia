@@ -24,7 +24,7 @@ test('o produto exige MFA e autorização antes de mostrar dados empresariais',(
  assert.doesNotMatch(auth,/localStorage|sessionStorage|indexedDB|service_role|sb_secret_/);
 });
 test('cache só armazena recursos estáticos, nunca dados ou token',()=>{
- assert.match(sw,/lkz-isp-static-v134/);
+ assert.match(sw,/lkz-isp-static-v135/);
  assert.match(sw,/staticURLs\.has\(req\.url\)/);
  assert.doesNotMatch(sw,/supabase\.co|auth\/v1|rest\/v1/);
 });
