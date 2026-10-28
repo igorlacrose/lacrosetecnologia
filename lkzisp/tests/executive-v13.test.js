@@ -69,7 +69,7 @@ test('UX v1.3: MASTER preservado, demais perfis sem edição/importação',()=>{
  assert.match(app,/function executiveDashboard\(\)/);
  assert.match(app,/function executiveReviews\(\)/);
  assert.match(app,/function submitExecutiveReview\(\)/);
- assert.match(app,/cloud\.reviewSnapshot\(state\.selectedTenant,s\.id,state\.reviewIntent,reason\)/);
+ assert.match(app,/cloud\.reviewSnapshot\(tenantId,s\.id,decision,reason\)/);
  assert.match(app,/window\.print\(\)/);
  assert.match(app,/function canAdministerLocalWorkspace\(\)\{return isMfaLinked\(\)&&cloudUi\.memberships\.some\(m=>m\.role==='master'\);\}/);
  assert.match(sql,/SECURITY DEFINER SET search_path TO ''/);
