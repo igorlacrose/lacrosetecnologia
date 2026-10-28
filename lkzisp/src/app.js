@@ -262,8 +262,51 @@ function dataQuality(){
  q.issues.map(i=>`<article class="quality-item"><div class="section-head"><strong>${esc(i.title)}</strong><span class="badge ${i.status==='ready'?'green':i.status==='partial'?'orange':'red'}">${esc(QUALITY_STATUS[i.status])}</span></div><p>${esc(i.detail)}</p>${i.missing.length?`<strong>Forneça ou corrija:</strong><ul>${i.missing.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:'<p class="good">Não há dados adicionais obrigatórios identificados para esta métrica.</p>'}</article>`).join('')+
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
+function executiveReviews(){
+ const s=current(),manager=activeRole()==='gestor';
+ const previous=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
+ const signals=s?radarItems(s):[];
+ return heading('Avaliações','Revisão dos resultados consolidados do período.',false)+
+ (!s?'<section class="card card-pad"><h2>Nenhum resultado disponível</h2><p>O responsável deve importar um relatório antes da avaliação.</p></section>':
+ '<section class="card card-pad"><div class="section-head"><div><h2>Resultado para análise</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
+ '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'Total do relatório','activity')+
+ cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total),'check','green')+
+ cardKpi('Pendentes',fmt(s.pending),'Não finalizados','clock','orange')+'</div>'+
+ '<h3>Principais alertas</h3>'+
+ (signals.length?signals.slice(0,5).map(x=>'<article class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></article>').join(''):
+ '<p class="muted">Nenhum alerta calculado no período.</p>')+
+ '<p class="footnote">A avaliação aprova ou reprova o <strong>conjunto de indicadores deste relatório</strong>, não pessoas, alertas isolados ou metas financeiras.</p>'+
+ (previous?
+ '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
+ '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.decided_at).toLocaleString('pt-BR'))+'.</p></div>':
+ manager?
+ '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
+ (state.reviewIntent?
+ '<form id="executive-review-form" class="safe-list"><h3>'+ (state.reviewIntent==='approve'?'Confirmar aprovação':'Confirmar reprovação')+
+ '</h3><p>Explique o motivo da decisão para preservar um histórico claro de avaliação.</p>'+
+ '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="4000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
+ '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel>Cancelar</button></div></form>':'')+
+ (state.reviewError?'<div class="notice warning">'+esc(state.reviewError)+'</div>':''):
+ '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
+ '</section>');
+}
+async function submitExecutiveReview(){
+ if(activeRole()!=='gestor'||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
+  toast('Ação não autorizada para este perfil.',true);return;
+ }
+ const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
+ if(reason.length<20||reason.length>4000){toast('Escreva uma justificativa com 20 a 4000 caracteres.',true);return;}
+ if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
+ state.reviewBusy=true;state.reviewError='';render();
+ try{
+  await cloud.reviewSnapshot(state.selectedTenant,s.id,state.reviewIntent,reason);
+  state.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
+  state.reviewIntent=null;toast('Decisão registrada e auditada com sucesso.');
+ }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
+ finally{state.reviewBusy=false;render();}
+}
 function results(){
- if(executiveMode()&&activeRole()==='administrador')return heading('Avaliações','Resultados em leitura, sem autorização para aprovar ou reprovar.',false)+(!current()?'<section class="card card-pad"><p>Nenhum dado disponível.</p></section>':'<section class="card card-pad"><h2>Alertas e observações</h2>'+ (radarItems(current()).map(x=>'<article class="radar-item"><h3>'+esc(x.name)+'</h3><p>'+esc(x.evidence)+'</p></article>').join('')||'<p class="muted">Nenhum alerta identificado.</p>')+'</section>');
+ if(executiveMode())return executiveReviews();
  const s=current(),signals=s?radarItems(s):[];
  const q=evaluateDataQuality(s,state.snapshots);
  return heading('Central de Resultados','Painel de revisão do gestor: problemas primeiro, evidências e dados faltantes.',false)+
@@ -463,6 +506,9 @@ function bindActions(){
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(activeRole()!=='gestor')return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
+ root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewIntent=null;state.reviewError='';render();});
+ root.querySelector('#executive-review-form')?.addEventListener('submit',e=>{e.preventDefault();submitExecutiveReview();});
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
  root.querySelectorAll('[data-load-employees]').forEach(b=>b.addEventListener('click',()=>loadEmployeeMetrics()));
  root.querySelector('#employee-sector')?.addEventListener('change',e=>{state.employeeSectorFilter=e.target.value;render()});
@@ -506,7 +552,7 @@ async function exportBrandKit(){
  const link=document.createElement('a');link.href=url;link.download='lkz-white-label-pwa-kit.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
  toast('Kit de ícones/manifesto gerado localmente; ainda precisa ser publicado.');
 }
-async function action(name){if(name==='print-report'){if(!canUseAggregateWorkspace()||!current()){toast('Relatório não autorizado.',true);return;}window.print();return;}
+async function action(name){if(name==='print-report'){if(!canUseAggregateWorkspace()||!current()||state.view!=='reports'){toast('Relatório não autorizado.',true);return;}window.print();return;}
  if(name==='export'){if(!canUseAggregateWorkspace()||!current()){toast('Relatório não autorizado.',true);return;}exportSafe();return;}
  if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
  if(name==='backup-open'){state.backupStage='create';render();return;}
