@@ -245,7 +245,7 @@ function dataQuality(){
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
 function results(){
- if(executiveMode()&&activeRole()==='administrador')return heading('Avaliações','Resultados em leitura, sem autorização para aprovar ou reprovar.',false)+executiveDashboard().split('<div class="executive-welcome">')[1]?.split('<div class="executive-actions">')[0];
+ if(executiveMode()&&activeRole()==='administrador')return heading('Avaliações','Resultados em leitura, sem autorização para aprovar ou reprovar.',false)+(!current()?'<section class="card card-pad"><p>Nenhum dado disponível.</p></section>':'<section class="card card-pad"><h2>Alertas e observações</h2>'+ (radarItems(current()).map(x=>'<article class="radar-item"><h3>'+esc(x.name)+'</h3><p>'+esc(x.evidence)+'</p></article>').join('')||'<p class="muted">Nenhum alerta identificado.</p>')+'</section>');
  const s=current(),signals=s?radarItems(s):[];
  const q=evaluateDataQuality(s,state.snapshots);
  return heading('Central de Resultados','Painel de revisão do gestor: problemas primeiro, evidências e dados faltantes.',false)+
