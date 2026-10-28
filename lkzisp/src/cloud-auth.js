@@ -49,8 +49,8 @@ export class CloudAccess {
     if (!response.ok) {
       if(response.status===422 && (data?.error_code==='mfa_factor_name_conflict'||data?.code==='mfa_factor_name_conflict'))
         throw Error('Autenticador já cadastrado: use o código existente do aplicativo.');
-      if (response.status===409 && data?.error==='gmail_smtp_not_configured')
-        throw Error('Envio pendente: configure o Gmail como SMTP no servidor para ativar os convites.');
+      if (response.status===409 && data?.error==='resend_smtp_not_configured')
+        throw Error('Envio pendente: configure o Resend como SMTP no servidor para ativar os convites.');
       if (response.status===409) throw Error('Já existe convite pendente ou ativo para este e-mail nesta empresa.');
       if (response.status===502 && data?.error==='email_delivery_request_failed')
         throw Error('Convite registrado, mas o serviço de e-mail não aceitou o envio.');

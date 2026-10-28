@@ -70,13 +70,13 @@ Deno.serve(async(req:Request)=>{
     const {data:reserved,error:reserveError}=await service.rpc("lkz_isp_internal_claim_invite_delivery",
       {p_invitation:invitationId,p_actor:user.id});
     if(reserveError){
-      if(reserveError.message?.includes("SMTP_GOOGLE_NOT_CONFIGURED"))
-        return send(409,{error:"gmail_smtp_not_configured"});
+      if(reserveError.message?.includes("RESEND_SMTP_NOT_CONFIGURED"))
+        return send(409,{error:"resend_smtp_not_configured"});
       if(reserveError.message?.includes("INVITE_RATE_LIMIT"))
         return send(429,{error:"invitation_limit_reached"});
       return send(403,{error:"invitation_not_allowed_or_expired"});
     }
-    if(reserved?.sender!=="lacrose.igor@gmail.com"||reserved?.id!==invitationId
+    if(reserved?.sender!=="convites@lacrosetecnologia.com.br"||reserved?.id!==invitationId
       ||typeof reserved?.email!=="string")return send(500,{error:"invitation_reservation_invalid"});
 
     let requested=false;

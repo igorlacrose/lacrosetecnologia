@@ -6,7 +6,7 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=110';
+import {CloudAccess} from './cloud-auth.js?v=120';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
@@ -264,14 +264,14 @@ function usersPage(){
  const selected=editable.find(m=>m.tenant_id===state.selectedTenant)||editable[0];
  const allowed=['gestor','administrador','lider_setor','financeiro'].filter(r=>mayInvite(selected.role,r));
  return heading('Usuários e Permissões','Convide colaboradores por e-mail, com senha própria e MFA obrigatório.',false)+
- `<div class="notice"><b>Convite seguro:</b> o usuário recebe um e-mail, define a própria senha e confirma o MFA. Só depois o vínculo da empresa é ativado. O grupo MASTER nunca pode ser convidado. <strong>Remetente provisório: lacrose.igor@gmail.com.</strong></div>
+ `<div class="notice"><b>Convite seguro:</b> o usuário recebe um e-mail, define a própria senha e confirma o MFA. Só depois o vínculo da empresa é ativado. O grupo MASTER nunca pode ser convidado. <strong>Remetente: convites@lacrosetecnologia.com.br.</strong></div>
  <section class="card card-pad" style="max-width:850px"><div class="section-head"><div><h2>Convidar usuário</h2><p>Permissões aplicadas pela empresa e pelo perfil da conta atual.</p></div></div>
  <form id="cloud-invite-form" class="safe-list">
   <label class="field">Empresa<select id="invite-tenant" required>${editable.map(m=>`<option value="${esc(m.tenant_id)}" ${m.tenant_id===selected.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label>
   <label class="field">E-mail do colaborador<input id="invite-email" type="email" autocomplete="off" placeholder="colaborador@empresa.com.br" maxlength="254" required></label>
   <label class="field">Perfil<select id="invite-role" required>${allowed.map(r=>`<option value="${esc(r)}">${esc(GROUPS.find(g=>g.id===r)?.name||r)}</option>`).join('')}</select></label>
   <label class="field">Setor (exigido para líder ou financeiro)<input id="invite-sector" maxlength="36" autocomplete="off" placeholder="Identificador UUID do setor"></label>
-  <p class="footnote">Quando o Gmail estiver habilitado no servidor, o convite é enviado automaticamente. Se não estiver, permanece pendente para envio posterior. Nunca compartilhe senhas.</p>
+  <p class="footnote">Quando o Resend estiver configurado e o domínio verificado, o convite é enviado automaticamente. Se não estiver, permanece pendente para envio posterior. Nunca compartilhe senhas.</p>
   <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Convidar por e-mail</button>
  </form></section>
  <section class="card card-pad" style="margin-top:18px"><div class="section-head"><div><h2>Convites da empresa</h2><p>Confirme quem recebeu convite e quem ainda precisa finalizar o primeiro acesso.</p></div>
@@ -374,8 +374,8 @@ async function cloudAction(type){
    const requested_role=document.getElementById('invite-role')?.value||'';
    const sector_id=document.getElementById('invite-sector')?.value?.trim()||null;
    const result=await cloud.createInvitation({tenant_id,invited_email,requested_role,sector_id});
-   cloudUi.message=result.sent?'Envio solicitado por lacrose.igor@gmail.com. O destinatário deve confirmar o e-mail e o MFA.':
-     'Convite registrado, mas ainda não enviado. '+(result.reason||'Configure o remetente Gmail no servidor.');
+   cloudUi.message=result.sent?'Envio solicitado por convites@lacrosetecnologia.com.br. O destinatário deve confirmar o e-mail e o MFA.':
+     'Convite registrado, mas ainda não enviado. '+(result.reason||'Configure o SMTP do Resend no servidor.');
    if(state.selectedTenant===tenant_id)cloudUi.invitations=await cloud.listInvitations(tenant_id);
   }else if(type==='reload-invites'){
    cloudUi.invitations=await cloud.listInvitations(state.selectedTenant);
