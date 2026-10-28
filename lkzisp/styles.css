@@ -13,3 +13,86 @@
 .backup-modal h2{margin:0;font-size:22px}.backup-modal p{margin:0;line-height:1.6;color:#51657b}.backup-modal input{width:100%;min-width:0}.backup-modal .notice{margin:0}
 @media(max-width:760px){.session-end{font-size:11px;padding:8px}.lkz-footer{font-size:11px;min-height:42px}.backup-modal{padding:18px}}
 @media(max-width:760px){.top-right{gap:7px}.top-right .pill.amber{display:none}.topbar{overflow:hidden}.session-end{white-space:nowrap}}
+
+/* v0.8.2 · Legibilidade / Firefox Android
+ * Paleta clara de alto contraste; nenhuma modificacao de regras de negocio.
+ * Peso sintetizado permitido no Firefox quando a fonte Inter nao estiver instalada.
+ */
+:root{
+  font-family:Roboto,"Noto Sans",system-ui,"Segoe UI",Arial,sans-serif;
+  font-synthesis:weight;
+  color-scheme:light;
+  color:#12283e;
+  background:#eef3f8;
+}
+html,body,.main,.content{color:#12283e}
+body{font-size:15px;line-height:1.5}
+.page-head h1{color:#12283e;font-weight:800;line-height:1.2}
+.page-head p{color:#384f68;font-weight:500;line-height:1.6}
+h1,h2,h3,h4,.section-head h2{color:#12283e;font-weight:750}
+.section-head p,.muted,.chart-legend,.kpi-foot,.kpi-note{color:#415972}
+.footnote,.tiny,.side-heading{font-weight:550}
+.footnote{color:#455d75;font-size:12px}
+.kpi-top,.legend-item,.section-head p{color:#394e67;font-weight:600}
+.kpi strong,.big-number,.donut-hole strong{color:#10263c;font-weight:800}
+th{color:#30475e;font-weight:750}
+td{color:#2c4158;font-weight:550}
+td strong{color:#172d43}
+.field,form label,.field label{color:#253b51;font-size:13px;font-weight:700}
+.field input,.field select,.field textarea,
+input[type="email"],input[type="password"],input[type="text"],input[type="number"],
+select,textarea{
+  color:#12283e;
+  background:#fff;
+  border-color:#8299b1;
+  font-weight:600;
+  font-size:15px;
+  opacity:1;
+}
+.field input::placeholder,.field textarea::placeholder,
+input::placeholder,textarea::placeholder{color:#516982;opacity:1}
+.field input:focus,.field select:focus,form input:focus,form select:focus{
+  border-color:#075ba8;
+  outline:3px solid #85b9e9;
+  outline-offset:1px
+}
+input:autofill,input:-webkit-autofill{
+  color:#12283e;
+  -webkit-text-fill-color:#12283e;
+  box-shadow:inset 0 0 0 1000px #fff;
+}
+.btn{color:#19334e;background:#fff;border-color:#a1b5c9;font-weight:750;font-size:13px}
+.btn.primary{color:#fff;background:#075baa;border-color:#075baa}
+.btn.ghost{color:#183c61}
+.btn:disabled{opacity:.65}
+.notice{background:#e8f3ff;border-color:#8bb7e0;color:#15476e;font-size:13px;font-weight:550;line-height:1.65}
+.notice strong,.notice b{font-weight:800}
+.notice.warning{background:#fff1d7;border-color:#bd842d;color:#593409}
+.notice.success{background:#e3f7eb;border-color:#6ba989;color:#185d3b}
+.badge.orange,.pill.amber{background:#ffe6b9;color:#6b3c00}
+.badge.green,.pill.green{background:#dff6e6;color:#135d39}
+.badge.blue,.pill.blue{background:#e0f1ff;color:#104e85}
+.badge.red{background:#ffe5e6;color:#8b2330}
+.badge{font-weight:800;font-size:11px}
+.empty,.empty p,.upload-zone p,.radar-item p{color:#3f566e}
+.privacy-banner{color:#204d73}
+.lkz-footer{background:#fff;color:#354d65}
+.lkz-footer a{color:#07519b;font-weight:800}
+.topbar .brand-top{color:#3d526b}
+.sidebar .side-heading{color:#a5bdd7}
+.sidebar .side-link{color:#e0ebf8;font-weight:650}
+.sidebar .side-link.active{color:#fff}
+.sidebar .side-bottom .mini{color:#b3c6dd}
+.backup-modal p{color:#374f67}
+.radar-item .action{color:#23486a}
+@media(max-width:760px){
+  body{font-size:15px}
+  .page-head h1{font-size:27px}
+  .page-head p{font-size:15px}
+  .notice,.notice.warning{font-size:14px;line-height:1.65}
+  .field,form label{font-size:14px}
+  .field input,.field select,form input,form select{font-size:16px;min-height:46px}
+  .btn{font-size:14px;min-height:44px}
+  .footnote{font-size:12px}
+  .lkz-footer a{font-size:12px}
+}
