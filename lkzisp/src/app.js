@@ -403,18 +403,87 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
+function executiveWorkspace(){
+ const role=activeWorkspaceRole(),snap=current();
+ if(state.view==='cloud'){
+   const name={gestor:'Gestor',administrador:'Administrador',lider_setor:'Líder de setor',financeiro:'Financeiro'}[role]||'Usuário';
+   return '<div class="exec-page"><section class="exec-panel"><h2>Minha conta</h2>'+
+   '<p>Seu acesso está protegido. Você consulta apenas os resultados autorizados.</p>'+
+   '<div class="safe-list"><div>Conta: <strong>'+esc(cloud.email||'')+'</strong></div>'+
+   '<div>Grupo: <strong>'+esc(name)+'</strong></div><div>Segundo fator: <strong>confirmado</strong></div></div>'+
+   (cloudUi.error?'<div class="notice warning" role="alert">'+esc(cloudUi.error)+'</div>':'')+
+   (cloudUi.message?'<p>'+esc(cloudUi.message)+'</p>':'')+
+   (cloudUi.memberships.length>1?'<label class="field">Empresa<select id="active-tenant">'+
+     cloudUi.memberships.filter(m=>m.role!=='master').map(m=>'<option value="'+esc(m.tenant_id)+'" '+(state.selectedTenant===m.tenant_id?'selected':'')+'>'+esc(m.role)+' · '+esc(m.tenant_id.slice(0,8))+'</option>').join('')+'</select></label>':'')+
+   '<div class="action-row"><button class="exec-button" data-cloud="memberships">Atualizar resultados</button>'+
+   '<button class="exec-button exec-reject" data-cloud="logout">Sair da conta</button></div></section></div>';
+ }
+ const data=state.view==='dashboard'?renderExecutiveDashboard({snapshot:snap}):
+   state.view==='productivity'?renderExecutiveProductivity({snapshot:snap,
+     employees:(!snap?.sectorOnly&&snap?.fingerprint)?state.employeeMetrics[snap.fingerprint]||null:null}):
+   state.view==='results'&&role==='gestor'?renderExecutiveReviews({snapshot:snap,
+     reviews:cloudUi.reviews,choice:state.reviewChoice,role}):
+   state.view==='reports'?renderExecutiveReports({snapshot:snap,role}):
+   renderExecutiveDashboard({snapshot:snap});
+ const periodSelect=state.snapshots.length>1?'<div class="exec-period-selector"><label class="field">Escolher relatório<select id="exec-snapshot">'+
+   state.snapshots.map(x=>'<option value="'+esc(x.id)+'" '+(snap?.id===x.id?'selected':'')+'>'+esc((x.earliest||'—')+' até '+(x.latest||'—'))+'</option>').join('')+
+   '</select></label></div>':'';
+ return periodSelect+data;
+}
 const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
- if (!canUseAggregateWorkspace()) state.view='cloud';
- else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
- const page=pages[state.view]||cloudPage;
- root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
+ const role=activeWorkspaceRole();
+ if(!canViewWorkspace())state.view='cloud';
+ else if(role!=='master'&&executiveViews[role]&&!canOpenExecutiveView(role,state.view))state.view='dashboard';
+ const body=role!=='master'&&executiveViews[role]&&canViewWorkspace()
+   ?executiveWorkspace():(pages[state.view]||cloudPage)();
+ root.innerHTML=shell(body);applyBrandPreview(state.brand);bindActions();
+}
+function setView(v){
+ const role=activeWorkspaceRole();
+ if(v!=='cloud'&&!canViewWorkspace())v='cloud';
+ else if(role!=='master'&&executiveViews[role]&&!canOpenExecutiveView(role,v))v='dashboard';
+ else if(role==='master'&&v==='users'&&!cloudUi.memberships.some(m=>m.role==='master'))v='cloud';
+ state.view=v;state.menuOpen=false;state.reviewChoice=null;
+ if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}
+ render();if(v==='users'&&role==='master')loadInvitations();
+ window.scrollTo({top:0,behavior:'instant'});
+}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
  root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>cloudAction(b.dataset.cloud)));
+ root.querySelector('#exec-snapshot')?.addEventListener('change',event=>{
+   const entry=state.snapshots.find(s=>s.id===event.target.value);
+   if(!entry)return;state.snapshot=entry;state.reviewChoice=null;render();
+ });
+ root.querySelector('[data-exec-print]')?.addEventListener('click',()=>{
+   if(state.view==='reports'&&canViewWorkspace()&&current()&&document.getElementById('exec-printable'))window.print();
+ });
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{
+   if(activeWorkspaceRole()!=='gestor')return;
+   state.reviewChoice=b.dataset.reviewChoice;render();
+ }));
+ root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewChoice=null;render()});
+ root.querySelector('#exec-review-form')?.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const role=activeWorkspaceRole(),snap=current(),choice=state.reviewChoice;
+   const note=document.getElementById('exec-review-note')?.value?.trim()||'';
+   if(role!=='gestor'||!state.selectedTenant||!snap?.id||
+      !['approve','reject'].includes(choice)||cloudUi.busy)return;
+   if(note.length<20||note.length>2000){toast('Informe justificativa entre 20 e 2.000 caracteres.',true);return;}
+   const action=choice==='approve'?'aprovar':'reprovar';
+   if(!window.confirm('Confirma '+action+' este resultado? O parecer será definitivo e auditado.'))return;
+   cloudUi.busy=true;
+   try{
+     await cloud.submitSnapshotReview({tenant_id:state.selectedTenant,
+       snapshot_id:snap.id,decision:choice,rationale:note});
+     cloudUi.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
+     state.reviewChoice=null;toast('Parecer registrado e confirmado no servidor.');
+   }catch(error){toast(error?.message||'Não foi possível confirmar seu parecer.',true);}
+   finally{cloudUi.busy=false;render();}
+ });
  root.querySelector('#password-toggle')?.addEventListener('click',e=>{const inp=root.querySelector('#cloud-password');if(!inp)return;const showing=inp.type==='text';inp.type=showing?'password':'text';e.currentTarget.textContent=showing?'Mostrar':'Ocultar';e.currentTarget.setAttribute('aria-pressed',String(!showing));});
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
@@ -466,7 +535,7 @@ async function exportBrandKit(){
  const link=document.createElement('a');link.href=url;link.download='lkz-white-label-pwa-kit.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
  toast('Kit de ícones/manifesto gerado localmente; ainda precisa ser publicado.');
 }
-async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
+async function action(name){if(name==='menu'&&canViewWorkspace()){state.menuOpen=!state.menuOpen;render();return;}if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
  if(name==='backup-open'){state.backupStage='create';render();return;}
  if(name==='backup-open-restore'){state.backupStage='restore';render();return;}
  if(name==='backup-cancel'){state.backupStage=null;state.backupDownload=null;render();return;}
