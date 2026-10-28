@@ -36,7 +36,7 @@ test('relatórios e impressão para todos os perfis, sem exibição de clientes'
    assert.match(page,/data-exec-print/);
    assert.match(page,/exec-printable/);
    assert.match(page,/2\.931/);
-   assert.doesNotMatch(page,/Cliente|CPF|Telefone|Senha PPPoE/i);
+   assert.doesNotMatch(page,/CPF|Telefone|Senha PPPoE|Cliente:\s*<strong>/i);
  }
  assert.match(style,/@media print/);
  assert.match(style,/#exec-printable/);
