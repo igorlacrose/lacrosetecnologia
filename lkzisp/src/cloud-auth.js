@@ -218,9 +218,12 @@ export class CloudAccess {
   async listFactors() {
     await this.#ensureSession();
     const result=await this.#request('/auth/v1/user');
-    if(!result?.id || result.id!==this.#userId || !Array.isArray(result.factors))
+    // Supabase Auth omite "factors" ou retorna null quando o usuário ainda
+    // não cadastrou MFA. Isso é uma lista vazia, não uma falha de identidade.
+    if(!result?.id || result.id!==this.#userId ||
+       (result.factors!=null && !Array.isArray(result.factors)))
       throw Error('Não foi possível verificar o autenticador existente. Entre novamente.');
-    return result.factors.filter(x=>x?.factor_type==='totp' || x?.type==='totp');
+    return (result.factors??[]).filter(x=>x?.factor_type==='totp' || x?.type==='totp');
   }
   async enrollTotp() {
     await this.#ensureSession();
