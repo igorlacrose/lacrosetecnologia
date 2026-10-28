@@ -733,7 +733,7 @@
     return {report:r,file:new File([p.build()],reportFileName(r),{type:'application/pdf'})};
   }
   function savePdf(file){const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
-  function printPdf(){try{const {file}=reportPdf(),url=URL.createObjectURL(file);const tab=window.open(url,'_blank');if(!tab){URL.revokeObjectURL(url);savePdf(file);toast('Janela bloqueada. Baixei o PDF: abra o arquivo e use Imprimir.',true);return;}setTimeout(()=>URL.revokeObjectURL(url),120000);toast('O relatório foi aberto em PDF. Use o botão Imprimir do leitor para escolher a impressora.');}catch(e){toast(e.message,true);}}
+  function printPdf(){try{const {file}=reportPdf(),url=URL.createObjectURL(file);const tab=window.open(url,'_blank','noopener,noreferrer');if(!tab){URL.revokeObjectURL(url);savePdf(file);toast('Janela bloqueada. Baixei o PDF: abra o arquivo e use Imprimir.',true);return;}setTimeout(()=>URL.revokeObjectURL(url),120000);toast('O relatório foi aberto em PDF. Use o botão Imprimir do leitor para escolher a impressora.');}catch(e){toast(e.message,true);}}
   function downloadPdf(){try{const {file}=reportPdf();savePdf(file);toast('PDF gerado no seu computador. Confira o arquivo antes de compartilhar.');}catch(e){toast(e.message,true);}}
   function phoneWhatsApp(raw){const digits=String(raw||'').replace(/\D/g,'');if(!digits)return '';
     const normalized=digits.length===10||digits.length===11?'55'+digits:digits;
