@@ -8,6 +8,7 @@ import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
 import {CloudAccess} from './cloud-auth.js?v=135';
+import {mountGestorSimple,gestorSimpleState} from './gestor-simple.js?v=136';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
@@ -15,6 +16,8 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
+const SIMPLE_GESTOR_DEFAULT=true;
+let classicManagerUi=!SIMPLE_GESTOR_DEFAULT;
 const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',qr:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false,inviteSectors:[],sectorsTenant:null,sectorsLoading:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false,reviews:[],reviewIntent:null,reviewBusy:false,reviewError:''};
@@ -56,6 +59,7 @@ function getMenu(){
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
 function activeRole(){return cloudUi.memberships.find(m=>m.tenant_id===state.selectedTenant)?.role||null;}
 function executiveMode(){return ['gestor','administrador'].includes(activeRole());}
+function simpleManagerMode(){return !classicManagerUi && executiveMode() && isMfaLinked() && state.cloudReady;}
 function sectorMode(){return ['lider_setor','financeiro'].includes(activeRole());}
 function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role));}
 function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>m.role==='master');}
@@ -86,7 +90,7 @@ function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span>${canAdministerLocalWorkspace()?`<button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>`:`<button class="btn session-end" data-cloud="logout">Sair com segurança</button>`}<span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span>${canAdministerLocalWorkspace()?`<button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>`:`<button class="btn session-end" data-cloud="logout">Sair com segurança</button>`}${executiveMode()?'<button class="btn" data-manager-simple>Usar painel simples</button>':''}<span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
@@ -294,11 +298,11 @@ function executiveReviews(){
  '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
  '</section>');
 }
-async function submitExecutiveReview(){
+async function submitExecutiveReview(reasonOverride=null){
  if(!['gestor','administrador'].includes(activeRole())||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
   toast('Ação não autorizada para este perfil.',true);return;
  }
- const s=current(),tenantId=state.selectedTenant,decision=state.reviewIntent,reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
+ const s=current(),tenantId=state.selectedTenant,decision=state.reviewIntent,reason=typeof reasonOverride==='string'?reasonOverride.trim():(document.getElementById('executive-review-reason')?.value?.trim()||'');
  if(reason.length<20||reason.length>2000){toast('Escreva uma justificativa com 20 a 2000 caracteres.',true);return;}
  if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
  state.reviewBusy=true;state.reviewError='';render();
@@ -585,6 +589,64 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
+
+function exportGestorSafe(filters={}){
+ if(!simpleManagerMode()||!current()||!state.cloudReady||cloud.aal!=='aal2')return;
+ const s=current(),city=String(filters.city||''),sector=String(filters.sector||'');
+ // Os dados disponíveis são marginais por cidade OU setor. Nunca inventar interseções.
+ if(city&&sector){toast('Escolha cidade ou setor. O cruzamento ainda não existe neste relatório.',true);return;}
+ const grp=city?s.cities?.[city]:sector?s.sectors?.[sector]:s;
+ if(!grp){toast('Filtro indisponível neste relatório.',true);return;}
+ const rows=[['Filtro','Identificação','Atendimentos','Concluídos','Pendentes','Pendentes +7 dias']];
+ const add=(kind,n,g,age=null)=>rows.push([kind,n,Number(g.total)||0,Number(g.finalized)||0,Number(g.pending)||0,age===null?'Não calculável':age]);
+ if(city)add('Cidade',city,grp);
+ else if(sector)add('Setor',sector,grp);
+ else{
+  add('Consolidado','Todas as cidades e setores',s,Number(s.pendingOlder7d)||0);
+  for(const [n,g] of Object.entries(s.cities||{}))add('Cidade',n,g);
+  for(const [n,g] of Object.entries(s.sectors||{}))add('Setor',n,g);
+ }
+ const csvValue=v=>{
+  let t=String(v??'');if(/^[\s]*[=+@-]/.test(t))t="'"+t;
+  return '"'+t.replaceAll('"','""')+'"';
+ };
+ const text='\uFEFF'+rows.map(x=>x.map(csvValue).join(';')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='lkz-isp-gestor-relatorio.csv';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function renderSimpleManager(){
+ const host=document.createElement('div');host.id='lkz-gestor-simples';
+ root.replaceChildren(host);
+ const review=current()?state.reviews.find(r=>r.snapshot_id===current().id)||null:null;
+ const tenants=cloudUi.memberships.filter(m=>['gestor','administrador'].includes(m.role));
+ mountGestorSimple(host,{
+  role:activeRole(),tenantId:state.selectedTenant,email:cloud.email,
+  mfaConfirmed:cloud.aal==='aal2',snapshot:current(),tenants,review,
+  reviewBusy:state.reviewBusy,reviewError:state.reviewError
+ },{
+  review:async(decision,reason)=>{
+   if(!simpleManagerMode())return;
+   state.reviewIntent=decision;
+   await submitExecutiveReview(reason);
+   gestorSimpleState.view='avaliacoes';
+  },
+  export:exportGestorSafe,
+  classic:()=>{classicManagerUi=true;state.view='dashboard';render();},
+  switchTenant:async id=>{
+   if(state.reviewBusy)return;
+   try{await loadCloudWorkspace(id);render();}
+   catch(err){toast(err.message||'Falha ao mudar empresa.',true);render();}
+  },
+  refresh:async()=>{
+   if(state.reviewBusy)return;
+   try{await loadCloudWorkspace(state.selectedTenant);render();toast('Dados autorizados atualizados.');}
+   catch(err){toast(err.message||'Falha na atualização.',true);render();}
+  },
+  logout:()=>cloudAction('logout')
+ });
+}
+
 const pages={dashboard,results,analysis:reviewDiagnosis,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
@@ -592,6 +654,7 @@ function render(){
  else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(state.view))state.view='dashboard';
+ if(simpleManagerMode()){renderSimpleManager();return;}
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
 function setView(v){
@@ -606,6 +669,7 @@ function setView(v){
  window.scrollTo({top:0,behavior:'instant'});
 }
 function bindActions(){
+ root.querySelector('[data-manager-simple]')?.addEventListener('click',()=>{classicManagerUi=false;state.view='dashboard';render();});
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{if(state.reviewBusy){toast('Aguarde a confirmação da avaliação.',true);render();return;}cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
  root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy){toast('Aguarde a avaliação terminar.',true);return;}cloudAction(b.dataset.cloud)}));
