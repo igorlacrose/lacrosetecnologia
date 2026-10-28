@@ -47,7 +47,7 @@ test('inputs e avisos nao usam texto claro sobre fundo claro',()=>{
 });
 test('PWA evita reutilizar CSS de versao anterior',()=>{
  assert.match(html,/styles\.css\?v=134/);
- assert.match(sw,/lkz-isp-static-v134/);
+ assert.match(sw,/lkz-isp-static-v135/);
  assert.match(sw,/styles\.css\?v=134/);
  assert.match(sw,/staticURLs\.has\(req\.url\)/);
  assert.doesNotMatch(sw,/supabase\.co/);
