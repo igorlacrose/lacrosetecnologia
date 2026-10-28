@@ -31,6 +31,6 @@ test('cache só armazena recursos estáticos, nunca dados ou token',()=>{
 test('hospedagem publica exige MFA, RLS e confirmacao de gravacao antes de importar',()=>{
  assert.match(app,/const IS_PUBLIC_HOMOLOGATION=/);
  assert.match(app,/if\(!canImportToCloud\(\)\)/);
- assert.match(app,/await cloud\.saveSnapshotWithEmployees\(state\.selectedTenant,snap,staff\.metrics\)/);
+ assert.match(app,/await cloud\.saveSnapshotWithEmployees\(state\.selectedTenant,previous\|\|snap,staff\.metrics\)/);
  assert.match(app,/if\(name==='process-file'\)/);
 });
