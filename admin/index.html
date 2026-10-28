@@ -38,6 +38,7 @@
     <button data-view="lead"><span>◎</span>Oportunidade</button>
     <button data-view="conversation"><span>◌</span>Conversa</button>
     <button data-view="audit"><span>≡</span>Auditoria</button>
+    <button data-view="infra"><span>▤</span>Infraestrutura</button>
   </nav>
   <div class="side-bottom"><span>Agente Comercial</span><small>Operacional · Supabase</small><a href="../#agente">← Voltar ao site</a></div>
 </aside>
@@ -109,6 +110,23 @@
   <section class="panel conversation-panel"><div class="panel-head"><div><small>CONVERSA ORIGINAL</small><h2>Histórico do diagnóstico</h2></div><span class="ai-tag">somente leitura</span></div><div id="conversationList" class="conversation-list"></div></section>
 </section>
 
+<section class="view" id="infra" aria-labelledby="infraTitle">
+  <section class="panel infra-panel">
+    <div class="panel-head">
+      <div><small>ADMINISTRAÇÃO / CONSUMO DE RECURSOS</small><h2 id="infraTitle">Infraestrutura e armazenamento</h2></div>
+      <button class="ghost" type="button" id="infraRefresh">Atualizar métricas ↻</button>
+    </div>
+    <p class="infra-intro">Métricas consultadas no servidor após autenticação e autorização administrativa. Nenhuma chave privada é enviada ao navegador.</p>
+    <p class="infra-updated" id="infraUpdated" aria-live="polite">Métricas ainda não carregadas.</p>
+    <div class="infra-grid" id="infraCards" aria-live="polite"></div>
+    <div class="infra-notes">
+      <p><b>GitHub:</b> tamanho do repositório não representa cota de espaço livre. Git LFS e Actions exigem métricas e autorização separadas.</p>
+      <p><b>Supabase:</b> limites do Free são referências, não extrato de cobrança. Tamanho do banco e uso físico do disco/WAL são diferentes.</p>
+      <p><b>Alertas:</b> indicadores visuais em 70%, 85% e 95%, quando houver dados e limite aplicável. Alertas proativos ainda não estão configurados.</p>
+    </div>
+  </section>
+</section>
+
 <section class="view" id="audit">
   <section class="panel"><div class="panel-head"><div><small>LOG / AUDITORIA</small><h2>Eventos da oportunidade</h2></div><span class="ai-tag">registro real</span></div>
   <div class="audit-list" id="auditList"></div></section>
@@ -118,5 +136,6 @@
 <div id="toast" class="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
 <script src="app.js?v=20261007-8"></script>
+<script src="infra-monitor.js?v=20261028-1"></script>
 </body>
 </html>
