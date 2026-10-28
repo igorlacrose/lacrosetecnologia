@@ -6,7 +6,8 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=120';
+import {CloudAccess} from './cloud-auth.js?v=130';
+import {activeRole,executiveViews,executiveNavigation,canOpenExecutiveView,renderExecutiveDashboard,renderExecutiveProductivity,renderExecutiveReviews,renderExecutiveReports} from './executive.js?v=130';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
@@ -14,9 +15,9 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
-const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false};
+const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],reviews:[],invitations:[],invitationsLoading:false,recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
- selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
+ selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',reviewChoice:null,employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const fmt=n=>new Intl.NumberFormat('pt-BR').format(Number(n)||0);
@@ -38,11 +39,10 @@ function mockSnapshot(){
 function current(){return state.snapshot;}
 function getMenu(){
  let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
- // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
- // Perfis setoriais terão visualização própria apenas após servidor filtrar snapshots por setor.
- if (!canUseAggregateWorkspace()) items=items.filter(([v])=>v==='cloud');
- else {if(!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
-  if(!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))items=items.filter(([v])=>v!=='users');}
+ // MASTER preserva exatamente o menu original. Demais perfis usam apenas os módulos executivos.
+ const role=activeWorkspaceRole();
+ if(role!=='master'&&executiveViews[role])items=executiveNavigation(role);
+ else if(!canUseAggregateWorkspace())items=items.filter(([v])=>v==='cloud');
  return `<aside class="sidebar ${state.menuOpen?'open':''}" id="sidebar">
   <div class="logo">${state.brand.logo?`<img class="brand-logo" src="${state.brand.logo}" alt="Logotipo da empresa">`:`LKZ<span class="mark">ISP</span>`}<small>${esc(state.brand.name)}</small></div>
   <div class="side-heading">GESTÃO E INTELIGÊNCIA</div>
@@ -52,36 +52,42 @@ function getMenu(){
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
 function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role));}
-function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor'].includes(m.role));}
+function activeWorkspaceRole(){return activeRole(cloudUi.memberships,state.selectedTenant||defaultTenant());}
+function canUseSectorWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['lider_setor','financeiro'].includes(m.role));}
+function canViewWorkspace(){return canUseAggregateWorkspace()||canUseSectorWorkspace();}
+function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>m.role==='master');}
 function clearWorkspace(){
  state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;state.employeeMetrics={};
- state.cloudReady=false;state.selectedTenant=null;
+ state.cloudReady=false;state.selectedTenant=null;cloudUi.reviews=[];state.reviewChoice=null;
  deleteSnapshots().catch(()=>{});
 }
-function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador'].includes(m.role))?.tenant_id||null;}
+function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role))?.tenant_id||null;}
 async function loadCloudWorkspace(tenantId=null){
- if(!canUseAggregateWorkspace()){clearWorkspace();return;}
- const authorized=cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role));
+ if(!canViewWorkspace()){clearWorkspace();return;}
  const chosen=tenantId||state.selectedTenant||defaultTenant();
- if(!authorized.some(m=>m.tenant_id===chosen))throw Error('A empresa selecionada não está autorizada.');
+ const membership=cloudUi.memberships.find(m=>m.tenant_id===chosen &&
+   ['master','gestor','administrador','lider_setor','financeiro'].includes(m.role));
+ if(!membership)throw Error('A empresa selecionada não está autorizada.');
  state.cloudReady=false;
- // Somente o servidor com RLS pode fornecer registros. Nenhuma sessão anterior é reaproveitada.
  state.snapshots=[];state.snapshot=null;state.demo=false;state.employeeMetrics={};
- const records=await cloud.listAggregateSnapshots(chosen);
+ state.reviewChoice=null;cloudUi.reviews=[];
+ // O setor nunca solicita nem recebe snapshots globais.
+ const sectorOnly=membership.role==='lider_setor'||membership.role==='financeiro';
+ const records=sectorOnly?await cloud.listSectorSnapshots(chosen):await cloud.listAggregateSnapshots(chosen);
+ if(membership.role==='gestor')cloudUi.reviews=await cloud.listSnapshotReviews(chosen);
  state.selectedTenant=chosen;state.snapshots=records;state.snapshot=records[0]||null;
- state.cloudReady=true;
- state.view='dashboard';
+ state.cloudReady=true;state.view='dashboard';
 }
 function canImportToCloud(){return state.cloudReady&&Boolean(state.selectedTenant)&&canAdministerLocalWorkspace()&&navigator.onLine;}
 function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span>${activeWorkspaceRole()==='master'?'<span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>':'<span class="pill green">Acesso protegido</span><button class="btn" data-view="cloud">Minha conta</button>'}<span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
- if(!state.backupStage)return '';
+ if(activeWorkspaceRole()!=='master'||!state.backupStage)return '';
  let inner='';
  if(state.backupStage==='create')inner=`<h2>Baixar backup e encerrar sessão</h2><p>Baixe um backup <strong>criptografado</strong> dos indicadores agregados desta sessão. Não inclui arquivos IXC, nomes, senhas ou dados individuais.</p><p class="notice warning">Fechar a aba não garante download. Utilize este botão e confira o arquivo antes de finalizar. A senha de backup não será armazenada e não poderá ser recuperada.</p><label class="field">Frase secreta do backup (mínimo 16 caracteres)<input id="backup-pass" type="password" autocomplete="new-password" minlength="16" maxlength="200" /></label><label class="field">Repita a frase secreta<input id="backup-confirm" type="password" autocomplete="new-password" minlength="16" maxlength="200" /></label><div class="action-row"><button class="btn primary" data-action="backup-download" ${state.backupBusy?'disabled':''}>Criptografar e baixar</button><button class="btn" data-action="backup-cancel">Cancelar</button></div>`;
  if(state.backupStage==='verify')inner=`<h2>Confira o arquivo baixado</h2><p>Verifique na pasta de downloads se o backup <strong>.lkzbackup.json</strong> foi salvo. Não temos como confirmar automaticamente que o navegador concluiu o download.</p><p class="notice warning"><b>Importante:</b> guarde a frase secreta em local seguro separado do backup. Sem ela, não será possível restaurar.</p><div class="action-row"><button class="btn" data-action="backup-redownload">Baixar novamente</button><button class="btn primary" data-action="backup-finish">Confirmei o arquivo: finalizar avaliação</button><button class="btn" data-action="backup-cancel">Não finalizar</button></div>`;
