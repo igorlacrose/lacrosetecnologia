@@ -1,4 +1,5 @@
 import {evaluateDataQuality, QUALITY_STATUS} from './quality.js';
+import {analyzeRejectedReport} from './review-analysis.js';
 import {detectMapping, buildSnapshot, subjectGroups,radarItems,calculateCost,moneyBRL,sampleCost} from './engine.js';
 import {readReport} from './importer.js';
 import {buildEmployeeMetrics} from './employee-analytics.js';
@@ -38,7 +39,7 @@ function mockSnapshot(){
 function current(){return state.snapshot;}
 function getMenu(){
  let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
- if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
+ if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],...(state.reviews.some(x=>x.snapshot_id===state.snapshot?.id&&x.decision==='reject')?[['analysis','alert','Diagnóstico']]:[]),['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  if(sectorMode())items=[['dashboard','dashboard','Meu setor'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
  // Perfis setoriais consultam exclusivamente snapshots minimizados pelo servidor, com MFA e vínculo.
@@ -143,7 +144,7 @@ function executiveDashboard(){
  '<section class="card card-pad"><div class="section-head"><div><h2>O que merece atenção?</h2><p>Alertas calculados com base nos dados disponíveis.</p></div><span class="badge orange">'+fmt(signals.length)+' alertas</span></div>'+
  (signals.slice(0,4).map(x=>'<div class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></div>').join('')||'<p class="muted">Nenhum alerta identificado pelos critérios atuais.</p>')+'</section>'+
  '<div class="executive-actions"><button class="btn primary" data-view="reports">Gerar relatório</button>'+
- (role==='gestor'?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
+ (['gestor','administrador'].includes(role)?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
  '<p class="footnote">Os resultados não comprovam responsabilidade individual e devem ser interpretados com contexto operacional.</p>');
 }
 function tickets(){const s=current();return heading('Atendimentos','Análise por assunto, setor, cidade e status.')+(!s?noData():dataBanner()+`
@@ -265,7 +266,7 @@ function dataQuality(){
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
 function executiveReviews(){
- const s=current(),manager=activeRole()==='gestor';
+ const s=current(),manager=['gestor','administrador'].includes(activeRole());
  const previous=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
  const signals=s?radarItems(s):[];
  return heading('Avaliações','Revisão dos resultados consolidados do período.',false)+
@@ -280,7 +281,7 @@ function executiveReviews(){
  '<p class="footnote">A avaliação aprova ou reprova o <strong>conjunto de indicadores deste relatório</strong>, não pessoas, alertas isolados ou metas financeiras.</p>'+
  (previous?
  '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
- '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p></div>':
+ '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p>'+(previous.decision==='reject'?'<div class="action-row"><button class="btn primary" data-view="analysis">Abrir diagnóstico e possíveis motivos</button></div>':'')+'</div>':
  manager?
  '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
  (state.reviewIntent?
@@ -293,7 +294,7 @@ function executiveReviews(){
  '</section>');
 }
 async function submitExecutiveReview(){
- if(activeRole()!=='gestor'||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
+ if(!['gestor','administrador'].includes(activeRole())||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
   toast('Ação não autorizada para este perfil.',true);return;
  }
  const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
@@ -303,9 +304,12 @@ async function submitExecutiveReview(){
  try{
   await cloud.reviewSnapshot(state.selectedTenant,s.id,state.reviewIntent,reason);
   state.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
-  state.reviewIntent=null;toast('Decisão registrada e auditada com sucesso.');
+  const verified=state.reviews.find(x=>x.snapshot_id===s.id);
+  if(!verified||verified.decision!==state.reviewIntent)throw Error('Decisão não confirmada no servidor. Recarregue antes de tentar novamente.');
+  if(state.reviewIntent==='reject')state.view='analysis';
+  state.reviewIntent=null;toast('Decisão registrada, confirmada e auditada com sucesso.');
  }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
- finally{state.reviewBusy=false;render();}
+ finally{state.reviewBusy=false;render();if(state.view==='analysis')window.scrollTo({top:0,behavior:'instant'});}
 }
 function results(){
  if(executiveMode())return executiveReviews();
@@ -502,18 +506,18 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
-const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
+const pages={dashboard,results,analysis:reviewDiagnosis,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
  if(!canUseAggregateWorkspace())state.view='cloud';
- else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(state.view))state.view='dashboard';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
 function setView(v){
  if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';
- else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';
+ else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(v))v='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(v))v='dashboard';
  else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(v))v='dashboard';
  state.view=v;state.menuOpen=false;state.reviewIntent=null;
@@ -533,7 +537,7 @@ function bindActions(){
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
- root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(activeRole()!=='gestor')return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
  root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewIntent=null;state.reviewError='';render();});
  root.querySelector('#executive-review-form')?.addEventListener('submit',e=>{e.preventDefault();submitExecutiveReview();});
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
