@@ -15,7 +15,7 @@ const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: oper
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
 let sessionEnding=false;
-const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false};
+const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false,masterUsers:[],masterFactors:[]};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false,reviews:[],reviewIntent:null,reviewBusy:false,reviewError:''};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
@@ -62,6 +62,7 @@ function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships
 function clearWorkspace(){
  state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;state.employeeMetrics={};
  state.cloudReady=false;state.selectedTenant=null;state.reviews=[];state.reviewIntent=null;state.reviewError='';
+ cloudUi.masterUsers=[];cloudUi.masterFactors=[];
  deleteSnapshots().catch(()=>{});
 }
 function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role))?.tenant_id||null;}
@@ -410,7 +411,37 @@ function usersPage(){
  <section class="card card-pad" style="margin-top:18px"><h2>Quem pode convidar quem?</h2>
  <div class="table-scroll"><table><thead><tr><th>Perfil atual</th><th>Gestor</th><th>Administrador</th><th>Líder</th><th>Financeiro</th></tr></thead><tbody>
  ${['master','gestor','administrador'].map(r=>`<tr><td>${esc(GROUPS.find(g=>g.id===r)?.name)}</td>${['gestor','administrador','lider_setor','financeiro'].map(target=>`<td><span class="badge ${mayInvite(r,target)?'green':'orange'}">${mayInvite(r,target)?'Permitido':'Negado'}</span></td>`).join('')}</tr>`).join('')}
- </tbody></table></div></section>`;
+ </tbody></table></div></section>${masterSecurityPanel()}`;
+}
+function masterSecurityPanel(){
+ const unique=[...new Map(cloudUi.masterUsers.map(x=>[x.user_id,x])).values()];
+ const factors=cloudUi.masterFactors.filter(f=>f.status==='verified'&&
+   (f.factor_type==='totp'||f.type==='totp'));
+ return '<section class="card card-pad" style="margin-top:18px;max-width:850px">'+
+  '<div class="section-head"><div><h2>Segurança das contas · MASTER</h2>'+
+  '<p>Solicitar recuperação de senha ou redefinir MFA/TOTP de usuários vinculados, inclusive esta conta MASTER.</p></div>'+
+  '<button type="button" class="btn" data-cloud="master-users" '+(cloudUi.busy?'disabled':'')+'>Consultar usuários</button></div>'+
+  '<div class="notice warning"><strong>Operação crítica:</strong> exige sessão MASTER, MFA ativo e novo código TOTP do próprio MASTER a cada ação. '+
+  'O link de senha é enviado exclusivamente ao e-mail confirmado do titular; nenhuma senha é exibida. '+
+  'Ao remover MFA, o usuário perde as sessões existentes e deve cadastrar um novo autenticador. '+
+  'Se o MASTER perder todos os fatores, esta tela não poderá ser utilizada sem uma recuperação externa verificada.</div>'+
+  (unique.length?
+   '<form id="master-security-form" class="safe-list">'+
+   '<label class="field">Conta alvo<select id="master-security-target" required>'+
+   unique.map(x=>'<option value="'+esc(x.user_id)+'">'+esc(x.email)+' · '+esc(x.role)+
+    (x.is_self?' · Sua conta':'')+(x.email_confirmed?'':' · E-mail não confirmado')+'</option>').join('')+
+   '</select></label>'+
+   '<label class="field">Operação<select id="master-security-action"><option value="password_recovery">Enviar recuperação de senha</option>'+
+   '<option value="mfa_reset">Remover MFA/TOTP e exigir novo cadastro</option></select></label>'+
+   '<label class="field">Seu autenticador MASTER<select id="master-security-factor" required>'+
+   factors.map(f=>'<option value="'+esc(f.id)+'">'+esc(f.friendly_name||'Autenticador verificado')+'</option>').join('')+
+   '</select></label>'+
+   '<label class="field">Novo código de seis dígitos do MASTER<input id="master-security-code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label>'+
+   '<div class="action-row"><button type="submit" class="btn danger" '+(cloudUi.busy||!factors.length?'disabled':'')+'>Confirmar operação segura</button></div>'+
+   '<p class="footnote">Limites por usuário e por dia, verificação de autorização no servidor e auditoria protegida. Não faça alterações sem pedido do titular ou incidente confirmado.</p>'+
+   '</form>':
+   '<p class="muted">Consulte os usuários para habilitar as operações de recuperação. Nenhuma conta será alterada pela consulta.</p>')+
+  '</section>';
 }
 async function loadInvitations(){
  if(!cloud.hasSession || cloud.aal!=='aal2'||!state.selectedTenant ||
@@ -517,7 +548,37 @@ async function cloudAction(type){
    cloudUi.message=result.sent?'Envio solicitado por convites@lacrosetecnologia.com.br. O destinatário deve confirmar o e-mail e o MFA.':
      'Convite registrado, mas ainda não enviado. '+(result.reason||'Configure o SMTP do Resend no servidor.');
    if(state.selectedTenant===tenant_id)cloudUi.invitations=await cloud.listInvitations(tenant_id);
-  }else if(type==='reload-invites'){
+  }else if(type==='master-users'){
+    if(!canAdministerLocalWorkspace())throw Error('Somente MASTER pode consultar a segurança das contas.');
+    cloudUi.masterUsers=await cloud.listMasterSecurityUsers();
+    cloudUi.masterFactors=await cloud.listFactors();
+    cloudUi.message='Contas vinculadas e autenticadores do MASTER consultados com segurança.';
+   }else if(type==='master-security'){
+    if(!canAdministerLocalWorkspace())throw Error('Somente MASTER pode recuperar contas.');
+    const target_id=document.getElementById('master-security-target')?.value||'';
+    const action=document.getElementById('master-security-action')?.value||'';
+    const factor_id=document.getElementById('master-security-factor')?.value||'';
+    const input=document.getElementById('master-security-code');
+    const code=input?.value?.trim()||'';
+    if(input)input.value='';
+    const account=cloudUi.masterUsers.find(x=>x.user_id===target_id);
+    if(!account||!account.email_confirmed)throw Error('Selecione uma conta com e-mail confirmado.');
+    if(!['password_recovery','mfa_reset'].includes(action)||!/^\\d{6}$/.test(code))
+      throw Error('Selecione uma operação e informe um código válido.');
+    const confirmation=action==='mfa_reset'?
+      'Confirmar exclusão dos fatores MFA de '+account.email+'? A sessão será encerrada e será obrigatório configurar um novo autenticador.':
+      'Solicitar um link de recuperação de senha ao e-mail verificado de '+account.email+'?';
+    if(!window.confirm(confirmation))return;
+    const result=await cloud.masterAccountSecurityAction({target_id,action,factor_id,code});
+    if(result.self&&action==='mfa_reset'){
+      await cloud.signOut();clearWorkspace();state.view='cloud';
+      cloudUi.memberships=[];cloudUi.factors=[];
+      cloudUi.message='MFA da sua conta removido. Faça login novamente e configure um novo autenticador.';
+    }else{
+      cloudUi.message=action==='mfa_reset'?'MFA removido no servidor. A conta deverá configurar um novo autenticador.':
+        'Recuperação solicitada ao endereço de e-mail confirmado do titular.';
+    }
+   }else if(type==='reload-invites'){
    cloudUi.invitations=await cloud.listInvitations(state.selectedTenant);
    cloudUi.message='Lista de convites atualizada.';
   }else if(type.startsWith('retry-invite:')){
@@ -568,6 +629,7 @@ function bindActions(){
  root.querySelector('#cloud-invite-password-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite-password')});
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
+ root.querySelector('#master-security-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('master-security')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
  root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(state.reviewBusy||!['gestor','administrador'].includes(activeRole()))return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
  root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{if(state.reviewBusy)return;state.reviewIntent=null;state.reviewError='';render();});
