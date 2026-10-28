@@ -6,7 +6,7 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=120';
+import {CloudAccess} from './cloud-auth.js?v=130';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
@@ -16,7 +16,7 @@ let lastActivity=Date.now();
 let sessionEnding=false;
 const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],invitations:[],invitationsLoading:false,recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
- selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
+ selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false,reviews:[],reviewIntent:null,reviewBusy:false,reviewError:''};
 const ic=name=>`<svg class="icon" aria-hidden="true"><use href="#ic-${name}"></use></svg>`;
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const fmt=n=>new Intl.NumberFormat('pt-BR').format(Number(n)||0);
@@ -38,8 +38,10 @@ function mockSnapshot(){
 function current(){return state.snapshot;}
 function getMenu(){
  let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
+ if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
+ if(sectorMode())items=[['dashboard','dashboard','Meu setor'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
- // Perfis setoriais terão visualização própria apenas após servidor filtrar snapshots por setor.
+ // Perfis setoriais consultam exclusivamente snapshots minimizados pelo servidor, com MFA e vínculo.
  if (!canUseAggregateWorkspace()) items=items.filter(([v])=>v==='cloud');
  else {if(!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
   if(!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))items=items.filter(([v])=>v!=='users');}
@@ -47,37 +49,42 @@ function getMenu(){
   <div class="logo">${state.brand.logo?`<img class="brand-logo" src="${state.brand.logo}" alt="Logotipo da empresa">`:`LKZ<span class="mark">ISP</span>`}<small>${esc(state.brand.name)}</small></div>
   <div class="side-heading">GESTÃO E INTELIGÊNCIA</div>
   <nav aria-label="Navegação principal">${items.map(([view,icon,label])=>`<button class="side-link ${state.view===view?'active':''}" data-view="${view}">${ic(icon)}<span>${esc(label)}</span></button>`).join('')}</nav>
-  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V1.0</div></div>
+  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · ${canAdministerLocalWorkspace()?'V1.0':'V1.3'}</div></div>
  </aside>`;
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
-function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role));}
-function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor'].includes(m.role));}
+function activeRole(){return cloudUi.memberships.find(m=>m.tenant_id===state.selectedTenant)?.role||null;}
+function executiveMode(){return ['gestor','administrador'].includes(activeRole());}
+function sectorMode(){return ['lider_setor','financeiro'].includes(activeRole());}
+function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role));}
+function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>m.role==='master');}
 function clearWorkspace(){
  state.snapshots=[];state.snapshot=null;state.staged=null;state.mapping=null;state.demo=false;state.employeeMetrics={};
- state.cloudReady=false;state.selectedTenant=null;
+ state.cloudReady=false;state.selectedTenant=null;state.reviews=[];state.reviewIntent=null;state.reviewError='';
  deleteSnapshots().catch(()=>{});
 }
-function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador'].includes(m.role))?.tenant_id||null;}
+function defaultTenant(){return cloudUi.memberships.find(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role))?.tenant_id||null;}
 async function loadCloudWorkspace(tenantId=null){
  if(!canUseAggregateWorkspace()){clearWorkspace();return;}
- const authorized=cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role));
+ const authorized=cloudUi.memberships.filter(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role));
  const chosen=tenantId||state.selectedTenant||defaultTenant();
- if(!authorized.some(m=>m.tenant_id===chosen))throw Error('A empresa selecionada não está autorizada.');
+ const membership=authorized.find(m=>m.tenant_id===chosen);
+ if(!membership)throw Error('A empresa selecionada não está autorizada.');
  state.cloudReady=false;
- // Somente o servidor com RLS pode fornecer registros. Nenhuma sessão anterior é reaproveitada.
- state.snapshots=[];state.snapshot=null;state.demo=false;state.employeeMetrics={};
- const records=await cloud.listAggregateSnapshots(chosen);
- state.selectedTenant=chosen;state.snapshots=records;state.snapshot=records[0]||null;
- state.cloudReady=true;
- state.view='dashboard';
+ state.snapshots=[];state.snapshot=null;state.demo=false;state.employeeMetrics={};state.reviews=[];state.reviewIntent=null;
+ // Somente a consulta setorial filtra os dados no servidor. Nunca consultar agregados globais para líderes/financeiro.
+ const scoped=['lider_setor','financeiro'].includes(membership.role);
+ const records=scoped?await cloud.listSectorSnapshots(chosen):await cloud.listAggregateSnapshots(chosen);
+ const reviews=(!scoped&&membership.role!=='master')?await cloud.listSnapshotReviews(chosen):[];
+ state.selectedTenant=chosen;state.snapshots=records;state.snapshot=records[0]||null;state.reviews=reviews;
+ state.cloudReady=true;state.view='dashboard';
 }
 function canImportToCloud(){return state.cloudReady&&Boolean(state.selectedTenant)&&canAdministerLocalWorkspace()&&navigator.onLine;}
 function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span>${canAdministerLocalWorkspace()?`<button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>`:`<button class="btn session-end" data-cloud="logout">Sair com segurança</button>`}<span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
@@ -101,11 +108,43 @@ function donut(s){
  return `<div class="donut-wrap"><div class="donut" style="background:conic-gradient(#27b57d 0% ${p}%, #478af1 ${p}% 100%)"><div class="donut-hole"><strong>${fmt(s.total)}</strong><span>atendimentos</span></div></div><div style="min-width:155px"><div class="legend-item"><i class="dot" style="background:#27b57d"></i>Finalizados <b>${fmt(closed)}</b></div><div class="legend-item"><i class="dot" style="background:#478af1"></i>Não finalizados <b>${fmt(open)}</b></div><div class="legend-item"><i class="dot" style="background:#e4e8ee"></i>Taxa encerrada <b>${pct(closed,s.total)}</b></div></div></div>`;
 }
 const pendingTable=(items,limit=8)=>`<div class="table-scroll"><table><thead><tr><th>Categoria</th><th class="num">Total</th><th class="num">Finalizados</th><th class="num">Pendentes</th><th>Proporção</th></tr></thead><tbody>${items.slice(0,limit).map(([name,g])=>`<tr><td><strong>${esc(name)}</strong></td><td class="num">${fmt(g.total)}</td><td class="num">${fmt(g.finalized)}</td><td class="num"><span class="badge ${g.pending/g.total>=.4?'red':'orange'}">${fmt(g.pending)}</span></td><td style="min-width:110px"><div class="progress-track"><div class="progress-fill ${g.pending/g.total>.4?'danger':'warn'}" style="width:${Math.min(100,100*g.pending/g.total)}%"></div></div><span class="tiny muted">${pct(g.pending,g.total)}</span></td></tr>`).join('')}</tbody></table></div>`;
-function dashboard(){const s=current();return heading('Dashboard','Visão executiva, desempenho e oportunidades de melhoria.')+(!s?noData():dataBanner()+`
+function dashboard(){const s=current();if(sectorMode())return sectorDashboard();if(executiveMode())return executiveDashboard();return heading('Dashboard','Visão executiva, desempenho e oportunidades de melhoria.')+(!s?noData():dataBanner()+`
  <div class="cards">${cardKpi('Atendimentos',fmt(s.total),'Total no arquivo','activity')}${cardKpi('Finalizados',fmt(s.finalized),pct(s.finalized,s.total)+' do total','check','green')}${cardKpi('Não finalizados',fmt(s.pending),pct(s.pending,s.total)+' dos atendimentos','alert','red')}${cardKpi('Pendências acima de 7 dias',fmt(s.pendingOlder7d),'Idade na data de referência do relatório','clock','orange')}</div>
  <div class="grid-2"><section class="card card-pad"><div class="section-head"><div><h2>Volume de atendimentos</h2><p>Distribuição diária de registros</p></div><span class="pill gray">${esc(s.latest||'—')}</span></div>${dailyChart(s)}</section><section class="card card-pad"><div class="section-head"><div><h2>Status dos atendimentos</h2><p>Fotografia da exportação</p></div></div>${donut(s)}</section></div>
  <div class="grid-2"><section class="card card-pad"><div class="section-head"><div><h2>Assuntos que exigem atenção</h2><p>Ordenados por quantidade pendente</p></div><button class="btn ghost" data-view="tickets">Ver todos ${ic('arrow')}</button></div>${pendingTable(sorted(subjectGroups(s)),6)}</section><section class="card card-pad"><div class="section-head"><div><h2>Radar de Ineficiência</h2><p>Alertas gerados com regras verificáveis</p></div><span class="badge red">${fmt(radarItems(s).length)} sinais</span></div>${radarItems(s).slice(0,3).map(r=>`<div class="radar-item"><div class="heading"><h3>${esc(r.name)}</h3><span class="badge ${r.priority==='Alta'?'red':'orange'}">${esc(r.priority)}</span></div><p>${esc(r.evidence)}</p></div>`).join('')||'<p class="muted">Nenhum alerta acima do limite configurado.</p>'}<button class="btn ghost" data-view="radar">Abrir Radar ${ic('arrow')}</button></section></div>
  <p class="footnote">Não são calculados faturamento, lucro, perdas em reais nem SLA sem relatórios e definições confiáveis para esses indicadores.</p>`);
+}
+function sectorDashboard(){
+ const s=current();
+ return heading('Meu setor','Resultados somente do seu setor autorizado.',false)+
+ (!s?'<section class="card card-pad"><h2>Sem dados do seu setor</h2><p>Não existem relatórios setoriais disponíveis para o seu vínculo. Solicite ao responsável pela importação que confira o nome do setor.</p></section>':
+ '<div class="executive-welcome"><span class="executive-eyebrow">VISÃO SETORIAL</span><h2>'+esc(s.sectorName)+'</h2><p>Indicadores exclusivos do seu setor no período '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'.</p></div>'+
+ '<div class="cards executive-kpis">'+
+ cardKpi('Atendimentos do setor',fmt(s.total),'Total da exportação','activity')+
+ cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total)+' do setor','check','green')+
+ cardKpi('Pendentes',fmt(s.pending),'Aguardam acompanhamento','clock','orange')+
+ cardKpi('Conclusão',pct(s.finalized,s.total),'No período exportado','chart')+'</div>'+
+ '<section class="card card-pad"><h2>Situação do setor</h2>'+donut(s)+'</section>'+
+ '<div class="executive-actions"><button class="btn primary" data-view="reports">Gerar relatório do meu setor</button></div>'+
+ '<p class="footnote">Os dados do setor foram filtrados pelo servidor. Não incluem atendimentos individuais nem outros setores.</p>');
+}
+function executiveDashboard(){
+ const s=current(),role=activeRole(),signals=s?radarItems(s):[];
+ return heading('Visão geral','Indicadores essenciais para decisões rápidas.',false)+
+ '<div class="executive-welcome"><span class="executive-eyebrow">PAINEL EXECUTIVO</span><h2>Como está a operação?</h2><p>Informações consolidadas do último relatório importado. Não são dados em tempo real.</p></div>'+
+ (!s?'<section class="card card-pad"><h2>Aguardando indicadores</h2><p class="muted">Ainda não existem dados autorizados para apresentar.</p></section>':dataBanner()+
+ '<div class="cards executive-kpis">'+
+ cardKpi('Atendimentos',fmt(s.total),'Registros do período','activity')+
+ cardKpi('Concluídos',pct(s.finalized,s.total),fmt(s.finalized)+' atendimentos','check','green')+
+ cardKpi('Pendentes',fmt(s.pending),'Precisam de acompanhamento','clock','orange')+
+ cardKpi('Atrasados há mais de 7 dias',fmt(s.pendingOlder7d),'Na data da exportação','alert','red')+'</div>'+
+ '<div class="grid-2"><section class="card card-pad"><h2>Panorama dos atendimentos</h2>'+donut(s)+'</section>'+
+ '<section class="card card-pad"><h2>Movimento diário</h2>'+dailyChart(s)+'</section></div>'+
+ '<section class="card card-pad"><div class="section-head"><div><h2>O que merece atenção?</h2><p>Alertas calculados com base nos dados disponíveis.</p></div><span class="badge orange">'+fmt(signals.length)+' alertas</span></div>'+
+ (signals.slice(0,4).map(x=>'<div class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></div>').join('')||'<p class="muted">Nenhum alerta identificado pelos critérios atuais.</p>')+'</section>'+
+ '<div class="executive-actions"><button class="btn primary" data-view="reports">Gerar relatório</button>'+
+ (role==='gestor'?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
+ '<p class="footnote">Os resultados não comprovam responsabilidade individual e devem ser interpretados com contexto operacional.</p>');
 }
 function tickets(){const s=current();return heading('Atendimentos','Análise por assunto, setor, cidade e status.')+(!s?noData():dataBanner()+`
  <div class="cards">${cardKpi('Total',fmt(s.total),'Registros válidos','activity')}${cardKpi('Finalizados',fmt(s.finalized),pct(s.finalized,s.total),'check','green')}${cardKpi('Pendentes',fmt(s.pending),pct(s.pending,s.total),'alert','red')}${cardKpi('Fechamento acima de 24h',fmt(s.closedOver24),'Entre os finalizados com datas válidas','clock','orange')}</div>
@@ -176,7 +215,14 @@ function imports(){return heading('Importar relatório','XLSX/CSV do IXC · proc
  ${mappingForm()}
  <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do ambiente de gestão</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no ambiente seguro.</p>'}</section>`;
 }
-function reports(){const s=current();return heading('Relatórios executivos','Exportação de indicadores agregados, sem dados pessoais.',false)+(!s?noData():dataBanner()+`<section class="card card-pad"><div class="section-head"><div><h2>Exportar resumo</h2><p>Arquivo CSV com contagens canônicas, sem linhas brutas do IXC</p></div></div><button class="btn primary" data-action="export">${ic('file')} Baixar CSV seguro</button><p class="footnote">PDF e comparativos automáticos entre períodos serão adicionados quando os critérios analíticos estiverem validados.</p></section>`);
+function reports(){const s=current();return heading('Relatórios executivos','Imprima ou exporte somente indicadores autorizados para sua conta.',false)+(!s?'<section class="card card-pad"><h2>Nenhum relatório disponível</h2><p class="muted">Aguarde a importação autorizada de indicadores.</p></section>':dataBanner()+
+ '<section class="card card-pad executive-report"><div class="section-head"><div><h2>'+ (sectorMode()?'Relatório do meu setor':'Resumo operacional consolidado')+'</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
+ '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'Total','activity')+cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total),'check','green')+cardKpi('Pendentes',fmt(s.pending),'Não finalizados','clock','orange')+'</div>'+
+ '<div class="grid-2"><section><h3>Conclusão dos atendimentos</h3>'+donut(s)+'</section>'+
+ (sectorMode()?'': '<section><h3>Movimento do período</h3>'+dailyChart(s)+'</section>')+'</div>'+
+ '<h3>'+ (sectorMode()?'Meu setor':'Distribuição por setor')+'</h3>'+pendingTable(sorted(s.sectors,'total'),50)+
+ '<p class="footnote">Fonte: exportação do IXC. Gerado a partir do relatório autorizado em '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'. Não representa dados em tempo real nem avaliação individual.</p></section>'+
+ '<div class="action-row executive-report-actions"><button class="btn primary" data-action="print-report">Imprimir / salvar PDF</button><button class="btn" data-action="export">Baixar CSV</button></div>');
 }
 function access(){
  const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER'];
@@ -218,7 +264,51 @@ function dataQuality(){
  q.issues.map(i=>`<article class="quality-item"><div class="section-head"><strong>${esc(i.title)}</strong><span class="badge ${i.status==='ready'?'green':i.status==='partial'?'orange':'red'}">${esc(QUALITY_STATUS[i.status])}</span></div><p>${esc(i.detail)}</p>${i.missing.length?`<strong>Forneça ou corrija:</strong><ul>${i.missing.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:'<p class="good">Não há dados adicionais obrigatórios identificados para esta métrica.</p>'}</article>`).join('')+
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
+function executiveReviews(){
+ const s=current(),manager=activeRole()==='gestor';
+ const previous=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
+ const signals=s?radarItems(s):[];
+ return heading('Avaliações','Revisão dos resultados consolidados do período.',false)+
+ (!s?'<section class="card card-pad"><h2>Nenhum resultado disponível</h2><p>O responsável deve importar um relatório antes da avaliação.</p></section>':
+ '<section class="card card-pad"><div class="section-head"><div><h2>Resultado para análise</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
+ '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'Total do relatório','activity')+
+ cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total),'check','green')+
+ cardKpi('Pendentes',fmt(s.pending),'Não finalizados','clock','orange')+'</div>'+
+ '<h3>Principais alertas</h3>'+
+ (signals.length?signals.slice(0,5).map(x=>'<article class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></article>').join(''):
+ '<p class="muted">Nenhum alerta calculado no período.</p>')+
+ '<p class="footnote">A avaliação aprova ou reprova o <strong>conjunto de indicadores deste relatório</strong>, não pessoas, alertas isolados ou metas financeiras.</p>'+
+ (previous?
+ '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
+ '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p></div>':
+ manager?
+ '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
+ (state.reviewIntent?
+ '<form id="executive-review-form" class="safe-list"><h3>'+ (state.reviewIntent==='approve'?'Confirmar aprovação':'Confirmar reprovação')+
+ '</h3><p>Explique o motivo da decisão para preservar um histórico claro de avaliação.</p>'+
+ '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="2000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
+ '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel>Cancelar</button></div></form>':'')+
+ (state.reviewError?'<div class="notice warning">'+esc(state.reviewError)+'</div>':''):
+ '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
+ '</section>');
+}
+async function submitExecutiveReview(){
+ if(activeRole()!=='gestor'||!state.cloudReady||!current()||!state.selectedTenant||!['approve','reject'].includes(state.reviewIntent)||state.reviewBusy){
+  toast('Ação não autorizada para este perfil.',true);return;
+ }
+ const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
+ if(reason.length<20||reason.length>2000){toast('Escreva uma justificativa com 20 a 2000 caracteres.',true);return;}
+ if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
+ state.reviewBusy=true;state.reviewError='';render();
+ try{
+  await cloud.reviewSnapshot(state.selectedTenant,s.id,state.reviewIntent,reason);
+  state.reviews=await cloud.listSnapshotReviews(state.selectedTenant);
+  state.reviewIntent=null;toast('Decisão registrada e auditada com sucesso.');
+ }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
+ finally{state.reviewBusy=false;render();}
+}
 function results(){
+ if(executiveMode())return executiveReviews();
  const s=current(),signals=s?radarItems(s):[];
  const q=evaluateDataQuality(s,state.snapshots);
  return heading('Central de Resultados','Painel de revisão do gestor: problemas primeiro, evidências e dados faltantes.',false)+
@@ -258,7 +348,7 @@ function loginLanding(){
  </section></main>`;
 }
 function usersPage(){
- const editable=cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role));
+ const editable=cloudUi.memberships.filter(m=>m.role==='master');
  if(!editable.length)return heading('Usuários e Permissões','Acesso restrito à gestão.',false)+
    '<div class="notice warning">Você não possui permissão para gerenciar usuários.</div>';
  const selected=editable.find(m=>m.tenant_id===state.selectedTenant)||editable[0];
@@ -297,6 +387,21 @@ async function loadInvitations(){
  finally{cloudUi.invitationsLoading=false;render();}
 }
 function cloudPage(){
+ if(cloud.hasSession&&cloud.aal==='aal2'&&(executiveMode()||sectorMode())){
+  const profile=activeRole();
+  const roleNames={gestor:'Gestor',administrador:'Administrador',lider_setor:'Líder de setor',financeiro:'Financeiro'};
+  const selections=cloudUi.memberships.filter(m=>['gestor','administrador','lider_setor','financeiro'].includes(m.role));
+  return heading('Minha conta','Acesso seguro e informações da sua sessão.',false)+
+   '<section class="card card-pad" style="max-width:750px">'+
+   '<h2>Seu acesso está protegido</h2><p>'+esc(cloud.email||'')+'</p>'+
+   '<div class="safe-list"><div>'+ic('check')+'<span>Autenticação de dois fatores confirmada</span></div>'+
+   '<div>'+ic('lock')+'<span>Perfil: <strong>'+esc(roleNames[profile]||profile)+'</strong></span></div>'+
+   '<div>'+ic('cloud')+'<span>Indicadores filtrados pelo servidor, conforme sua permissão</span></div></div>'+
+   (selections.length>1?'<label class="field">Empresa ativa<select id="active-tenant">'+
+    selections.map(m=>'<option value="'+esc(m.tenant_id)+'" '+(m.tenant_id===state.selectedTenant?'selected':'')+'>'+esc(roleNames[m.role]||m.role)+'</option>').join('')+
+    '</select></label>':'')+
+   '<div class="executive-actions"><button class="btn" data-cloud="logout">Encerrar minha sessão</button></div></section>';
+ }
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
  const name=esc(cloud.email||'—');
  return heading('Conta e Nuvem','Autenticação real no ambiente exclusivo: MFA obrigatório para leitura por empresa/setor.',false)+
@@ -306,7 +411,7 @@ function cloudPage(){
  (cloudUi.message?`<div class="notice" role="status">${esc(cloudUi.message)}</div>`:'')+
  (!logged?`<form id="cloud-login-form" class="safe-list" autocomplete="on"><label class="field">E-mail<input id="cloud-email" type="email" autocomplete="username" maxlength="250" required></label><label class="field">Senha<input id="cloud-password" type="password" autocomplete="current-password" minlength="1" maxlength="250" required></label><div class="action-row"><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Entrar com segurança</button><button class="btn" type="button" data-cloud="signup" ${cloudUi.busy?'disabled':''}>Primeiro acesso · definir minha senha</button><button class="btn" type="button" data-cloud="recover">Recuperar acesso</button></div></form><p class="footnote">O cadastro não concede acesso empresarial. O MASTER inicial só será ativado depois de confirmar o e-mail e concluir o cadastro protegido. Usuários convidados definem sua própria senha. Nunca informe senhas por mensagem.</p>`:
  `<div class="safe-list"><div>${ic('check')}<span>Identidade: <strong>${name}</strong> · sessão ${esc(cloud.aal.toUpperCase())}</span></div></div>`+
- (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:cloud.invitationSetupPending?`<h3>Primeiro acesso por convite</h3><p class="muted">Seu e-mail foi validado. Defina sua senha exclusiva antes de configurar o segundo fator.</p><form id="cloud-invite-password-form" class="safe-list"><label class="field">Crie sua senha (mínimo 12 caracteres)<input id="cloud-invite-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Salvar senha e configurar MFA</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
+ (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:cloud.invitationSetupPending?`<h3>Primeiro acesso por convite</h3><p class="muted">Seu e-mail foi validado. Defina sua senha exclusiva antes de configurar o segundo fator.</p><form id="cloud-invite-password-form" class="safe-list"><label class="field">Crie sua senha (mínimo 12 caracteres)<input id="cloud-invite-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Salvar senha e configurar MFA</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
  ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
  `<h3>Segundo fator obrigatório (TOTP)</h3><p class="muted">Sem código do aplicativo autenticador, as políticas do banco impedem consultar os dados empresariais.</p>`+
  (cloudUi.factors.length?`<p class="muted">Autenticador verificado encontrado. Digite o código atual.</p>`:
@@ -400,11 +505,22 @@ async function cloudAction(type){
 const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
- if (!canUseAggregateWorkspace()) state.view='cloud';
- else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
+ if(!canUseAggregateWorkspace())state.view='cloud';
+ else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(state.view))state.view='dashboard';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){
+ if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';
+ else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';
+ else if(sectorMode()&&!['dashboard','reports','cloud'].includes(v))v='dashboard';
+ else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(v))v='dashboard';
+ state.view=v;state.menuOpen=false;state.reviewIntent=null;
+ if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}
+ render();if(v==='users'&&canAdministerLocalWorkspace())loadInvitations();
+ window.scrollTo({top:0,behavior:'instant'});
+}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
@@ -417,6 +533,9 @@ function bindActions(){
  root.querySelectorAll('[data-invite-send]').forEach(b=>b.addEventListener('click',()=>cloudAction('retry-invite:'+b.dataset.inviteSend)));
  root.querySelector('#cloud-invite-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('invite')});
  root.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
+ root.querySelectorAll('[data-review-choice]').forEach(b=>b.addEventListener('click',()=>{if(activeRole()!=='gestor')return;state.reviewIntent=b.dataset.reviewChoice;state.reviewError='';render();}));
+ root.querySelector('[data-review-cancel]')?.addEventListener('click',()=>{state.reviewIntent=null;state.reviewError='';render();});
+ root.querySelector('#executive-review-form')?.addEventListener('submit',e=>{e.preventDefault();submitExecutiveReview();});
  root.querySelectorAll('[data-productivity]').forEach(b=>b.addEventListener('click',()=>{state.productivityTab=b.dataset.productivity;render();if(state.productivityTab==='person')loadEmployeeMetrics();}));
  root.querySelectorAll('[data-load-employees]').forEach(b=>b.addEventListener('click',()=>loadEmployeeMetrics()));
  root.querySelector('#employee-sector')?.addEventListener('change',e=>{state.employeeSectorFilter=e.target.value;render()});
@@ -460,7 +579,9 @@ async function exportBrandKit(){
  const link=document.createElement('a');link.href=url;link.download='lkz-white-label-pwa-kit.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
  toast('Kit de ícones/manifesto gerado localmente; ainda precisa ser publicado.');
 }
-async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
+async function action(name){if(name==='print-report'){if(!canUseAggregateWorkspace()||!current()||state.view!=='reports'){toast('Relatório não autorizado.',true);return;}window.print();return;}
+ if(name==='export'){if(!canUseAggregateWorkspace()||!current()){toast('Relatório não autorizado.',true);return;}exportSafe();return;}
+ if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
  if(name==='backup-open'){state.backupStage='create';render();return;}
  if(name==='backup-open-restore'){state.backupStage='restore';render();return;}
  if(name==='backup-cancel'){state.backupStage=null;state.backupDownload=null;render();return;}
@@ -532,9 +653,9 @@ async function restoreBackup(){
  }catch(e){toast(e?.message||'Não foi possível restaurar o backup.',true)}finally{state.backupBusy=false;}
 }
 function exportSafe(){const s=current();if(!s)return;
- const csv=[['Grupo','Categoria','Total','Finalizados','Pendentes'],...Object.entries(subjectGroups(s)).map(([n,g])=>['Assunto',n,g.total,g.finalized,g.pending]),...Object.entries(s.sectors).map(([n,g])=>['Setor',n,g.total,g.finalized,g.pending]),...Object.entries(s.cities).map(([n,g])=>['Cidade',n,g.total,g.finalized,g.pending])];
+ const csv=[['Grupo','Categoria','Total','Finalizados','Pendentes'],...(sectorMode()?[]:Object.entries(subjectGroups(s)).map(([n,g])=>['Assunto',n,g.total,g.finalized,g.pending])),...Object.entries(s.sectors||{}).map(([n,g])=>['Setor',n,g.total,g.finalized,g.pending]),...(sectorMode()?[]:Object.entries(s.cities||{}).map(([n,g])=>['Cidade',n,g.total,g.finalized,g.pending]))];
  const content='\uFEFF'+csv.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(';')).join('\r\n');
- const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lkz-isp-indicadores-agregados.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+ const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=sectorMode()?'lkz-isp-relatorio-meu-setor.csv':'lkz-isp-indicadores-agregados.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 async function init(){
  try{const cb=await cloud.handleAuthCallback();if(cb){

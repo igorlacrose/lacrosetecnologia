@@ -275,6 +275,49 @@ export class CloudAccess {
       return {...row.snapshot,id:row.id,tenant_id:row.tenant_id};
     });
   }
+
+  async listSectorSnapshots(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para relatórios.');
+    if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(String(tenant_id||'')))
+      throw Error('Empresa inválida.');
+    const rows=await this.#request('/rest/v1/rpc/lkz_isp_read_sector_snapshots',{
+      method:'POST',body:{p_tenant:tenant_id}
+    });
+    if(!Array.isArray(rows))throw Error('Relatórios setoriais inválidos.');
+    return rows.map(row=>{
+      const data=row?.snapshot;
+      if(row.tenant_id!==tenant_id || !data || data.sectorName===undefined ||
+         !Number.isSafeInteger(data.total)||data.total<0||
+         !data.sectors||Object.keys(data.sectors).length!==1||
+         data.sectors[data.sectorName]?.total!==data.total)
+        throw Error('Resposta setorial incompatível ou potencialmente insegura.');
+      return {...data,id:row.id,tenant_id:row.tenant_id};
+    });
+  }
+  async listSnapshotReviews(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para decisões.');
+    if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(String(tenant_id||'')))
+      throw Error('Empresa inválida.');
+    const data=await this.#request('/rest/v1/lkz_isp_snapshot_reviews?select=id,snapshot_id,decision,rationale,reviewed_at&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&order=reviewed_at.desc&limit=250');
+    if(!Array.isArray(data))throw Error('Histórico de avaliações inválido.');
+    return data;
+  }
+  async reviewSnapshot(tenant_id,snapshot_id,decision,rationale){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para decidir.');
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if(!uuid.test(String(tenant_id||''))||!uuid.test(String(snapshot_id||''))||
+      !['approve','reject'].includes(decision))
+      throw Error('Avaliação inválida.');
+    const reason=String(rationale||'').trim();
+    if(reason.length<20||reason.length>2000)throw Error('Informe uma justificativa com 20 a 2000 caracteres.');
+    return this.#request('/rest/v1/rpc/lkz_isp_review_snapshot',{
+      method:'POST',body:{p_tenant:tenant_id,p_snapshot:snapshot_id,p_decision:decision,p_rationale:reason}
+    });
+  }
   async saveAggregateSnapshot(tenant_id,snapshot){
     await this.#ensureSession();
     if(this.aal!=='aal2')throw Error('MFA obrigatório para importar.');

@@ -139,3 +139,26 @@ input:autofill,input:-webkit-autofill{
 .auth-notice{background:#e6f6ee;border:1px solid #86c4a2;color:#1a5b3e;padding:12px 15px;border-radius:9px;font-size:13px;line-height:1.55;margin-bottom:18px}
 @media(max-width:900px){.auth-layout{grid-template-columns:1fr}.auth-story{min-height:auto;padding:18px 22px}.auth-story-body,.auth-story-foot{display:none}.auth-mark{font-size:22px}.auth-mark small{font-size:8px}.auth-login{justify-content:flex-start;padding:34px 22px 17px;min-height:calc(100vh - 74px)}.auth-login-inner{margin:18px auto auto}.auth-login h2{font-size:31px}.auth-desc{margin-bottom:24px}.auth-footer{margin-top:18px}}
 @media(max-width:450px){.auth-story{padding:17px 20px}.auth-login{padding:24px 20px}.auth-login-inner{margin:14px auto auto}.auth-login h2{font-size:29px}.auth-remember{font-size:12px}}
+
+/* LKZ ISP v1.3: interface executiva, sem alterar o ambiente MASTER. */
+.executive-welcome{padding:clamp(20px,3vw,34px);border-radius:18px;margin:0 0 22px;background:linear-gradient(115deg,#102f52,#146a86);color:#fff;box-shadow:0 12px 28px #0e3e641b}
+.executive-welcome h2{font-size:clamp(23px,3vw,35px);margin:8px 0;font-weight:800}
+.executive-welcome p{color:#d4ebf5;max-width:650px;margin:0;line-height:1.6}
+.executive-eyebrow{letter-spacing:2px;font-size:11px;font-weight:800;color:#8ce2ce}
+.executive-kpis .kpi{min-height:145px}
+.executive-actions{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
+.executive-report{margin-bottom:15px}
+.executive-report h3{margin:20px 0 12px}
+@media(max-width:700px){.executive-welcome{border-radius:12px}.executive-actions .btn{min-height:45px}.executive-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{
+ @page{size:A4;margin:15mm}
+ body{background:#fff!important;color:#111!important}
+ .sidebar,.topbar,.page-head,.executive-report-actions,.lkz-footer,.toast,.modal,.action-row{display:none!important}
+ .shell,.main,.content{display:block!important;width:100%!important;margin:0!important;padding:0!important;overflow:visible!important}
+ .content>*:not(.executive-report){display:none!important}
+ .content>.executive-report{display:block!important;border:0!important;box-shadow:none!important}
+ .executive-report .card,.executive-report .kpi{break-inside:avoid;box-shadow:none!important}
+ .executive-report table{width:100%;font-size:10pt}
+ .executive-report .table-scroll{overflow:visible!important}
+ .executive-report .progress-track{print-color-adjust:exact}
+}
