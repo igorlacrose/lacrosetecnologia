@@ -51,9 +51,13 @@ export class CloudAccess {
         throw Error('Autenticador já cadastrado: use o código existente do aplicativo.');
       if (response.status===409 && data?.error==='resend_smtp_not_configured')
         throw Error('Envio pendente: configure o Resend como SMTP no servidor para ativar os convites.');
+      if (response.status===409 && data?.error==='mfa_partial_reset_detected')
+        throw Error('O servidor removeu parte dos fatores MFA. Verifique a conta antes de repetir a operação.');
       if (response.status===409) throw Error('Já existe convite pendente ou ativo para este e-mail nesta empresa.');
       if (response.status===502 && data?.error==='email_delivery_request_failed')
         throw Error('Convite registrado, mas o serviço de e-mail não aceitou o envio.');
+      if (response.status===503 && data?.error==='audit_confirmation_required')
+        throw Error('Operação com auditoria pendente de confirmação. Verifique os fatores da conta antes de repetir.');
       if (response.status===503 && data?.error==='delivery_status_reconciliation_needed')
         throw Error('Envio solicitado; é necessário conferir o registro antes de reenviar.');
       if (response.status===429) throw Error('Muitas tentativas. Aguarde antes de tentar novamente.');
