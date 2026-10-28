@@ -23,20 +23,22 @@ export class CloudAccess {
   #userId = null;
   #expiresAt = 0;
   #recovery = false;
+  #invitationSetup = false;
   #trustThisDevice = false;
   #lastTrustWrite = 0;
   #fetch;
   constructor(fetchImpl = null) { this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis); }
   get email() { return this.#email; }
   get recoveryPending() { return this.#recovery; }
+  get invitationSetupPending(){return this.#invitationSetup;}
   get hasSession() { return Boolean(this.#token); }
   get aal() { return this.#token ? jwtAssurance(this.#token) : 'none'; }
   get trustDeviceEnabled(){return this.#trustThisDevice;}
   get factor() { return this.#factor ? {id:this.#factor.id,secret:this.#factor.secret||null} : null; }
 
   async #request(path, options={}) {
-    const {method='GET',body=null,auth=true}=options;
-    const h={apikey: PUBLIC_KEY, 'Content-Type':'application/json'};
+    const {method='GET',body=null,auth=true,extraHeaders={}}=options;
+    const h={apikey: PUBLIC_KEY, 'Content-Type':'application/json',...extraHeaders};
     if (auth && this.#token) h.Authorization = 'Bearer ' + this.#token;
     let response;
     try { response = await this.#fetch(ROOT + path, {method,headers:h,
@@ -47,6 +49,13 @@ export class CloudAccess {
     if (!response.ok) {
       if(response.status===422 && (data?.error_code==='mfa_factor_name_conflict'||data?.code==='mfa_factor_name_conflict'))
         throw Error('Autenticador já cadastrado: use o código existente do aplicativo.');
+      if (response.status===409 && data?.error==='gmail_smtp_not_configured')
+        throw Error('Envio pendente: configure o Gmail como SMTP no servidor para ativar os convites.');
+      if (response.status===409) throw Error('Já existe convite pendente ou ativo para este e-mail nesta empresa.');
+      if (response.status===502 && data?.error==='email_delivery_request_failed')
+        throw Error('Convite registrado, mas o serviço de e-mail não aceitou o envio.');
+      if (response.status===503 && data?.error==='delivery_status_reconciliation_needed')
+        throw Error('Envio solicitado; é necessário conferir o registro antes de reenviar.');
       if (response.status===429) throw Error('Muitas tentativas. Aguarde antes de tentar novamente.');
       if (response.status===401 || response.status===400) throw Error('Acesso não autorizado, código incorreto ou conta ainda não confirmada.');
       if (response.status===403) throw Error('Acesso negado pelo serviço de identidade.');
@@ -139,7 +148,8 @@ export class CloudAccess {
     this.clear();
     this.#adopt({access_token:access,refresh_token:refresh,expires_in:Number(args.get('expires_in')||1800),user});
     this.#recovery=type==='recovery';
-    return {email:this.email,recovery:this.#recovery};
+    this.#invitationSetup=type==='invite';
+    return {email:this.email,recovery:this.#recovery,invited:this.#invitationSetup};
   }
   async setRecoveredPassword(newPassword){
     if(!this.#recovery)throw Error('Use um link de recuperação válido.');
@@ -149,6 +159,42 @@ export class CloudAccess {
     await this.#request('/auth/v1/user',{method:'PUT',body:{password:newPassword}});
     this.clear();
     return {changed:true};
+  }
+  async setInvitedPassword(newPassword){
+    if(!this.#invitationSetup)throw Error('O link de primeiro acesso não está ativo.');
+    if(typeof newPassword!=='string'||newPassword.length<12||newPassword.length>200)
+      throw Error('A senha deve ter entre 12 e 200 caracteres.');
+    await this.#ensureSession();
+    await this.#request('/auth/v1/user',{method:'PUT',body:{password:newPassword}});
+    this.#invitationSetup=false;
+    return {changed:true};
+  }
+  async acceptInvitations(){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('Confirme o segundo fator antes de ativar um vínculo.');
+    const data=await this.#request('/functions/v1/lkzisp-user-invitations',{
+      method:'POST',body:{action:'accept'}});
+    if(data?.status!=='accepted_checked')throw Error('Não foi possível verificar os convites.');
+    return {accepted:Number(data.accepted||0)};
+  }
+  async sendInvitation(invitationId){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para enviar convites.');
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(invitationId||'')))
+      throw Error('Identificador de convite inválido.');
+    const r=await this.#request('/functions/v1/lkzisp-user-invitations',{
+      method:'POST',body:{action:'send',invitation_id:invitationId}});
+    if(r?.status!=='submitted_to_email_provider')throw Error('Envio não confirmado pelo serviço.');
+    return {sent:true};
+  }
+  async listInvitations(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório.');
+    if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
+    const result=await this.#request('/rest/v1/lkz_isp_user_invitations?select=id,tenant_id,invited_email,requested_role,status,expires_at,created_at,sent_at&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&order=created_at.desc&limit=70');
+    if(!Array.isArray(result))throw Error('Consulta de convites inválida.');
+    return result;
   }
   async #ensureSession() {
     if (!this.#token) throw Error('Faça login primeiro.');
@@ -311,11 +357,19 @@ export class CloudAccess {
       ['master','gestor','administrador'].includes(m.role) &&
       (requested_role!=='gestor'||['master','gestor'].includes(m.role)));
     if(!authorized)throw Error('Seu perfil não autoriza esse convite.');
-    const data=await this.#request('/rest/v1/lkz_isp_user_invitations',{
-      method:'POST',body:{tenant_id,invited_email:email,requested_role,
+    const data=await this.#request('/rest/v1/lkz_isp_user_invitations?select=id,status',{
+      method:'POST',extraHeaders:{Prefer:'return=representation'},
+      body:{tenant_id,invited_email:email,requested_role,
         ...(sector_id?{sector_id}:{}) ,created_by:this.#userId}
     });
-    return {saved:true,data}; // Somente registro pendente; nenhum e-mail é enviado por esta API.
+    const id=Array.isArray(data)?data[0]?.id:null;
+    if(!id)throw Error('Solicitação enviada ao banco, mas o identificador não foi confirmado. Atualize a lista antes de tentar novamente.');
+    try{
+      await this.sendInvitation(id);
+      return {saved:true,sent:true,id};
+    }catch(err){
+      return {saved:true,sent:false,id,reason:err?.message||'Envio pendente.'};
+    }
   }
   async readAudit(tenant_id) {
     await this.#ensureSession();
@@ -328,7 +382,7 @@ export class CloudAccess {
   }
   clear() {
     this.#token = null; this.#refreshToken = null; this.#factor = null;
-    this.#expiresAt=0; this.#email=null; this.#userId=null; this.#recovery=false;
+    this.#expiresAt=0; this.#email=null; this.#userId=null; this.#recovery=false; this.#invitationSetup=false;
   }
   async signOut() {
     await clearTrustedSession();this.#trustThisDevice=false;

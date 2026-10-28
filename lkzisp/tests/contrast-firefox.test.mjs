@@ -46,9 +46,9 @@ test('inputs e avisos nao usam texto claro sobre fundo claro',()=>{
  assert.match(css,/input:autofill,input:-webkit-autofill/);
 });
 test('PWA evita reutilizar CSS de versao anterior',()=>{
- assert.match(html,/styles\.css\?v=100/);
- assert.match(sw,/lkz-isp-static-v100/);
- assert.match(sw,/styles\.css\?v=100/);
+ assert.match(html,/styles\.css\?v=110/);
+ assert.match(sw,/lkz-isp-static-v110/);
+ assert.match(sw,/styles\.css\?v=110/);
  assert.match(sw,/staticURLs\.has\(req\.url\)/);
  assert.doesNotMatch(sw,/supabase\.co/);
 });

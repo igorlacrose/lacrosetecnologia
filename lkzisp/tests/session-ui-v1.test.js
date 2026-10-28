@@ -42,7 +42,7 @@ test('login premium em tela inteira, campos visiveis no mobile e saida segura',(
  assert.match(app,/document\.addEventListener\('visibilitychange'/);
  assert.match(css,/\.auth-layout\{display:grid/);
  assert.match(css,/@media\(max-width:900px\)/);
- assert.match(html,/styles\.css\?v=100/);
+ assert.match(html,/styles\.css\?v=110/);
  assert.doesNotMatch(html,/name="description"[^>]*Supabase/i);
 });
 test('area de usuarios e regras de cadastro por papel',()=>{
@@ -50,7 +50,7 @@ test('area de usuarios e regras de cadastro por papel',()=>{
  assert.match(app,/Usuários e Permissões/);
  assert.match(app,/id="cloud-invite-form"/);
  assert.match(app,/mayInvite\(selected\.role,r\)/);
- assert.match(app,/convite pendente/);
+ assert.match(app,/Convites da empresa/);
  assert.doesNotMatch(app,/Supabase/);
 });
 test('deduplicacao reconhecida pela UI e regra de gravacao no backend',()=>{

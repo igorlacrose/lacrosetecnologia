@@ -76,13 +76,14 @@ test('gestor registra solicitação de convite sem enviar e-mail ou criar MASTER
     requests.push({url,...options});
     if(url.includes('/token?grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test-refresh',expires_in:3600,user:{id:user,email:'leader@example.invalid'}});
     if(url.includes('/rest/v1/lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role:'gestor',sector_id:null}]);
-    if(url.endsWith('/rest/v1/lkz_isp_user_invitations'))return fakeResponse({},201);
+    if(url.includes('/rest/v1/lkz_isp_user_invitations?select='))return fakeResponse([{id:'11111111-2222-4333-8444-555555555555'}],201);
+    if(url.includes('/functions/v1/lkzisp-user-invitations'))return fakeResponse({status:'submitted_to_email_provider'});
     throw Error('Unexpected '+url);
   };
   const cloud=new CloudAccess(fake);
   await cloud.signIn('leader@example.invalid','senha-ficticia');
   await cloud.createInvitation({tenant_id:tenant,invited_email:'  NOVO@EXAMPLE.COM  ',requested_role:'gestor'});
-  const posted=requests.find(x=>x.url.endsWith('/rest/v1/lkz_isp_user_invitations'));
+  const posted=requests.find(x=>x.url.includes('/rest/v1/lkz_isp_user_invitations?select='));
   assert.ok(posted);
   assert.equal(posted.method,'POST');
   assert.deepEqual(JSON.parse(posted.body),{tenant_id:tenant,invited_email:'novo@example.com',requested_role:'gestor',created_by:user});
@@ -97,7 +98,8 @@ test('administrador não convida gestor, mas pode solicitar grupos comuns',async
   const cloud=new CloudAccess(async(url)=>{
     if(url.includes('grant_type=password'))return fakeResponse({access_token:fakeJWT('aal2'),refresh_token:'test-refresh',expires_in:3600,user:{id:user,email:'admin@example.invalid'}});
     if(url.includes('/rest/v1/lkz_isp_memberships'))return fakeResponse([{tenant_id:tenant,role:'administrador',sector_id:null}]);
-    if(url.endsWith('lkz_isp_user_invitations')){posts++;return fakeResponse({},201);}
+    if(url.includes('lkz_isp_user_invitations?select=')){posts++;return fakeResponse([{id:'22222222-2222-4333-8444-555555555555'}],201);}
+    if(url.includes('/functions/v1/lkzisp-user-invitations'))return fakeResponse({status:'submitted_to_email_provider'});
     throw Error('unexpected URL');
   });
   await cloud.signIn('admin@example.invalid','senha-de-exemplo');
