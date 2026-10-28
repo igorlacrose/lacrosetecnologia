@@ -122,7 +122,7 @@ Deno.serve(async(req:Request)=>{
   if(reservationError.message?.includes("SECURITY_ACTION_RATE_LIMIT"))return send(429,{error:"security_action_rate_limit"});
   return send(403,{error:"security_action_denied"});
  }
- let success=false,details:Record<string,unknown>={};
+ let success=false,removedCount=0,details:Record<string,unknown>={};
  try{
   if(request.action==="password_recovery"){
    // O destinatário escolhe a própria senha pelo link Auth; o MASTER nunca recebe senhas ou links.
@@ -132,16 +132,18 @@ Deno.serve(async(req:Request)=>{
   }else if(request.action==="mfa_reset"){
    const {data:list,error:listError}=await admin.auth.admin.mfa.listFactors({userId:targetId});
    if(listError)throw Error("factor_lookup_failed");
-   const factors=(list?.factors||[]) as Array<{id:string;status:string}>;
+   const factors=((list?.factors||[]) as Array<{id:string;status:string;factor_type:string}>).filter(f=>f.factor_type==='totp');
    // Pode remover mais de um fator do MESMO usuário; qualquer falha deve ser explícita.
    if(!factors.length)throw Error("no_factor_to_reset");
-   let count=0;
+   /* contagem preservada entre chamadas externas */
    for(const f of factors){
     const {error:deleteError}=await admin.auth.admin.mfa.deleteFactor({userId:targetId,id:f.id});
     if(deleteError)throw Error("factor_delete_failed");
-    count++;
+    removedCount++;
    }
-   success=true;details={status:"mfa_reset_completed",removed_count:count,self:targetId===actor.id};
+   const {data:readback,error:readbackError}=await admin.auth.admin.mfa.listFactors({userId:targetId});
+   if(readbackError||(readback?.factors||[]).some(f=>f.factor_type==="totp"))throw Error("factor_readback_failed");
+   success=true;details={status:"mfa_reset_completed",removed_count:removedCount,self:targetId===actor.id};
   }
  }catch{/* Falha reportada sem revelar dados de autenticação. */}
  try{
@@ -150,6 +152,6 @@ Deno.serve(async(req:Request)=>{
   });
   if(finishError)return send(503,{error:"audit_confirmation_required"});
  }catch{return send(503,{error:"audit_confirmation_required"});}
- if(!success)return send(502,{error:"recovery_action_failed"});
+ if(!success)return send(removedCount>0?409:502,{error:removedCount>0?"mfa_partial_reset_detected":"recovery_action_failed"});
  return send(200,details);
 });
