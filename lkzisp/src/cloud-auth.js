@@ -300,8 +300,8 @@ export class CloudAccess {
     if(this.aal!=='aal2')throw Error('MFA obrigatório para decisões.');
     if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(String(tenant_id||'')))
       throw Error('Empresa inválida.');
-    const data=await this.#request('/rest/v1/lkz_isp_snapshot_reviews?select=id,snapshot_id,decision,rationale,decided_at&tenant_id=eq.'+
-      encodeURIComponent(tenant_id)+'&order=decided_at.desc&limit=250');
+    const data=await this.#request('/rest/v1/lkz_isp_snapshot_reviews?select=id,snapshot_id,decision,rationale,reviewed_at&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&order=reviewed_at.desc&limit=250');
     if(!Array.isArray(data))throw Error('Histórico de avaliações inválido.');
     return data;
   }
@@ -313,7 +313,7 @@ export class CloudAccess {
       !['approve','reject'].includes(decision))
       throw Error('Avaliação inválida.');
     const reason=String(rationale||'').trim();
-    if(reason.length<20||reason.length>4000)throw Error('Informe uma justificativa com 20 a 4000 caracteres.');
+    if(reason.length<20||reason.length>2000)throw Error('Informe uma justificativa com 20 a 2000 caracteres.');
     return this.#request('/rest/v1/rpc/lkz_isp_review_snapshot',{
       method:'POST',body:{p_tenant:tenant_id,p_snapshot:snapshot_id,p_decision:decision,p_rationale:reason}
     });
