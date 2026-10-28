@@ -25,6 +25,11 @@ REQUIRED = [
     "card/index.html",
     "admin/index.html",
     "flux/index.html",
+    "flux/app.js",
+    "flux/sw.js",
+    "gpar/index.html",
+    "gpar/app.js",
+    "gpar/navigation.js",
     "lcs/index.html",
     ".github/dependabot.yml",
 ]
@@ -150,7 +155,7 @@ def main() -> int:
     if 'href="flux/"' in index:
         fail("A home não deve expor atalho público para /flux/", errors)
 
-    for rel in ["admin/index.html", "lcs/index.html", "flux/index.html"]:
+    for rel in ["admin/index.html", "lcs/index.html", "flux/index.html", "gpar/index.html"]:
         text = (ROOT / rel).read_text(encoding="utf-8")
         if 'name="robots"' not in text or "noindex" not in text or "nofollow" not in text:
             fail(f"{rel} precisa permanecer noindex,nofollow", errors)
@@ -170,22 +175,57 @@ def main() -> int:
         fail("Painel deve encerrar sessão após inatividade", errors)
 
     flux_html = (ROOT / "flux/index.html").read_text(encoding="utf-8")
-    for forbidden_flux in ['"102030"', "senhaInicial(", "resetSenha("]:
-        if forbidden_flux in flux_html:
-            fail(f"FluX contém autenticação local insegura: {forbidden_flux}", errors)
+    flux_js = (ROOT / "flux/app.js").read_text(encoding="utf-8")
     for required_flux in [
-        "auth/v1/token?grant_type=password",
-        "/rest/v1/profiles",
-        "SUPABASE_PUBLISHABLE_KEY",
         "Content-Security-Policy",
-        "FLUX_IDLE_MS=30*60*1000",
-        "function csvSafe(",
-        "f.size>5*1024*1024",
+        "connect-src 'none'",
+        'name="referrer" content="no-referrer"',
+        'name="robots" content="noindex, nofollow, noarchive"',
     ]:
         if required_flux not in flux_html:
-            fail(f"FluX sem controle de segurança esperado: {required_flux}", errors)
-    if flux_html.count('$("arquivo").onchange') != 1:
-        fail("FluX deve manter apenas um handler validado de importação CSV", errors)
+            fail(f"FluX local sem isolamento esperado: {required_flux}", errors)
+    for required_flux_js in [
+        "indexedDB.open(",
+        "crypto.subtle.digest(",
+        "f.size>10*1024*1024",
+        "p.transactions.length>50000",
+    ]:
+        if required_flux_js not in flux_js:
+            fail(f"FluX local sem proteção esperada: {required_flux_js}", errors)
+    for forbidden_flux_js in [
+        "fetch(",
+        "XMLHttpRequest",
+        "WebSocket",
+        "EventSource",
+        "sendBeacon(",
+        "SUPABASE_",
+        "localStorage",
+        "sessionStorage",
+    ]:
+        if forbidden_flux_js in flux_js:
+            fail(f"FluX local não deve transmitir/persistir fora do IndexedDB: {forbidden_flux_js}", errors)
+
+    gpar_html = (ROOT / "gpar/index.html").read_text(encoding="utf-8")
+    gpar_js = (ROOT / "gpar/app.js").read_text(encoding="utf-8")
+    for required_gpar in [
+        "Content-Security-Policy",
+        "connect-src 'none'",
+        'name="referrer" content="no-referrer"',
+        'name="robots" content="noindex, nofollow, noarchive"',
+    ]:
+        if required_gpar not in gpar_html:
+            fail(f"GPar sem isolamento esperado: {required_gpar}", errors)
+    for required_gpar_js in [
+        "const MAX_FILE_BYTES = 10 * 1024 * 1024",
+        "const MAX_ROWS = 20000",
+        "csvTextSafe",
+        "indexedDB.open(",
+    ]:
+        if required_gpar_js not in gpar_js:
+            fail(f"GPar sem proteção esperada: {required_gpar_js}", errors)
+    for forbidden_gpar_js in ["fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon(", "eval(", "new Function"]:
+        if forbidden_gpar_js in gpar_js:
+            fail(f"GPar local contém API proibida: {forbidden_gpar_js}", errors)
 
     for rel in ["card/index.html", "404.html", "lcs/index.html"]:
         text = (ROOT / rel).read_text(encoding="utf-8")
