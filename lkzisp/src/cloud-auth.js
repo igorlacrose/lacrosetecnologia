@@ -400,9 +400,7 @@ export class CloudAccess {
     if(needSector!==Boolean(sector_id) || (sector_id&&!uuid.test(sector_id)))
       throw Error('Setor deve ser informado apenas para Líder ou Financeiro.');
     const memberships=await this.readMemberships();
-    const authorized=memberships.some(m=>m.tenant_id===tenant_id &&
-      ['master','gestor','administrador'].includes(m.role) &&
-      (requested_role!=='gestor'||['master','gestor'].includes(m.role)));
+    const authorized=memberships.some(m=>m.tenant_id===tenant_id && m.role==='master');
     if(!authorized)throw Error('Seu perfil não autoriza esse convite.');
     const data=await this.#request('/rest/v1/lkz_isp_user_invitations?select=id,status',{
       method:'POST',extraHeaders:{Prefer:'return=representation'},
