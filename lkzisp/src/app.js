@@ -38,6 +38,7 @@ function mockSnapshot(){
 function current(){return state.snapshot;}
 function getMenu(){
  let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
+ if(executiveMode())items=[['dashboard','dashboard','Visão geral'],['results','check','Avaliações'],['reports','file','Relatórios'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
  // Perfis setoriais terão visualização própria apenas após servidor filtrar snapshots por setor.
  if (!canUseAggregateWorkspace()) items=items.filter(([v])=>v==='cloud');
@@ -51,6 +52,8 @@ function getMenu(){
  </aside>`;
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
+function activeRole(){return cloudUi.memberships.find(m=>m.tenant_id===state.selectedTenant)?.role||null;}
+function executiveMode(){return ['gestor','administrador'].includes(activeRole());}
 function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role));}
 function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor'].includes(m.role));}
 function clearWorkspace(){
@@ -101,11 +104,29 @@ function donut(s){
  return `<div class="donut-wrap"><div class="donut" style="background:conic-gradient(#27b57d 0% ${p}%, #478af1 ${p}% 100%)"><div class="donut-hole"><strong>${fmt(s.total)}</strong><span>atendimentos</span></div></div><div style="min-width:155px"><div class="legend-item"><i class="dot" style="background:#27b57d"></i>Finalizados <b>${fmt(closed)}</b></div><div class="legend-item"><i class="dot" style="background:#478af1"></i>Não finalizados <b>${fmt(open)}</b></div><div class="legend-item"><i class="dot" style="background:#e4e8ee"></i>Taxa encerrada <b>${pct(closed,s.total)}</b></div></div></div>`;
 }
 const pendingTable=(items,limit=8)=>`<div class="table-scroll"><table><thead><tr><th>Categoria</th><th class="num">Total</th><th class="num">Finalizados</th><th class="num">Pendentes</th><th>Proporção</th></tr></thead><tbody>${items.slice(0,limit).map(([name,g])=>`<tr><td><strong>${esc(name)}</strong></td><td class="num">${fmt(g.total)}</td><td class="num">${fmt(g.finalized)}</td><td class="num"><span class="badge ${g.pending/g.total>=.4?'red':'orange'}">${fmt(g.pending)}</span></td><td style="min-width:110px"><div class="progress-track"><div class="progress-fill ${g.pending/g.total>.4?'danger':'warn'}" style="width:${Math.min(100,100*g.pending/g.total)}%"></div></div><span class="tiny muted">${pct(g.pending,g.total)}</span></td></tr>`).join('')}</tbody></table></div>`;
-function dashboard(){const s=current();return heading('Dashboard','Visão executiva, desempenho e oportunidades de melhoria.')+(!s?noData():dataBanner()+`
+function dashboard(){const s=current();if(executiveMode())return executiveDashboard();return heading('Dashboard','Visão executiva, desempenho e oportunidades de melhoria.')+(!s?noData():dataBanner()+`
  <div class="cards">${cardKpi('Atendimentos',fmt(s.total),'Total no arquivo','activity')}${cardKpi('Finalizados',fmt(s.finalized),pct(s.finalized,s.total)+' do total','check','green')}${cardKpi('Não finalizados',fmt(s.pending),pct(s.pending,s.total)+' dos atendimentos','alert','red')}${cardKpi('Pendências acima de 7 dias',fmt(s.pendingOlder7d),'Idade na data de referência do relatório','clock','orange')}</div>
  <div class="grid-2"><section class="card card-pad"><div class="section-head"><div><h2>Volume de atendimentos</h2><p>Distribuição diária de registros</p></div><span class="pill gray">${esc(s.latest||'—')}</span></div>${dailyChart(s)}</section><section class="card card-pad"><div class="section-head"><div><h2>Status dos atendimentos</h2><p>Fotografia da exportação</p></div></div>${donut(s)}</section></div>
  <div class="grid-2"><section class="card card-pad"><div class="section-head"><div><h2>Assuntos que exigem atenção</h2><p>Ordenados por quantidade pendente</p></div><button class="btn ghost" data-view="tickets">Ver todos ${ic('arrow')}</button></div>${pendingTable(sorted(subjectGroups(s)),6)}</section><section class="card card-pad"><div class="section-head"><div><h2>Radar de Ineficiência</h2><p>Alertas gerados com regras verificáveis</p></div><span class="badge red">${fmt(radarItems(s).length)} sinais</span></div>${radarItems(s).slice(0,3).map(r=>`<div class="radar-item"><div class="heading"><h3>${esc(r.name)}</h3><span class="badge ${r.priority==='Alta'?'red':'orange'}">${esc(r.priority)}</span></div><p>${esc(r.evidence)}</p></div>`).join('')||'<p class="muted">Nenhum alerta acima do limite configurado.</p>'}<button class="btn ghost" data-view="radar">Abrir Radar ${ic('arrow')}</button></section></div>
  <p class="footnote">Não são calculados faturamento, lucro, perdas em reais nem SLA sem relatórios e definições confiáveis para esses indicadores.</p>`);
+}
+function executiveDashboard(){
+ const s=current(),role=activeRole(),signals=s?radarItems(s):[];
+ return heading('Visão geral','Indicadores essenciais para decisões rápidas.',false)+
+ '<div class="executive-welcome"><span class="executive-eyebrow">PAINEL EXECUTIVO</span><h2>Como está a operação?</h2><p>Informações consolidadas do último relatório importado. Não são dados em tempo real.</p></div>'+
+ (!s?'<section class="card card-pad"><h2>Aguardando indicadores</h2><p class="muted">Ainda não existem dados autorizados para apresentar.</p></section>':dataBanner()+
+ '<div class="cards executive-kpis">'+
+ cardKpi('Atendimentos',fmt(s.total),'Registros do período','activity')+
+ cardKpi('Concluídos',pct(s.finalized,s.total),fmt(s.finalized)+' atendimentos','check','green')+
+ cardKpi('Pendentes',fmt(s.pending),'Precisam de acompanhamento','clock','orange')+
+ cardKpi('Atrasados há mais de 7 dias',fmt(s.pendingOlder7d),'Na data da exportação','alert','red')+'</div>'+
+ '<div class="grid-2"><section class="card card-pad"><h2>Panorama dos atendimentos</h2>'+donut(s)+'</section>'+
+ '<section class="card card-pad"><h2>Movimento diário</h2>'+dailyChart(s)+'</section></div>'+
+ '<section class="card card-pad"><div class="section-head"><div><h2>O que merece atenção?</h2><p>Alertas calculados com base nos dados disponíveis.</p></div><span class="badge orange">'+fmt(signals.length)+' alertas</span></div>'+
+ (signals.slice(0,4).map(x=>'<div class="radar-item"><strong>'+esc(x.name)+'</strong><p>'+esc(x.evidence)+'</p></div>').join('')||'<p class="muted">Nenhum alerta identificado pelos critérios atuais.</p>')+'</section>'+
+ '<div class="executive-actions"><button class="btn primary" data-view="reports">Gerar relatório</button>'+
+ (role==='gestor'?'<button class="btn" data-view="results">Avaliar resultados</button>':'')+'</div>'+
+ '<p class="footnote">Os resultados não comprovam responsabilidade individual e devem ser interpretados com contexto operacional.</p>');
 }
 function tickets(){const s=current();return heading('Atendimentos','Análise por assunto, setor, cidade e status.')+(!s?noData():dataBanner()+`
  <div class="cards">${cardKpi('Total',fmt(s.total),'Registros válidos','activity')}${cardKpi('Finalizados',fmt(s.finalized),pct(s.finalized,s.total),'check','green')}${cardKpi('Pendentes',fmt(s.pending),pct(s.pending,s.total),'alert','red')}${cardKpi('Fechamento acima de 24h',fmt(s.closedOver24),'Entre os finalizados com datas válidas','clock','orange')}</div>
@@ -176,7 +197,12 @@ function imports(){return heading('Importar relatório','XLSX/CSV do IXC · proc
  ${mappingForm()}
  <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do ambiente de gestão</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no ambiente seguro.</p>'}</section>`;
 }
-function reports(){const s=current();return heading('Relatórios executivos','Exportação de indicadores agregados, sem dados pessoais.',false)+(!s?noData():dataBanner()+`<section class="card card-pad"><div class="section-head"><div><h2>Exportar resumo</h2><p>Arquivo CSV com contagens canônicas, sem linhas brutas do IXC</p></div></div><button class="btn primary" data-action="export">${ic('file')} Baixar CSV seguro</button><p class="footnote">PDF e comparativos automáticos entre períodos serão adicionados quando os critérios analíticos estiverem validados.</p></section>`);
+function reports(){const s=current();return heading('Relatórios executivos','Imprima ou exporte somente indicadores autorizados para sua conta.',false)+(!s?'<section class="card card-pad"><h2>Nenhum relatório disponível</h2><p class="muted">Aguarde a importação autorizada de indicadores.</p></section>':dataBanner()+
+ '<section class="card card-pad executive-report"><div class="section-head"><div><h2>Resumo operacional consolidado</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
+ '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'Total','activity')+cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total),'check','green')+cardKpi('Pendentes',fmt(s.pending),'Não finalizados','clock','orange')+'</div>'+
+ '<h3>Distribuição por setor</h3>'+pendingTable(sorted(s.sectors,'total'),50)+
+ '<p class="footnote">Dados consolidados da exportação, não representam informações em tempo real. Relatório sem dados pessoais.</p></section>'+
+ '<div class="action-row executive-report-actions"><button class="btn primary" data-action="print-report">Imprimir / salvar PDF</button><button class="btn" data-action="export">Baixar CSV</button></div>');
 }
 function access(){
  const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER'];
@@ -219,6 +245,7 @@ function dataQuality(){
  `</div></section><div class="action-row" style="margin-top:16px"><button class="btn primary" data-view="imports">Importar mais relatórios</button><button class="btn" data-view="reports">Ver relatórios disponíveis</button></div>`;
 }
 function results(){
+ if(executiveMode()&&activeRole()==='administrador')return heading('Avaliações','Resultados em leitura, sem autorização para aprovar ou reprovar.',false)+executiveDashboard().split('<div class="executive-welcome">')[1]?.split('<div class="executive-actions">')[0];
  const s=current(),signals=s?radarItems(s):[];
  const q=evaluateDataQuality(s,state.snapshots);
  return heading('Central de Resultados','Painel de revisão do gestor: problemas primeiro, evidências e dados faltantes.',false)+
@@ -401,10 +428,11 @@ const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,fi
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
  if (!canUseAggregateWorkspace()) state.view='cloud';
+ if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
  else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
@@ -460,7 +488,9 @@ async function exportBrandKit(){
  const link=document.createElement('a');link.href=url;link.download='lkz-white-label-pwa-kit.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
  toast('Kit de ícones/manifesto gerado localmente; ainda precisa ser publicado.');
 }
-async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
+async function action(name){if(name==='print-report'){if(!canUseAggregateWorkspace()||!current()){toast('Relatório não autorizado.',true);return;}window.print();return;}
+ if(name==='export'){if(!canUseAggregateWorkspace()||!current()){toast('Relatório não autorizado.',true);return;}exportSafe();return;}
+ if(!canAdministerLocalWorkspace()){toast('Operação não autorizada nesta conta.',true);return;}
  if(name==='backup-open'){state.backupStage='create';render();return;}
  if(name==='backup-open-restore'){state.backupStage='restore';render();return;}
  if(name==='backup-cancel'){state.backupStage=null;state.backupDownload=null;render();return;}
