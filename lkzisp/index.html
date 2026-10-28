@@ -1,17 +1,39 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow,noarchive"><meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://syysqoieyycclpfbadwp.supabase.co; img-src 'self'; form-action 'self'; base-uri 'none'; object-src 'none'">
-<meta name="theme-color" content="#081629"><title>LKZ ISP Intelligence · Acesso protegido</title><link rel="stylesheet" href="./styles.css"><script src="./portal-mfa-v2.js" defer></script></head>
-<body><div class="shell"><aside><a class="brand" href="../">LKZ<span>ISP</span><small>INTELLIGENCE</small></a>
-<div class="nav-title">ADMINISTRAÇÃO / HOMOLOGAÇÃO</div><nav><b>◈ Conta e segurança</b><p>◇ Central de Resultados <small>Em preparação</small></p><p>◇ Importações <small>Em preparação</small></p><p>◇ Auditoria e planos <small>Em preparação</small></p></nav><div class="aside-footer">LACROSE TECNOLOGIA<br>ACESSO COM MFA</div></aside>
-<main><header><div><small>LKZ ISP / AMBIENTE RESTRITO</small><h1>Bem-vindo à plataforma</h1><p>Validação de identidade, segundo fator e permissões empresariais.</p></div><span class="tag">● ACESSO PROTEGIDO</span></header>
-<div class="warning"><strong>Homologação controlada.</strong> Esta versão online ativa contas e verifica permissões. Ainda não recebe relatórios reais nem registra operações financeiras; sincronização e recuperação externa precisam ser homologadas.</div>
-<section class="panel"><div class="panel-head"><div><small>01 / IDENTIDADE</small><h2>Conta e Nuvem</h2></div><span id="status">Não autenticado</span></div><p id="message" role="status" aria-live="polite"></p>
-<form id="loginForm"><label>E-mail<input id="email" type="email" autocomplete="username" maxlength="254" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" maxlength="250" required></label>
-<div class="buttons"><button class="primary" type="submit">Entrar</button><button id="signup" type="button">Primeiro acesso MASTER</button><button id="recover" type="button">Recuperar senha</button></div></form>
-<div id="mfa" hidden><p class="muted">Use um aplicativo autenticador (TOTP). Sem MFA, o banco não libera dados.</p><button id="enroll" type="button">Configurar autenticador</button><div id="secretBox" hidden><p><b>Segredo temporário:</b> <code id="secret"></code></p><p>Adicione o segredo ao seu autenticador, sem compartilhá-lo.</p></div>
-<form id="mfaForm"><label>Código de seis dígitos<input id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label><button class="primary" type="submit">Confirmar MFA</button></form></div>
-<form id="resetForm" hidden><p>Link de recuperação validado. Defina uma senha exclusiva.</p><label>Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="12" required></label><button class="primary" type="submit">Definir nova senha</button></form>
-<div id="authorized" hidden><p class="ok">MFA confirmado. Consultando vínculos protegidos.</p><button id="activate" type="button" class="primary" hidden>Ativar meu acesso MASTER</button><div id="memberships"></div><button id="reload" type="button">Atualizar vínculos</button></div><button id="signout" type="button" hidden>Sair com segurança</button>
-</section><div class="cards"><article><small>IDENTIDADE</small><b>Supabase Auth</b><p>Cadastro próprio e confirmação do autenticador.</p></article><article><small>EMPRESAS</small><b>RLS obrigatório</b><p>Isolamento aplicado diretamente no banco.</p></article><article><small>HISTÓRICO</small><b>Auditoria protegida</b><p>Ações do MASTER preservadas de forma reservada.</p></article></div>
-<footer><a href="https://lacrosetecnologia.com.br/" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a><span>Pré-produção segura • Sem dados de clientes</span></footer></main></div></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="theme-color" content="#081629"/>
+  <meta name="description" content="LKZ ISP Intelligence: inteligência gerencial com Supabase para provedores de internet."/>
+  <meta name="referrer" content="no-referrer"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://syysqoieyycclpfbadwp.supabase.co; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"/>
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg"/>
+  <link rel="manifest" href="./manifest.webmanifest"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <title>LKZ ISP Intelligence — Plataforma Gerencial</title>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" class="svg-library" aria-hidden="true">
+    <symbol id="ic-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="8" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></symbol>
+    <symbol id="ic-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="ic-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="m12 12 6-6M12 3v3"/></symbol>
+    <symbol id="ic-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 6a3 3 0 0 1 0 6M17 15a5 5 0 0 1 4 5"/></symbol>
+    <symbol id="ic-finance" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M15 15h3"/></symbol>
+    <symbol id="ic-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="ic-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></symbol>
+    <symbol id="ic-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 13.5V10.5l2-1-2-4-2 1-2-1V3H9v2.5l-2 1-2-1-2 4 2 1v3l-2 1 2 4 2-1 2 1V21h6v-2.5l2-1 2 1 2-4-2-1z"/></symbol>
+    <symbol id="ic-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+    <symbol id="ic-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3v.3"/></symbol>
+    <symbol id="ic-cloud" viewBox="0 0 24 24"><path d="M7 19a5 5 0 0 1-1-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z"/></symbol>
+    <symbol id="ic-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="ic-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="ic-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="ic-chart" viewBox="0 0 24 24"><path d="M3 20V4m0 16h18M7 16l4-4 3 2 6-8"/></symbol>
+  </svg>
+  <div id="app"><noscript>Ative o JavaScript para usar o LKZ ISP Intelligence.</noscript></div>
+  <script src="./assets/jszip.min.js"></script>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
