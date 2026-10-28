@@ -242,6 +242,21 @@ export class CloudAccess {
     if (!Array.isArray(result)) throw Error('Consulta de vínculo inválida.');
     return result.map(x=>({tenant_id:String(x.tenant_id||''),role:String(x.role||''),sector_id:x.sector_id?String(x.sector_id):null}));
   }
+  async listSectors(tenant_id){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('Confirme o MFA para consultar setores.');
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if(!uuid.test(String(tenant_id||'')))throw Error('Empresa inválida.');
+    const rows=await this.#request('/rest/v1/lkz_isp_sectors?select=id,tenant_id,name&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&order=name.asc&limit=250');
+    if(!Array.isArray(rows)||rows.length>=250)throw Error('Lista de setores inválida ou incompleta.');
+    return rows.map(row=>{
+      if(row.tenant_id!==tenant_id||!uuid.test(String(row.id||''))||
+         typeof row.name!=='string'||!row.name.trim()||row.name.length>160)
+        throw Error('Setor retornado pelo servidor é inválido.');
+      return {id:row.id,name:row.name.trim()};
+    });
+  }
   async activateFirstMaster(){
     await this.#ensureSession();
     if(this.aal!=='aal2' || this.email?.toLowerCase()!=='lacrose.igor@gmail.com')
