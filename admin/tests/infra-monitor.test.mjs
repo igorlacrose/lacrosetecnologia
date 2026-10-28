@@ -100,7 +100,7 @@ test('documentos de UI e backend não embutem segredos nem concedem acesso diret
   assert.match(html, /id="infra"/);
   assert.match(html, /data-view="infra"/);
   assert.match(app, /infra:\s*'Infraestrutura'/);
-  assert.match(edge, /verify_jwt/);
+  assert.match(edge, /authentication_required/);
   assert.match(edge, /getUser\(token\)/);
   assert.match(edge, /profile\.role/);
   assert.match(edge, /SUPABASE_DB_URL/);
