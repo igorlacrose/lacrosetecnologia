@@ -27,7 +27,7 @@ jobs:
           node --check lkzisp/src/cloud-auth.js
           node --check lkzisp/sw.js
           node --check lkzisp/src/employee-analytics.js
-          node --test lkzisp/tests/employee-productivity.test.js lkzisp/tests/contrast-firefox.test.mjs lkzisp/tests/cloud-aggregates.test.js lkzisp/tests/cloud-auth.test.js lkzisp/tests/engine.test.js lkzisp/tests/offline-crypto.test.js lkzisp/tests/production-gate.test.js lkzisp/tests/quality.test.js lkzisp/tests/security.test.js lkzisp/tests/web-release.test.js
+          node --test lkzisp/tests/cloud-employees.test.js lkzisp/tests/employee-productivity.test.js lkzisp/tests/contrast-firefox.test.mjs lkzisp/tests/cloud-aggregates.test.js lkzisp/tests/cloud-auth.test.js lkzisp/tests/engine.test.js lkzisp/tests/offline-crypto.test.js lkzisp/tests/production-gate.test.js lkzisp/tests/quality.test.js lkzisp/tests/security.test.js lkzisp/tests/web-release.test.js
       - name: Bloqueio de acesso anonimo ao MASTER
         run: |
           node --input-type=module -e '
