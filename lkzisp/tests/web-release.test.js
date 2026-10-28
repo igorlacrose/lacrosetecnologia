@@ -20,11 +20,11 @@ test('retorno autenticado verifica a identidade antes de aceitar token',()=>{
 test('o produto exige MFA e autorização antes de mostrar dados empresariais',()=>{
  assert.match(app,/cloud\.aal==='aal2'/);
  assert.match(app,/!canUseAggregateWorkspace\(\)/);
- assert.match(app,/Histórico no Supabase/);
+ assert.match(app,/Dados sincronizados/);
  assert.doesNotMatch(auth,/localStorage|sessionStorage|indexedDB|service_role|sb_secret_/);
 });
 test('cache só armazena recursos estáticos, nunca dados ou token',()=>{
- assert.match(sw,/lkz-isp-static-v090/);
+ assert.match(sw,/lkz-isp-static-v100/);
  assert.match(sw,/staticURLs\.has\(req\.url\)/);
  assert.doesNotMatch(sw,/supabase\.co|auth\/v1|rest\/v1/);
 });
