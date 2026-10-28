@@ -311,6 +311,35 @@ async function submitExecutiveReview(){
  }catch(e){state.reviewError=e?.message||'Não foi possível registrar a decisão.';}
  finally{state.reviewBusy=false;render();if(state.view==='analysis')window.scrollTo({top:0,behavior:'instant'});}
 }
+function reviewDiagnosis(){
+ const s=current(),review=s?state.reviews.find(x=>x.snapshot_id===s.id):null;
+ if(!executiveMode()||!review||review.decision!=='reject')
+  return heading('Diagnóstico indisponível','A análise depende de uma reprovação registrada e de acesso gerencial autorizado.',false)+
+   '<section class="card card-pad"><p>Não existe reprovação confirmada para este relatório ou seu perfil não está autorizado.</p><button class="btn" data-view="results">Voltar às avaliações</button></section>';
+ const diagnostic=analyzeRejectedReport(s);
+ return heading('Diagnóstico do relatório reprovado','Análise de sinais operacionais com base nos dados importados e na justificativa registrada.',false)+
+  dataBanner()+
+  '<section class="card card-pad"><h2>Decisão registrada</h2><span class="badge red">Reprovado</span><p><strong>Justificativa do responsável:</strong> '+esc(review.rationale)+'</p>'+
+  '<p class="footnote">Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'. O registro da decisão é imutável.</p></section>'+
+  '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'No relatório','activity')+
+  cardKpi('Pendentes',fmt(s.pending),pct(s.pending,s.total)+' do total','clock','orange')+
+  cardKpi('Pendentes há +7 dias',fmt(s.pendingOlder7d||0),'Na data de referência','alert','red')+
+  cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total)+' do total','check','green')+'</div>'+
+  '<section class="card card-pad"><div class="section-head"><div><h2>Sinais encontrados e possíveis motivos</h2>'+
+  '<p>Evidência numérica e hipóteses a investigar. Nenhuma causa-raiz é afirmada automaticamente.</p></div></div>'+
+  (diagnostic.findings.length?diagnostic.findings.map((item,i)=>
+   '<article class="radar-item"><div class="heading"><h3>'+esc(String(i+1)+'. '+item.title)+'</h3><span class="badge orange">Hipótese</span></div>'+
+   '<p><strong>Dado observado:</strong> '+esc(item.evidence)+'</p>'+
+   '<p><strong>Possíveis motivos (não confirmados):</strong> '+esc(item.hypothesis)+'</p>'+
+   '<div class="action"><strong>Como investigar:</strong> '+esc(item.action)+'</div></article>').join(''):
+   '<div class="notice warning">Os indicadores disponíveis não revelam um motivo quantitativo específico. Confira os critérios utilizados na reprovação e solicite informações operacionais adicionais.</div>')+
+  '</section>'+
+  '<section class="card card-pad"><h2>Limitações da análise</h2><ul>'+
+  diagnostic.limitations.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+
+  '<p class="footnote">A avaliação não altera os dados de origem, não gera punições e não substitui análise humana.</p></section>'+
+  '<div class="action-row"><button class="btn primary" data-view="results">Voltar às avaliações</button><button class="btn" data-view="reports">Ver relatório completo</button></div>';
+}
+
 function results(){
  if(executiveMode())return executiveReviews();
  const s=current(),signals=s?radarItems(s):[];
