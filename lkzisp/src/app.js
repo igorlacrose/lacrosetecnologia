@@ -563,7 +563,7 @@ async function cloudAction(type){
     if(input)input.value='';
     const account=cloudUi.masterUsers.find(x=>x.user_id===target_id);
     if(!account||!account.email_confirmed)throw Error('Selecione uma conta com e-mail confirmado.');
-    if(!['password_recovery','mfa_reset'].includes(action)||!/^\\d{6}$/.test(code))
+    if(!['password_recovery','mfa_reset'].includes(action)||!/^\d{6}$/.test(code))
       throw Error('Selecione uma operação e informe um código válido.');
     const confirmation=action==='mfa_reset'?
       'Confirmar exclusão dos fatores MFA de '+account.email+'? A sessão será encerrada e será obrigatório configurar um novo autenticador.':
