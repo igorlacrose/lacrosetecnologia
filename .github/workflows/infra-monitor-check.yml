@@ -1,0 +1,27 @@
+name: Monitor Infraestrutura (isolado)
+
+on:
+  pull_request:
+    paths:
+      - 'admin/**'
+      - 'infra/**'
+      - '.github/workflows/infra-monitor-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    name: Testes do monitor sem dependencias externas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Node nativo
+        run: |
+          node --version
+          node --check admin/app.js
+          node --check admin/infra-monitor.js
+          node --test admin/tests/infra-monitor.test.mjs
