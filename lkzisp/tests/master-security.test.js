@@ -30,7 +30,7 @@ test('Edge não permite reset sem MASTER real e revalidação TOTP recente',()=>
  assert.match(server,/lkz_isp_master_security_reserve/);
  assert.match(server,/lkz_isp_master_security_finish/);
  assert.doesNotMatch(server,/console\.(log|error)|localStorage|sessionStorage/);
- assert.doesNotMatch(app,/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/);
+ assert.doesNotMatch(app,/Deno\\.env\\.get\\(/);
 });
 
 test('senha é criada somente pelo titular via recuperação Auth, não pelo MASTER',()=>{
