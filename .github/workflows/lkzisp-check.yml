@@ -1,4 +1,4 @@
-name: LKZ ISP Portal Seguro
+name: LKZ ISP Plataforma Gerencial
 
 on:
   pull_request:
@@ -15,31 +15,31 @@ permissions:
   contents: read
 
 jobs:
-  portal:
-    name: Auditoria statica e teste de acesso anonimo
+  plataforma:
+    name: Testes da plataforma, cloud e MFA
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Testes locais
+      - name: JavaScript e testes da plataforma
         run: |
-          node --check lkzisp/portal.js
-          node --test lkzisp/tests/portal.test.mjs
-          node --check lkzisp/portal-mfa-v2.js
-          node --test lkzisp/tests/mfa-v2.test.mjs
-      - name: Backend nao exposto sem login
+          node --check lkzisp/src/app.js
+          node --check lkzisp/src/cloud-auth.js
+          node --check lkzisp/sw.js
+          node --test lkzisp/tests/*.test.js
+      - name: Bloqueio de acesso anonimo ao MASTER
         run: |
           node --input-type=module -e '
             const r=await fetch("https://syysqoieyycclpfbadwp.supabase.co/functions/v1/lkzisp-owner-bootstrap",{signal:AbortSignal.timeout(12000)});
             if(![401,403].includes(r.status))throw Error("Owner bootstrap allowed anonymous: "+r.status);
             console.log("Bootstrap denied anonymous HTTP "+r.status);
           '
-      - name: Página servida em HTTPS
+      - name: Conferencia do pacote estatico
         run: |
           node --input-type=module -e '
-            const r=await fetch("https://lacrosetecnologia.com.br/lkzisp/",{signal:AbortSignal.timeout(15000)});
-            const body=await r.text();
-            if(r.status!==200||!body.includes("LKZ ISP Intelligence")||!body.includes("Homologação controlada"))
-              throw Error("A rota publica nao corresponde ao portal protegido (HTTP "+r.status+")");
-            console.log("Rota LKZ ISP em HTTPS: HTTP 200 e conteudo homologado");
+            import {readFileSync,existsSync} from "node:fs";
+            const html=readFileSync("lkzisp/index.html","utf8");
+            if(!html.includes("src/app.js") || !html.includes("LKZ ISP Intelligence"))throw Error("Dashboard not configured");
+            for(const p of ["lkzisp/assets/jszip.min.js","lkzisp/src/engine.js","lkzisp/src/importer.js","lkzisp/src/quality.js","lkzisp/manifest.webmanifest"]) if(!existsSync(p))throw Error("Missing "+p);
+            console.log("Portal replaced by full dashboard package");
           '
