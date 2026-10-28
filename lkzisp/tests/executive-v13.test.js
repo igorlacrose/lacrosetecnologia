@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CloudAccess} from '../src/cloud-auth.js';
+import {mayInvite,describeAccess} from '../src/roles.js';
 import {
   activeRole,executiveNavigation,canOpenExecutiveView,
   renderExecutiveDashboard,renderExecutiveProductivity,
@@ -107,4 +108,25 @@ test('revogação client-side e backend para acessos não administrativos',()=>{
  assert.match(app,/role!=='gestor'/);
  assert.match(app,/if\(name==='menu'&&canViewWorkspace\(\)\)/);
  assert.ok(other!==tenant);
+});
+
+test('matriz de permissões nega convites e escrita aos perfis executivos',()=>{
+ for(const role of ['gestor','administrador','lider_setor','financeiro']){
+  assert.equal(mayInvite(role,'administrador'),false);
+  assert.equal(describeAccess(role,'invite_staff'),'Negado');
+  assert.equal(describeAccess(role,'finance_write'),'Negado');
+  assert.equal(describeAccess(role,'settings_write'),'Negado');
+ }
+ assert.equal(mayInvite('master','gestor'),true);
+ assert.equal(mayInvite('master','master'),false);
+});
+test('migração registra consulta setor restrita e parecer append-only',()=>{
+ const sql=readFileSync(new URL('../supabase/migrations/20261028_v13_executive_and_sector_reports.sql',import.meta.url),'utf8');
+ assert.match(sql,/m\.user_id=\(SELECT auth\.uid\(\)\)/);
+ assert.match(sql,/m\.role IN \('lider_setor'::public\.lkz_isp_role,'financeiro'::public\.lkz_isp_role\)/);
+ assert.match(sql,/jsonb_build_object\(sec\.name,a\.snapshot->'sectors'->sec\.name\)/);
+ assert.match(sql,/REVOKE ALL ON FUNCTION public\.lkz_isp_get_sector_snapshots\(uuid\) FROM PUBLIC,anon/);
+ assert.match(sql,/lkz_private\.is_gestor\(tenant_id\)/);
+ assert.match(sql,/lkz_isp_snapshot_review_audit/);
+ assert.doesNotMatch(sql,/GRANT (?:UPDATE|DELETE) ON public\.lkz_isp_snapshot_reviews TO authenticated/);
 });
