@@ -37,6 +37,47 @@ test('usuário sem fator recebe QR e chave do próprio Supabase; MFA continua AA
  assert.equal(calls.filter(x=>x.method==='POST'&&x.url.endsWith('/auth/v1/factors')).length,1);
 });
 
+test('conta nova: Supabase não retorna campo factors, mas QR é criado',async()=>{
+ const calls=[];const client=new CloudAccess(async(url,opts)=>{
+  calls.push({url,method:opts.method});
+  if(url.includes('grant_type=password'))return response({access_token:token('aal1'),refresh_token:'temporary',expires_in:3600,user:{id:user,email:'new@example.invalid'}});
+  if(url.endsWith('/auth/v1/user'))return response({id:user,email:'new@example.invalid'});
+  if(url.endsWith('/auth/v1/factors')&&opts.method==='POST')return response({id:factor,totp:{secret:'FIRST-SECRET',qr_code:qr}});
+  throw Error('Unexpected URL: '+url);
+ });
+ await client.signIn('new@example.invalid','example-test-password');
+ assert.deepEqual(await client.listFactors(),[]);
+ const created=await client.enrollTotp();
+ assert.equal(created.qr,qr);
+ assert.equal(created.secret,'FIRST-SECRET');
+ assert.equal(client.aal,'aal1');
+ assert.equal(calls.filter(x=>x.method==='POST'&&x.url.endsWith('/auth/v1/factors')).length,1);
+});
+
+test('conta sem TOTP: campo factors nulo também permite cadastro',async()=>{
+ const client=new CloudAccess(async(url,opts)=>{
+  if(url.includes('grant_type=password'))return response({access_token:token('aal1'),refresh_token:'temporary',expires_in:3600,user:{id:user,email:'new@example.invalid'}});
+  if(url.endsWith('/auth/v1/user'))return response({id:user,email:'new@example.invalid',factors:null});
+  if(url.endsWith('/auth/v1/factors')&&opts.method==='POST')return response({id:factor,totp:{secret:'FIRST-SECRET',qr_code:qr}});
+  throw Error('Unexpected URL');
+ });
+ await client.signIn('new@example.invalid','example-test-password');
+ assert.deepEqual(await client.listFactors(),[]);
+ assert.equal((await client.enrollTotp()).qr,qr);
+});
+
+test('factors malformado e identidade diferente continuam bloqueados',async()=>{
+ for(const body of [{id:user,factors:{}},{id:'00000000-0000-4000-8000-000000000001',factors:[]}]){
+  const client=new CloudAccess(async(url)=>{
+   if(url.includes('grant_type=password'))return response({access_token:token('aal1'),refresh_token:'temporary',expires_in:3600,user:{id:user,email:'new@example.invalid'}});
+   if(url.endsWith('/auth/v1/user'))return response(body);
+   throw Error('Sensitive endpoint should not be invoked');
+  });
+  await client.signIn('new@example.invalid','example-test-password');
+  await assert.rejects(client.listFactors(),/Não foi possível verificar/);
+ }
+});
+
 test('cadastro TOTP pendente pode ser reiniciado sem tocar em fator verificado',async()=>{
  let pending=true;
  const calls=[];
