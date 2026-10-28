@@ -36,6 +36,17 @@ jobs:
             if(![401,403].includes(r.status))throw Error("Owner bootstrap allowed anonymous: "+r.status);
             console.log("Bootstrap denied anonymous HTTP "+r.status);
           '
+      - name: Convites bloqueados sem autenticação
+        run: |
+          node --input-type=module -e '
+            const r=await fetch("https://syysqoieyycclpfbadwp.supabase.co/functions/v1/lkzisp-user-invitations",{
+              method:"POST",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({action:"send",invitation_id:"00000000-0000-4000-8000-000000000001"}),
+              signal:AbortSignal.timeout(15000)
+            });
+            if(![401,403].includes(r.status))throw Error("Invite endpoint accepted anonymous request: "+r.status);
+            console.log("Invite endpoint denied anonymous HTTP "+r.status);
+          '
       - name: Conferencia do pacote estatico
         run: |
           node --input-type=module -e '
