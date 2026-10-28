@@ -88,7 +88,7 @@ Deno.serve(async(req:Request)=>{
  // Revalidação recente: exige NOVO desafio TOTP do MASTER em cada operação sensível.
  // Não confia exclusivamente em um token AAL2 antigo nem no botão da interface.
  const {data:factors,error:factorError}=await auth.auth.getUser(accessToken);
- const current=factors.user?.factors?.find(f=>f.id===request.factor_id&&f.status==="verified"&&(f.factor_type==="totp"||f.friendly_name));
+ const current=factors.user?.factors?.find(f=>f.id===request.factor_id&&f.status==="verified"&&f.factor_type==="totp");
  if(factorError||!current)return send(403,{error:"master_totp_not_found"});
  const headers={apikey:anon,Authorization:"Bearer "+accessToken,"Content-Type":"application/json"};
  let checked=false;
