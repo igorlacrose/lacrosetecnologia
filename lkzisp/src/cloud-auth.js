@@ -14,6 +14,7 @@ export function jwtAssurance(jwt) {
   } catch { return 'aal1'; }
 }
 
+import {saveTrustedSession,loadTrustedSession,clearTrustedSession} from './trusted-session.js';
 export class CloudAccess {
   #token = null;
   #refreshToken = null;
@@ -22,12 +23,15 @@ export class CloudAccess {
   #userId = null;
   #expiresAt = 0;
   #recovery = false;
+  #trustThisDevice = false;
+  #lastTrustWrite = 0;
   #fetch;
   constructor(fetchImpl = null) { this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis); }
   get email() { return this.#email; }
   get recoveryPending() { return this.#recovery; }
   get hasSession() { return Boolean(this.#token); }
   get aal() { return this.#token ? jwtAssurance(this.#token) : 'none'; }
+  get trustDeviceEnabled(){return this.#trustThisDevice;}
   get factor() { return this.#factor ? {id:this.#factor.id,secret:this.#factor.secret||null} : null; }
 
   async #request(path, options={}) {
@@ -66,6 +70,41 @@ export class CloudAccess {
       method:'POST',body:{email:String(email).trim().slice(0,250), password:String(password)},auth:false});
     this.#adopt(data);
     return {email:this.#email,aal:this.aal};
+  }
+  async setDeviceTrust(enabled){
+    this.#trustThisDevice=Boolean(enabled);
+    if(!enabled){await clearTrustedSession();return;}
+    if(this.aal==='aal2')await this.#writeTrustedSession(true);
+  }
+  async #writeTrustedSession(force=false){
+    if(!this.#trustThisDevice||this.aal!=='aal2'||!this.#refreshToken)return;
+    if(!force && Date.now()-this.#lastTrustWrite<60000)return;
+    await this.#ensureSession();
+    await saveTrustedSession(this.#refreshToken,Date.now());
+    this.#lastTrustWrite=Date.now();
+  }
+  async recordUserActivity(){
+    if(this.#trustThisDevice && this.aal==='aal2')
+      await this.#writeTrustedSession();
+  }
+  async restoreTrustedDevice(){
+    const stored=await loadTrustedSession();
+    if(!stored)return null;
+    try{
+      this.clear();
+      const data=await this.#request('/auth/v1/token?grant_type=refresh_token',{
+        method:'POST',body:{refresh_token:stored.refreshToken},auth:false});
+      this.#adopt(data);
+      if(this.aal!=='aal2')throw Error('É necessário confirmar o segundo fator novamente.');
+      const identity=await this.#request('/auth/v1/user');
+      if(!identity?.id || identity.id!==this.#userId)throw Error('Sessão de usuário inválida.');
+      this.#trustThisDevice=true;
+      await this.#writeTrustedSession(true);
+      return {email:this.#email,aal:this.aal,restored:true};
+    }catch{
+      this.clear();this.#trustThisDevice=false;await clearTrustedSession();
+      return null;
+    }
   }
   async signUp(email,password) {
     if (!email || String(password).length<12) throw Error('Informe e-mail e senha com pelo menos 12 caracteres.');
@@ -146,6 +185,7 @@ export class CloudAccess {
       method:'POST',body:{challenge_id:challenge.id,code:String(code)}});
     this.#adopt(result);
     this.#factor=null;
+    if(this.#trustThisDevice)await this.#writeTrustedSession(true);
     if (this.aal!=='aal2') throw Error('Segundo fator não confirmado pelo servidor.');
     return {email:this.#email,aal:this.aal};
   }
@@ -281,6 +321,7 @@ export class CloudAccess {
     this.#expiresAt=0; this.#email=null; this.#userId=null; this.#recovery=false;
   }
   async signOut() {
+    await clearTrustedSession();this.#trustThisDevice=false;
     if (this.#token) {try {await this.#request('/auth/v1/logout',{method:'POST'});} catch { /* best effort */ }}
     this.clear();
   }
