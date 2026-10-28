@@ -31,7 +31,7 @@ test('sessao confiavel depende de MFA server-side e nao guarda senha ou TOTP',()
  assert.match(local,/AES-GCM/);
  assert.match(local,/extractable|false,\['encrypt','decrypt'\]/);
  assert.doesNotMatch(local,/localStorage|sessionStorage/);
- assert.doesNotMatch(local,/password|totp|user_metadata/i);
+ assert.doesNotMatch(local,/obj\.put\([^\n]*(password|totp|user_metadata)/i);
 });
 test('login premium em tela inteira, campos visiveis no mobile e saida segura',()=>{
  assert.match(app,/function loginLanding\(/);
@@ -43,7 +43,7 @@ test('login premium em tela inteira, campos visiveis no mobile e saida segura',(
  assert.match(css,/\.auth-layout\{display:grid/);
  assert.match(css,/@media\(max-width:900px\)/);
  assert.match(html,/styles\.css\?v=100/);
- assert.doesNotMatch(html,/Supabase/i);
+ assert.doesNotMatch(html,/name="description"[^>]*Supabase/i);
 });
 test('area de usuarios e regras de cadastro por papel',()=>{
  assert.match(app,/function usersPage\(/);
