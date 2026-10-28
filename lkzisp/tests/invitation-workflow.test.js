@@ -10,14 +10,14 @@ const jwt=aal=>['head',Buffer.from(JSON.stringify({sub:user,aal,role:'authentica
 const response=(body,status=200)=>({ok:status>=200&&status<300,status,json:async()=>body});
 const session=aal=>({access_token:jwt(aal),refresh_token:'refresh-token',expires_in:3600,user:{id:user,email:'gestor@example.invalid'}});
 
-test('SMTP Gmail indisponível mantém convite pendente; não declara envio',async()=>{
+test('SMTP Resend indisponível mantém convite pendente; não declara envio',async()=>{
  const paths=[];
  const client=new CloudAccess(async(url,options)=>{
   paths.push({url,method:options.method,body:options.body});
   if(url.includes('grant_type=password'))return response(session('aal2'));
   if(url.includes('lkz_isp_memberships'))return response([{tenant_id:tenant,role:'gestor',sector_id:null}]);
   if(url.includes('lkz_isp_user_invitations?select='))return response([{id:invitation,status:'pending'}],201);
-  if(url.includes('functions/v1/lkzisp-user-invitations'))return response({error:'gmail_smtp_not_configured'},409);
+  if(url.includes('functions/v1/lkzisp-user-invitations'))return response({error:'resend_smtp_not_configured'},409);
   throw Error('Unexpected request '+url);
  });
  await client.signIn('gestor@example.invalid','test-password');
@@ -25,7 +25,7 @@ test('SMTP Gmail indisponível mantém convite pendente; não declara envio',asy
  assert.equal(result.saved,true);
  assert.equal(result.sent,false);
  assert.equal(result.id,invitation);
- assert.match(result.reason,/Gmail.*SMTP/i);
+ assert.match(result.reason,/Resend.*SMTP/i);
  assert.equal(paths.filter(x=>x.url.includes('lkz_isp_user_invitations?select=')).length,1);
  assert.equal(paths.filter(x=>x.url.includes('functions/v1/lkzisp-user-invitations')).length,1);
 });
