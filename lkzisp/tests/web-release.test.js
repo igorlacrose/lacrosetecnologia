@@ -24,13 +24,13 @@ test('o produto exige MFA e autorização antes de mostrar dados empresariais',(
  assert.doesNotMatch(auth,/localStorage|sessionStorage|indexedDB|service_role|sb_secret_/);
 });
 test('cache só armazena recursos estáticos, nunca dados ou token',()=>{
- assert.match(sw,/lkz-isp-static-v082/);
+ assert.match(sw,/lkz-isp-static-v090/);
  assert.match(sw,/staticURLs\.has\(req\.url\)/);
  assert.doesNotMatch(sw,/supabase\.co|auth\/v1|rest\/v1/);
 });
 test('hospedagem publica exige MFA, RLS e confirmacao de gravacao antes de importar',()=>{
  assert.match(app,/const IS_PUBLIC_HOMOLOGATION=/);
  assert.match(app,/if\(!canImportToCloud\(\)\)/);
- assert.match(app,/await cloud\.saveAggregateSnapshot\(state\.selectedTenant,snap\)/);
+ assert.match(app,/await cloud\.saveSnapshotWithEmployees\(state\.selectedTenant,previous\|\|snap,staff\.metrics\)/);
  assert.match(app,/if\(name==='process-file'\)/);
 });
