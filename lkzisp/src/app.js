@@ -6,11 +6,14 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=090';
+import {CloudAccess} from './cloud-auth.js?v=100';
+import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
 const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: operações requerem RLS/MFA e leitura de volta
 const cloud=new CloudAccess();
+let lastActivity=Date.now();
+let sessionEnding=false;
 const cloudUi={busy:false,message:'',error:'',factors:[],secret:'',factorId:'',memberships:[],audit:[],recovery:false};
 const state={view:'cloud',selectedTenant:null,cloudReady:false,snapshot:null,snapshots:[],staged:null,mapping:null,sourceName:'',demo:false,
  selectedSector:'Todos',selectedCity:'Todas',productivityTab:'sector',employeeMetrics:{},employeeLoading:false,employeeSectorFilter:'Todos',cost:{...sampleCost},menuOpen:false,importBusy:false,brand:newBrand(),backupStage:null,backupDownload:null,backupBusy:false};
@@ -34,16 +37,17 @@ function mockSnapshot(){
 }
 function current(){return state.snapshot;}
 function getMenu(){
- let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['settings','settings','Administração'],['cloud','cloud','Conta e Nuvem']];
+ let items=[['dashboard','dashboard','Dashboard'],['results','check','Central de Resultados'],['quality','alert','Dados necessários'],['tickets','activity','Atendimentos'],['radar','radar','Radar de Ineficiência'],['productivity','users','Produtividade'],['finance','finance','Custos e Financeiro'],['imports','upload','Importações'],['reports','file','Relatórios'],['access','lock','Grupos de acesso'],['users','users','Usuários e Permissões'],['settings','settings','Administração'],['cloud','cloud','Minha conta']];
  // Homologação online: sem acesso ao dashboard antes do MFA e vínculo global.
  // Perfis setoriais terão visualização própria apenas após servidor filtrar snapshots por setor.
  if (!canUseAggregateWorkspace()) items=items.filter(([v])=>v==='cloud');
- else if (!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
+ else {if(!canAdministerLocalWorkspace()) items=items.filter(([v])=>v!=='imports'&&v!=='settings'&&v!=='finance');
+  if(!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))items=items.filter(([v])=>v!=='users');}
  return `<aside class="sidebar ${state.menuOpen?'open':''}" id="sidebar">
   <div class="logo">${state.brand.logo?`<img class="brand-logo" src="${state.brand.logo}" alt="Logotipo da empresa">`:`LKZ<span class="mark">ISP</span>`}<small>${esc(state.brand.name)}</small></div>
   <div class="side-heading">GESTÃO E INTELIGÊNCIA</div>
   <nav aria-label="Navegação principal">${items.map(([view,icon,label])=>`<button class="side-link ${state.view===view?'active':''}" data-view="${view}">${ic(icon)}<span>${esc(label)}</span></button>`).join('')}</nav>
-  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V0.8</div></div>
+  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V1.0</div></div>
  </aside>`;
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
@@ -73,7 +77,7 @@ function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Histórico no Supabase':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span><button class="btn session-end" data-action="backup-open">Finalizar e salvar</button><span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
@@ -85,8 +89,8 @@ function backupDialog(){
  return `<div class="backup-overlay" role="dialog" aria-modal="true" aria-label="Backup local protegido"><section class="backup-modal card">${inner}</section></div>`;
 }
 const heading=(title,desc,button=true)=>`<div class="page-head"><div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div><div class="action-row">${button?`<button class="btn" data-view="reports">${ic('file')} Relatório</button><button class="btn primary" data-view="imports">${ic('upload')} Importar planilha</button>`:''}</div></div>`;
-const noData=()=>`<section class="empty">${ic('upload')}<h3>Nenhum relatório importado</h3><p>Importe um relatório do IXC ou explore a demonstração fictícia.<br/>Só indicadores agregados autorizados serão enviados ao Supabase.</p><button class="btn primary" data-view="imports">Importar XLSX/CSV</button> <button class="btn" data-action="demo">Ver exemplo fictício</button></section>`;
-const dataBanner=()=>state.demo?'<div class="notice warning"><b>MODO DEMONSTRAÇÃO FICTÍCIA:</b> todos os números abaixo são simulados e não foram extraídos do seu provedor. Esta simulação nunca é gravada no Supabase.</div>':'<div class="notice"><b>Indicadores confirmados no Supabase:</b> histórico agregado da empresa selecionada, carregado após MFA e controle RLS. Arquivos originais do IXC não foram enviados. Os números retratam a data da exportação e não o status em tempo real.</div>';
+const noData=()=>`<section class="empty">${ic('upload')}<h3>Nenhum relatório importado</h3><p>Importe um relatório do IXC ou explore a demonstração fictícia.<br/>Só indicadores agregados autorizados serão enviados ao ambiente seguro.</p><button class="btn primary" data-view="imports">Importar XLSX/CSV</button> <button class="btn" data-action="demo">Ver exemplo fictício</button></section>`;
+const dataBanner=()=>state.demo?'<div class="notice warning"><b>MODO DEMONSTRAÇÃO FICTÍCIA:</b> todos os números abaixo são simulados e não foram extraídos do seu provedor. Esta simulação nunca é gravada no ambiente seguro.</div>':'<div class="notice"><b>Indicadores confirmados no ambiente seguro:</b> histórico agregado da empresa selecionada, carregado após MFA e controle RLS. Arquivos originais do IXC não foram enviados. Os números retratam a data da exportação e não o status em tempo real.</div>';
 const cardKpi=(label,value,detail,icon,tone='blue')=>`<div class="card kpi"><div class="kpi-top"><span>${esc(label)}</span><span class="icon-sq ${tone}">${ic(icon)}</span></div><strong>${esc(value)}</strong><div class="kpi-foot">${esc(detail)}</div></div>`;
 function dailyChart(s){
  const days=Object.entries(s.daily||{}).sort((a,b)=>a[0].localeCompare(b[0]));const max=Math.max(1,...days.map(([,v])=>v.total));
@@ -117,7 +121,7 @@ function employeeProductivity(){
  const records=state.employeeMetrics[s.fingerprint];
  if(!records){
   return '<div class="notice"><b>Produtividade por colaborador:</b> os nomes e indicadores ficam separados dos dados de clientes e são acessíveis apenas a gestores autorizados após MFA.</div>'+
-   '<section class="card card-pad"><h2>Atendimentos por colaborador</h2><p class="muted">Os indicadores individuais são consultados exclusivamente no Supabase, usando seu perfil de acesso.</p>'+
+   '<section class="card card-pad"><h2>Atendimentos por colaborador</h2><p class="muted">Os indicadores individuais são consultados exclusivamente no ambiente seguro, usando seu perfil de acesso.</p>'+
    '<button class="btn primary" data-load-employees="true" '+(state.employeeLoading?'disabled':'')+'>'+(state.employeeLoading?'Consultando…':'Consultar colaboradores deste relatório')+'</button></section>';
  }
  const sectors=['Todos',...new Set(records.map(x=>x.sector))].sort((a,b)=>a==='Todos'?-1:b==='Todos'?1:a.localeCompare(b,'pt-BR'));
@@ -161,23 +165,23 @@ function finance(){
 }
 function mappingForm(){const stage=state.staged;if(!stage)return '';
  const fields=['Status','Assunto','Abertura','Setor','Cidade','Fechamento','Prioridade','Colaborador'];
- return `<section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Validar mapeamento de colunas</h2><p>${fmt(stage.rows.length)} linhas identificadas. Não mostramos valores da planilha para proteger os dados.</p></div><button class="btn" data-action="cancel-stage">Cancelar</button></div><div class="privacy-banner">${ic('lock')} Os dados brutos estão temporariamente na memória do navegador. Somente indicadores operacionais agregados e nomes de colaboradores são transmitidos ao Supabase após validação. Os dados pessoais dos clientes nunca são incluídos.</div><div class="mapping-grid">${fields.map(f=>`<label class="field">${esc(f)}${['Status','Assunto','Abertura'].includes(f)?' *':''}<select data-map="${f}"><option value="-1">Não mapear</option>${stage.headers.map((h,i)=>Object.values(detectMapping(stage.headers)).includes(i)?`<option value="${i}" ${state.mapping[f]===i?'selected':''}>${esc(h||'Coluna '+(i+1))}</option>`:'').join('')}</select></label>`).join('')}</div><div class="action-row" style="margin-top:20px"><button class="btn primary" data-action="process-file">${ic('lock')} Processar e salvar no Supabase</button><button class="btn" data-action="cancel-stage">Descartar arquivo</button></div></section>`;
+ return `<section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Validar mapeamento de colunas</h2><p>${fmt(stage.rows.length)} linhas identificadas. Não mostramos valores da planilha para proteger os dados.</p></div><button class="btn" data-action="cancel-stage">Cancelar</button></div><div class="privacy-banner">${ic('lock')} Os dados brutos estão temporariamente na memória do navegador. Somente indicadores operacionais agregados e nomes de colaboradores são transmitidos ao ambiente seguro após validação. Os dados pessoais dos clientes nunca são incluídos.</div><div class="mapping-grid">${fields.map(f=>`<label class="field">${esc(f)}${['Status','Assunto','Abertura'].includes(f)?' *':''}<select data-map="${f}"><option value="-1">Não mapear</option>${stage.headers.map((h,i)=>Object.values(detectMapping(stage.headers)).includes(i)?`<option value="${i}" ${state.mapping[f]===i?'selected':''}>${esc(h||'Coluna '+(i+1))}</option>`:'').join('')}</select></label>`).join('')}</div><div class="action-row" style="margin-top:20px"><button class="btn primary" data-action="process-file">${ic('lock')} Processar e salvar no ambiente seguro</button><button class="btn" data-action="cancel-stage">Descartar arquivo</button></div></section>`;
 }
 function imports(){return heading('Importar relatório','XLSX/CSV do IXC · processamento local antes de qualquer armazenamento.',false)+`
- <div class="columns"><section class="card card-pad"><div class="section-head"><div><h2>Selecione um arquivo</h2><p>Suporte inicial a relatórios de atendimentos do IXC</p></div></div>
+ <div class="columns"><section class="card card-pad"><div class="section-head"><div><h2>Selecione um arquivo</h2><p>Suporte inicial a relatórios de atendimentos do IXC. Modelos financeiros, comerciais ou desconhecidos exigem um mapeamento específico antes de gerar indicadores.</p></div></div>
  <div class="upload-zone" id="drop-zone"><span class="icon-sq blue">${ic('upload')}</span><b>Arraste o arquivo aqui ou selecione no dispositivo</b><p>Somente XLSX ou CSV · Até 15 MB<br/>O arquivo original não sai do navegador.</p><button class="btn primary" data-action="choose-file">Selecionar arquivo</button></div><input type="file" id="file-input" accept=".xlsx,.csv" hidden />
- <p class="footnote" style="margin-top:12px">Os arquivos são processados apenas no navegador. Indicadores agregados padronizados serão salvos no Supabase com autenticação, MFA, RLS e auditoria.</p>
+ <p class="footnote" style="margin-top:12px">Os arquivos são processados apenas no navegador. Indicadores agregados padronizados serão salvos no ambiente seguro com autenticação, MFA, RLS e auditoria.</p>
  </section><section class="card card-pad"><div class="section-head"><div><h2>${ic('lock')} Proteção na importação</h2></div></div>
  <div class="safe-list">${['Arquivo bruto não enviado ou armazenado','Descartar Cliente, CPF, telefone e endereço','Descartar login, senha, hashes e tokens','Ignorar campos de mensagem e texto livre','Aceitar somente categorias padronizadas','Registrar métricas individuais dos colaboradores com acesso gerencial restrito'].map(x=>`<div>${ic('check')}<span>${esc(x)}</span></div>`).join('')}</div><div class="notice warning" style="margin-top:17px;margin-bottom:0"><b>Clientes protegidos:</b> o nome do colaborador é usado exclusivamente para gestão de produtividade, sob RLS/MFA. Nome e contato de clientes, login e senha não são enviados.</div></section></div>
  ${mappingForm()}
- <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do Supabase</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no Supabase.</p>'}</section>`;
+ <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do ambiente de gestão</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no ambiente seguro.</p>'}</section>`;
 }
 function reports(){const s=current();return heading('Relatórios executivos','Exportação de indicadores agregados, sem dados pessoais.',false)+(!s?noData():dataBanner()+`<section class="card card-pad"><div class="section-head"><div><h2>Exportar resumo</h2><p>Arquivo CSV com contagens canônicas, sem linhas brutas do IXC</p></div></div><button class="btn primary" data-action="export">${ic('file')} Baixar CSV seguro</button><p class="footnote">PDF e comparativos automáticos entre períodos serão adicionados quando os critérios analíticos estiverem validados.</p></section>`);
 }
 function access(){
  const headers=['Dashboard setorial','Todos os setores','Financeiro do setor','Ajuste financeiro*','Configurar White Label','Convites comuns','Convidar Gestor','Auditoria regular','Auditoria MASTER'];
  return heading('Grupos de acesso','Perfis padronizados · autorização real será verificada no backend e no banco.',false)+`
- <div class="notice warning"><b>Funcionalidades liberadas:</b> identidade com MFA, consulta e gravação de agregados no Supabase sob RLS, histórico e auditoria. Convites ainda não enviam mensagens nem concedem vínculos; ajustes financeiros, decisões e planos corretivos aguardam APIs autorizadas.</div>
+ <div class="notice warning"><b>Funcionalidades liberadas:</b> identidade com MFA, consulta e gravação de agregados no ambiente seguro sob RLS, histórico e auditoria. Convites ainda não enviam mensagens nem concedem vínculos; ajustes financeiros, decisões e planos corretivos aguardam APIs autorizadas.</div>
  <section class="card card-pad"><div class="section-head"><div><h2>Cinco perfis e convites controlados</h2><p>MASTER e Gestor podem solicitar convites a Gestores; Administrador só solicita outros grupos. Vínculo efetivo exige confirmação segura no backend.</p></div></div>
  <div class="table-scroll"><table><thead><tr><th>Grupo</th>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>
  ${GROUPS.map(g=>`<tr><td><strong>${esc(g.name)}</strong><div class="tiny muted">${esc(g.description)}</div></td>${PERMISSIONS.map(perm=>`<td><span class="badge ${describeAccess(g.id,perm)==='Permitido'?'green':'orange'}">${describeAccess(g.id,perm)}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
@@ -203,7 +207,7 @@ function settings(){return heading('Administração','Prévia de identidade visu
  <div class="brand-preview"><div class="brand-preview-icon">${state.brand.icon?`<img src="${state.brand.icon}" alt="Prévia de ícone">`:ic('chart')}</div><strong>${esc(state.brand.name)}</strong><span class="tiny muted">Prévia de identidade do aplicativo</span></div>
  <div class="safe-list"><div>${ic('check')}<span>Atualização do logo e cores da interface durante a sessão de teste</span></div><div>${ic('check')}<span>Banco dedicado com MFA, RLS e histórico de agregados em nuvem</span></div><div>${ic('alert')}<span>White Label permanente, domínio por provedor e validação de ícones ainda pendentes</span></div><div>${ic('alert')}<span>Convites, ajustes financeiros, planos corretivos e backups gerenciados em validação</span></div></div>
  </section></div>
- <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico, backup e segurança</h2><p>Indicadores persistidos no Supabase após autenticação</p></div></div><p class="muted">Limpa apenas a tela e dados temporários. O histórico gravado no banco permanece intocado.</p><div class="action-row"><button class="btn" data-action="backup-open">Finalizar e baixar backup criptografado</button><button class="btn" data-action="backup-open-restore">Restaurar backup local</button><button class="btn danger" data-action="reset">${ic('trash')} Limpar somente a visualização</button></div><p class="footnote">A exportação é por ação explícita. Fechar navegador ou aba não garante download; dados desta prévia não são sincronizados na nuvem. O backup não substitui recuperação do banco de produção.</p><hr class="separator"/><p class="footnote">Pendências para operação empresarial integral: convites completos, decisões e planos corretivos autorizados, comprovantes privados, backup do banco restaurado em ambiente isolado, controle de dispositivos e testes end-to-end multiusuário.</p></section>`;
+ <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico, backup e segurança</h2><p>Indicadores persistidos no ambiente seguro após autenticação</p></div></div><p class="muted">Limpa apenas a tela e dados temporários. O histórico gravado no banco permanece intocado.</p><div class="action-row"><button class="btn" data-action="backup-open">Finalizar e baixar backup criptografado</button><button class="btn" data-action="backup-open-restore">Restaurar backup local</button><button class="btn danger" data-action="reset">${ic('trash')} Limpar somente a visualização</button></div><p class="footnote">A exportação é por ação explícita. Fechar navegador ou aba não garante download; dados desta prévia não são sincronizados na nuvem. O backup não substitui recuperação do banco de produção.</p><hr class="separator"/><p class="footnote">Pendências para operação empresarial integral: convites completos, decisões e planos corretivos autorizados, comprovantes privados, backup do banco restaurado em ambiente isolado, controle de dispositivos e testes end-to-end multiusuário.</p></section>`;
 }
 function dataQuality(){
  const q=evaluateDataQuality(current(),state.snapshots);
@@ -226,24 +230,73 @@ function results(){
  `</section><section class="card card-pad" style="margin-top:17px"><h2>Próximo passo para um dossiê preciso</h2><p class="muted">Precisamos dos históricos, horas e custos, correlação pseudonimizada e evidência de conclusão antes de atribuir causas e responsáveis.</p><button class="btn primary" data-view="quality">Ver dados necessários e pendentes</button></section>`);
 }
 
+function loginLanding(){
+ return `<main class="auth-layout"><section class="auth-story">
+  <div class="auth-mark">LKZ <span>ISP</span><small>INTELLIGENCE</small></div>
+  <div class="auth-story-body"><span class="auth-eyebrow">INTELIGÊNCIA PARA PROVEDORES</span>
+   <h1>Uma visão mais clara.<em>Decisões mais fortes.</em></h1>
+   <p>Operação, produtividade e resultados da sua empresa, reunidos em um ambiente de gestão seguro.</p>
+   <div class="auth-benefits"><span>◎ Indicadores confiáveis</span><span>◎ Gestão por equipe</span><span>◎ Acesso protegido</span></div>
+  </div><div class="auth-story-foot"><span class="auth-dot"></span> LKZ ISP Intelligence <span>·</span> Lacrose Tecnologia</div>
+ </section><section class="auth-login">
+  <div class="auth-login-inner"><div class="auth-mobile-logo">LKZ <b>ISP</b> <span>INTELLIGENCE</span></div>
+   <div class="auth-secure">◈ ÁREA RESTRITA</div><h2>Bem-vindo de volta</h2>
+   <p class="auth-desc">Acesse seu ambiente gerencial com a sua conta.</p>
+   ${cloudUi.error?'<div class="auth-alert" role="alert">'+esc(cloudUi.error)+'</div>':''}
+   ${cloudUi.message?'<div class="auth-notice" role="status">'+esc(cloudUi.message)+'</div>':''}
+   <form id="cloud-login-form" class="auth-form" autocomplete="on">
+    <label for="cloud-email">E-mail corporativo</label>
+    <input id="cloud-email" name="email" type="email" autocomplete="username" placeholder="seu@email.com" maxlength="254" required>
+    <div class="auth-pass-head"><label for="cloud-password">Senha</label><button type="button" class="auth-link" data-cloud="recover">Esqueci minha senha</button></div>
+    <div class="auth-pass-row"><input id="cloud-password" name="password" type="password" autocomplete="current-password" placeholder="Sua senha de acesso" maxlength="250" required><button type="button" id="password-toggle" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></div>
+    <label class="auth-remember"><input id="remember-device" type="checkbox"><span>Confiar neste dispositivo por até 6 horas de inatividade</span></label>
+    <button class="auth-submit" type="submit" ${cloudUi.busy?'disabled':''}>Entrar na plataforma <span>→</span></button>
+   </form><div class="auth-register"><span>Recebeu um convite ou está acessando pela primeira vez?</span>
+    <button type="button" data-cloud="signup">Definir minha senha</button></div>
+   <div class="auth-security-note">🔒 Acesso com verificação em duas etapas. Em dispositivos compartilhados, não marque a opção de confiança.</div>
+  </div><div class="auth-footer"><a href="https://lacrosetecnologia.com.br/" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></div>
+ </section></main>`;
+}
+function usersPage(){
+ const editable=cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role));
+ if(!editable.length)return heading('Usuários e Permissões','Acesso restrito à gestão.',false)+
+   '<div class="notice warning">Você não possui permissão para gerenciar usuários.</div>';
+ const selected=editable.find(m=>m.tenant_id===state.selectedTenant)||editable[0];
+ const allowed=['gestor','administrador','lider_setor','financeiro'].filter(r=>mayInvite(selected.role,r));
+ return heading('Usuários e Permissões','Cadastre solicitações de acesso sem criar senhas para terceiros.',false)+
+ `<div class="notice"><b>Convite seguro:</b> o novo usuário define sua própria senha e configura o autenticador. O acesso somente é concedido depois da confirmação e do vínculo autorizado. O grupo MASTER nunca pode ser convidado.</div>
+ <section class="card card-pad" style="max-width:850px"><div class="section-head"><div><h2>Convidar usuário</h2><p>Permissões aplicadas pela empresa e pelo perfil da conta atual.</p></div></div>
+ <form id="cloud-invite-form" class="safe-list">
+  <label class="field">Empresa<select id="invite-tenant" required>${editable.map(m=>`<option value="${esc(m.tenant_id)}" ${m.tenant_id===selected.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label>
+  <label class="field">E-mail do colaborador<input id="invite-email" type="email" autocomplete="off" placeholder="colaborador@empresa.com.br" maxlength="254" required></label>
+  <label class="field">Perfil<select id="invite-role" required>${allowed.map(r=>`<option value="${esc(r)}">${esc(GROUPS.find(g=>g.id===r)?.name||r)}</option>`).join('')}</select></label>
+  <label class="field">Setor (exigido para líder ou financeiro)<input id="invite-sector" maxlength="36" autocomplete="off" placeholder="Identificador UUID do setor"></label>
+  <p class="footnote">Nesta fase, o botão registra um <strong>convite pendente</strong> e gera auditoria; o envio automático de e-mail e a habilitação do novo vínculo ainda não estão ativos. Não compartilhe senhas.</p>
+  <button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Registrar convite pendente</button>
+ </form></section>
+ <section class="card card-pad" style="margin-top:18px"><h2>Quem pode convidar quem?</h2>
+ <div class="table-scroll"><table><thead><tr><th>Perfil atual</th><th>Gestor</th><th>Administrador</th><th>Líder</th><th>Financeiro</th></tr></thead><tbody>
+ ${['master','gestor','administrador'].map(r=>`<tr><td>${esc(GROUPS.find(g=>g.id===r)?.name)}</td>${['gestor','administrador','lider_setor','financeiro'].map(target=>`<td><span class="badge ${mayInvite(r,target)?'green':'orange'}">${mayInvite(r,target)?'Permitido':'Negado'}</span></td>`).join('')}</tr>`).join('')}
+ </tbody></table></div></section>`;
+}
 function cloudPage(){
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
  const name=esc(cloud.email||'—');
- return heading('Conta e Nuvem','Autenticação real no Supabase exclusivo: MFA obrigatório para leitura por empresa/setor.',false)+
- `<div class="notice warning"><b>Operação inicial controlada:</b> esta seção conecta à identidade e aos vínculos. Os arquivos originais do IXC não são enviados. Os indicadores agregados aprovados são gravados no Supabase; aprovações financeiras permanecem bloqueadas. Sessões e senhas não são gravadas no navegador.</div>`+
+ return heading('Conta e Nuvem','Autenticação real no ambiente exclusivo: MFA obrigatório para leitura por empresa/setor.',false)+
+ `<div class="notice warning"><b>Operação inicial controlada:</b> esta seção conecta à identidade e aos vínculos. Os arquivos originais do IXC não são enviados. Os indicadores agregados aprovados são gravados no ambiente seguro; aprovações financeiras permanecem bloqueadas. Senhas não são armazenadas. Em dispositivo confiável, o acesso de retorno é protegido por criptografia e limitado a 6 horas de inatividade.</div>`+
  `<section class="card card-pad" style="max-width:790px"><div class="section-head"><div><h2>${logged?'Sua sessão':'Acesso protegido'}</h2><p>Banco exclusivo LKZ ISP Intelligence · região São Paulo</p></div><span class="badge ${verified?'green':'orange'}">${verified?'MFA confirmado':logged?'MFA necessário':'Não autenticado'}</span></div>`+
  (cloudUi.error?`<div class="notice warning" role="alert">${esc(cloudUi.error)}</div>`:'')+
  (cloudUi.message?`<div class="notice" role="status">${esc(cloudUi.message)}</div>`:'')+
  (!logged?`<form id="cloud-login-form" class="safe-list" autocomplete="on"><label class="field">E-mail<input id="cloud-email" type="email" autocomplete="username" maxlength="250" required></label><label class="field">Senha<input id="cloud-password" type="password" autocomplete="current-password" minlength="1" maxlength="250" required></label><div class="action-row"><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Entrar com segurança</button><button class="btn" type="button" data-cloud="signup" ${cloudUi.busy?'disabled':''}>Primeiro acesso · definir minha senha</button><button class="btn" type="button" data-cloud="recover">Recuperar acesso</button></div></form><p class="footnote">O cadastro não concede acesso empresarial. O MASTER inicial só será ativado depois de confirmar o e-mail e concluir o cadastro protegido. Usuários convidados definem sua própria senha. Nunca informe senhas por mensagem.</p>`:
  `<div class="safe-list"><div>${ic('check')}<span>Identidade: <strong>${name}</strong> · sessão ${esc(cloud.aal.toUpperCase())}</span></div></div>`+
  (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
- ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role))?`<section class="card card-pad" style="margin-top:20px"><h3>Solicitar convite de usuário</h3><p class="footnote">Apenas registra uma solicitação no banco; o envio seguro do e-mail de ativação e a concessão do vínculo ainda dependem da API de convites. O usuário definirá sua própria senha. MASTER não é convidável.</p><form id="cloud-invite-form" class="safe-list"><label class="field">Empresa<select id="invite-tenant" required>${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}">${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label><label class="field">E-mail do novo usuário<input id="invite-email" type="email" maxlength="254" required></label><label class="field">Grupo<select id="invite-role">${[...new Set(cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).flatMap(m=>['gestor','administrador','lider_setor','financeiro'].filter(r=>mayInvite(m.role,r))))].map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select></label><label class="field">ID do setor (exigido para Líder/Financeiro)<input id="invite-sector" maxlength="36" autocomplete="off" placeholder="UUID do setor autorizado"></label><button class="btn primary" ${cloudUi.busy?'disabled':''}>Registrar solicitação segura</button></form></section>`:''}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
+ ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
  `<h3>Segundo fator obrigatório (TOTP)</h3><p class="muted">Sem código do aplicativo autenticador, as políticas do banco impedem consultar os dados empresariais.</p>`+
  (cloudUi.factors.length?`<p class="muted">Autenticador verificado encontrado. Digite o código atual.</p>`:
  ` <p class="muted">Ainda não existe um autenticador verificado nesta sessão. Use "Configurar autenticador" para gerar um segredo temporário, salvando-o em um app autenticador.</p><button class="btn" data-cloud="enroll" ${cloudUi.busy?'disabled':''}>Configurar autenticador</button>`)+
  (cloudUi.secret?`<div class="notice warning"><strong>Segredo TOTP — não compartilhe nem salve em print:</strong><p class="break-all"><code>${esc(cloudUi.secret)}</code></p><p>Adicione esse segredo ao seu autenticador e confirme o código abaixo. O segredo só existe em memória durante esta sessão.</p></div>`:'')+
  `<form id="cloud-mfa-form" autocomplete="off"><label class="field">Código de seis dígitos<input id="cloud-totp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Confirmar MFA</button></form><div class="action-row"><button class="btn danger" data-cloud="logout">Sair sem acessar dados</button></div>`))+
- `</section><p class="footnote">Esta página usa autenticação em memória, sem localStorage/IndexedDB para tokens. Recarregar a página requer entrar novamente. Autorizações são aplicadas no banco, não pela navegação.</p>`;
+ `</section><p class="footnote">Sem a opção de dispositivo confiável, a sessão fica apenas em memória. Com a opção ativada, o token de retorno é criptografado localmente por até 6 horas de inatividade, sujeito à validação do servidor e ao MFA. Autorizações são aplicadas no banco.</p>`;
 }
 async function cloudAction(type){
  if(cloudUi.busy)return;
@@ -267,7 +320,10 @@ async function cloudAction(type){
    const email=document.getElementById('cloud-email')?.value||'';
    const input=document.getElementById('cloud-password'); const password=input?.value||'';
    if(input)input.value='';
+   const trustRequested=Boolean(document.getElementById('remember-device')?.checked);
    await cloud.signIn(email,password);
+   await cloud.setDeviceTrust(trustRequested);
+   lastActivity=Date.now();
    cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
    cloudUi.message='Identidade confirmada; prossiga com o segundo fator.';
    if(cloud.aal==='aal2'){cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
@@ -279,6 +335,7 @@ async function cloudAction(type){
    await cloud.verifyTotp(code,cloudUi.factorId||cloudUi.factors[0]?.id);
    cloudUi.secret='';cloudUi.factorId='';cloudUi.factors=[];
    cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();
+   lastActivity=Date.now();
    cloudUi.message='MFA confirmado. A leitura respeita as permissões do banco.';
   }else if(type==='bootstrap'){
    const result=await cloud.activateFirstMaster();
@@ -297,7 +354,7 @@ async function cloudAction(type){
    const approved=cloudUi.memberships.find(m=>['master','gestor'].includes(m.role));
    if(!approved)throw Error('Esta conta não tem acesso à auditoria.');
    cloudUi.audit=await cloud.readAudit(approved.tenant_id);
-   cloudUi.message='Auditoria consultada com filtros de acesso aplicados pelo Supabase.';
+   cloudUi.message='Auditoria consultada com filtros de acesso aplicados pelo ambiente seguro.';
   }else if(type==='logout'){
    await cloud.signOut();clearWorkspace();cloudUi.secret='';cloudUi.factorId='';cloudUi.memberships=[];cloudUi.audit=[];cloudUi.factors=[];
    cloudUi.message='Sessão encerrada.';
@@ -305,17 +362,19 @@ async function cloudAction(type){
  }catch(e){cloudUi.error=e?.message||'Não foi possível concluir a operação.';}
  finally{cloudUi.busy=false;render();}
 }
-const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,settings,cloud:cloudPage};
+const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
+ if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
  if (!canUseAggregateWorkspace()) state.view='cloud';
  else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();window.scrollTo({top:0,behavior:'instant'});}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
  root.querySelectorAll('[data-cloud]').forEach(b=>b.addEventListener('click',()=>cloudAction(b.dataset.cloud)));
+ root.querySelector('#password-toggle')?.addEventListener('click',e=>{const inp=root.querySelector('#cloud-password');if(!inp)return;const showing=inp.type==='text';inp.type=showing?'password':'text';e.currentTarget.textContent=showing?'Mostrar':'Ocultar';e.currentTarget.setAttribute('aria-pressed',String(!showing));});
  root.querySelector('#cloud-login-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('login')});
  root.querySelector('#cloud-mfa-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('verify')});
  root.querySelector('#cloud-reset-form')?.addEventListener('submit',e=>{e.preventDefault();cloudAction('reset')});
@@ -330,7 +389,7 @@ function bindActions(){
  const inp=document.getElementById('file-input');if(inp)inp.addEventListener('change',e=>{if(e.target.files?.[0])receiveFile(e.target.files[0])});
  const drop=document.getElementById('drop-zone');if(drop){drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');if(e.dataTransfer.files?.[0])receiveFile(e.dataTransfer.files[0]);})}
 }
-async function receiveFile(file){if(!canImportToCloud()){toast('É necessário estar online, com MFA e conexão ativa ao Supabase para importar.',true);return;}if(!canAdministerLocalWorkspace()){toast('Acesso e MFA do Gestor ou MASTER obrigatórios.',true);return;}if(state.importBusy)return;state.importBusy=true;state.staged=null;state.mapping=null;toast('Lendo arquivo somente na memória. Apenas agregados saneados serão enviados após sua confirmação.');
+async function receiveFile(file){if(!canImportToCloud()){toast('É necessário estar online, com MFA e conexão ativa ao ambiente seguro para importar.',true);return;}if(!canAdministerLocalWorkspace()){toast('Acesso e MFA do Gestor ou MASTER obrigatórios.',true);return;}if(state.importBusy)return;state.importBusy=true;state.staged=null;state.mapping=null;toast('Lendo arquivo somente na memória. Apenas agregados saneados serão enviados após sua confirmação.');
  try{const staged=await readReport(file);state.staged=staged;state.mapping=detectMapping(staged.headers);state.sourceName=file.name.replace(/[^a-zA-ZÀ-ÿ0-9()_. -]/g,'').slice(0,80)||'Relatório importado';render();}
  catch(err){state.staged=null;toast(err?.message||'Falha ao ler o arquivo.',true)}finally{state.importBusy=false;}}
 async function updateBrand(){
@@ -370,8 +429,8 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
  if(name==='backup-cancel'){state.backupStage=null;state.backupDownload=null;render();return;}
  if(name==='backup-download'){await downloadBackup();return;}
  if(name==='backup-redownload'){if(state.backupDownload)triggerBackupDownload(state.backupDownload);return;}
- if(name==='backup-finish'){await cloud.signOut();clearWorkspace();Object.assign(state,{sourceName:'',brand:newBrand(),backupStage:null,backupDownload:null,view:'cloud'});render();toast('Backup baixado; sessão encerrada. Indicadores continuam no Supabase.');return;}
- if(name==='backup-restore'){if(IS_PUBLIC_HOMOLOGATION){toast('Restauração online de backup ainda indisponível. O histórico válido permanece no Supabase.',true);return;}await restoreBackup();return;}
+ if(name==='backup-finish'){await cloud.signOut();clearWorkspace();Object.assign(state,{sourceName:'',brand:newBrand(),backupStage:null,backupDownload:null,view:'cloud'});render();toast('Backup baixado; sessão encerrada. Indicadores continuam no ambiente seguro.');return;}
+ if(name==='backup-restore'){if(IS_PUBLIC_HOMOLOGATION){toast('Restauração online de backup ainda indisponível. O histórico válido permanece no ambiente seguro.',true);return;}await restoreBackup();return;}
  if(name==='brand-export'){await exportBrandKit();return;}
  if(name==='brand-reset'){state.brand=newBrand();render();toast('Identidade LKZ restaurada nesta aba.');return;}
  if(name==='brand-apply'){await updateBrand();return;}
@@ -380,7 +439,7 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
  if(name==='cancel-stage'){state.staged=null;state.mapping=null;render();return}
  if(name==='demo'){state.demo=true;state.snapshot=mockSnapshot();setView('dashboard');return}
  if(name==='process-file'){
-  if(!canImportToCloud()){toast('Sem conexão autorizada ao Supabase. Não descartamos a planilha.',true);return;}
+  if(!canImportToCloud()){toast('Sem conexão autorizada ao ambiente seguro. Não descartamos a planilha.',true);return;}
   if(!state.staged)return;
   try{const snap=buildSnapshot(state.staged.rows,state.mapping,{source:'IXC · Relatório de atendimentos'});
    const staff=buildEmployeeMetrics(state.staged.rows,state.mapping,snap.referenceDate);
@@ -392,6 +451,8 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
    // O hash legado foi criado com exatamente o mesmo resumo, sem a coluna Colaborador.
    const previous=state.snapshots.find(x=>x.fingerprint===snap.fingerprint) ||
      state.snapshots.find(x=>x.fingerprint===oldFingerprint);
+   const priorEmployees=previous?await cloud.readEmployeeMetrics(state.selectedTenant,previous.fingerprint):[];
+   const alreadyImported=Boolean(previous&&priorEmployees.length===staff.metrics.length);
    const confirmed=await cloud.saveSnapshotWithEmployees(state.selectedTenant,previous||snap,staff.metrics);
    // Dados brutos descartados apenas após leitura de volta do servidor.
    state.staged=null;state.mapping=null;state.sourceName='';
@@ -399,12 +460,12 @@ async function action(name){if(!canAdministerLocalWorkspace()){toast('Operação
    state.employeeMetrics[confirmed.snapshot.fingerprint]=confirmed.employees;
    state.demo=false;
    setView('dashboard');
-   toast(`${fmt(snap.total)} atendimentos salvos na nuvem, com ${fmt(staff.assigned)} atribuições por colaborador. Dados de clientes excluídos.`);
+   toast(alreadyImported?'Relatório já importado: nenhuma duplicidade criada.':'Relatório salvo com sucesso, com '+fmt(staff.assigned)+' atribuições. Nenhum dado pessoal de cliente foi enviado.');
   }catch(err){toast(err?.message||'Erro na importação.',true)}return;
  }
  if(name==='reset'){
   if(!window.confirm('Limpar apenas a visualização desta sessão? Os indicadores na nuvem NÃO serão apagados.'))return;
-  state.snapshot=null;state.demo=false;render();toast('Visualização limpa. Histórico mantido no Supabase.');return;
+  state.snapshot=null;state.demo=false;render();toast('Visualização limpa. Histórico mantido no ambiente seguro.');return;
  }
  if(name==='export'){exportSafe();return;}
 }
@@ -443,13 +504,40 @@ async function init(){
   cloudUi.message=cb.recovery?'Defina sua nova senha antes de continuar.':'E-mail confirmado. Confirme o MFA para acessar.';
   if(!cb.recovery && cloud.aal!=='aal2')cloudUi.factors=(await cloud.listFactors()).filter(f=>f.status==='verified');
   if(!cb.recovery && cloud.aal==='aal2'){cloudUi.memberships=await cloud.readMemberships();await loadCloudWorkspace();}
+ }else{
+  const resumed=await cloud.restoreTrustedDevice();
+  if(resumed){
+   cloudUi.memberships=await cloud.readMemberships();
+   await loadCloudWorkspace();
+   cloudUi.message='Dispositivo confiável reconhecido. Sessão protegida restaurada.';
+   lastActivity=Date.now();
+  }
  }}catch(e){cloudUi.error=e?.message||'Erro ao validar o link.';}
- // A leitura do Supabase após autenticação é a única origem dos indicadores empresariais.
+ // A leitura do ambiente de gestão após autenticação é a única origem dos indicadores empresariais.
  // Não substituir os registros confirmados pelo armazenamento volátil legado.
  try{const setting=await getSetting('cost');if(setting?.value)state.cost={...sampleCost,...setting.value};}
  catch{state.cost={...sampleCost};}
  if(!state.cloudReady){state.snapshots=[];state.snapshot=null;}
  render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
+async function verifyInactivity(){
+ if(sessionEnding||!cloud.hasSession)return;
+ if(Date.now()-lastActivity<IDLE_LIMIT_MS)return;
+ sessionEnding=true;
+ try{await cloud.signOut();clearWorkspace();cloudUi.memberships=[];cloudUi.factors=[];cloudUi.secret='';cloudUi.message='Sua sessão foi encerrada após 6 horas de inatividade.';state.view='cloud';render();}
+ catch{cloud.clear();clearWorkspace();render();}
+ finally{sessionEnding=false;}
+}
+function noteActivity(){
+ if(!cloud.hasSession)return;
+ if(Date.now()-lastActivity>=IDLE_LIMIT_MS){verifyInactivity();return;}
+ lastActivity=Date.now();
+ cloud.recordUserActivity().catch(()=>{});
+}
+document.addEventListener('pointerdown',noteActivity,{passive:true});
+document.addEventListener('keydown',noteActivity,{passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){verifyInactivity();}});
+window.addEventListener('focus',()=>verifyInactivity());
+setInterval(verifyInactivity,60000);
 window.addEventListener('online',()=>render());window.addEventListener('offline',()=>render());
 init();

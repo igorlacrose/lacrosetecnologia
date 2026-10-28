@@ -14,6 +14,7 @@ export function jwtAssurance(jwt) {
   } catch { return 'aal1'; }
 }
 
+import {saveTrustedSession,loadTrustedSession,clearTrustedSession} from './trusted-session.js';
 export class CloudAccess {
   #token = null;
   #refreshToken = null;
@@ -22,12 +23,15 @@ export class CloudAccess {
   #userId = null;
   #expiresAt = 0;
   #recovery = false;
+  #trustThisDevice = false;
+  #lastTrustWrite = 0;
   #fetch;
   constructor(fetchImpl = null) { this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis); }
   get email() { return this.#email; }
   get recoveryPending() { return this.#recovery; }
   get hasSession() { return Boolean(this.#token); }
   get aal() { return this.#token ? jwtAssurance(this.#token) : 'none'; }
+  get trustDeviceEnabled(){return this.#trustThisDevice;}
   get factor() { return this.#factor ? {id:this.#factor.id,secret:this.#factor.secret||null} : null; }
 
   async #request(path, options={}) {
@@ -66,6 +70,41 @@ export class CloudAccess {
       method:'POST',body:{email:String(email).trim().slice(0,250), password:String(password)},auth:false});
     this.#adopt(data);
     return {email:this.#email,aal:this.aal};
+  }
+  async setDeviceTrust(enabled){
+    this.#trustThisDevice=Boolean(enabled);
+    if(!enabled){await clearTrustedSession();return;}
+    if(this.aal==='aal2')await this.#writeTrustedSession(true);
+  }
+  async #writeTrustedSession(force=false){
+    if(!this.#trustThisDevice||this.aal!=='aal2'||!this.#refreshToken)return;
+    if(!force && Date.now()-this.#lastTrustWrite<60000)return;
+    await this.#ensureSession();
+    await saveTrustedSession(this.#refreshToken,Date.now());
+    this.#lastTrustWrite=Date.now();
+  }
+  async recordUserActivity(){
+    if(this.#trustThisDevice && this.aal==='aal2')
+      await this.#writeTrustedSession();
+  }
+  async restoreTrustedDevice(){
+    const stored=await loadTrustedSession();
+    if(!stored)return null;
+    try{
+      this.clear();
+      const data=await this.#request('/auth/v1/token?grant_type=refresh_token',{
+        method:'POST',body:{refresh_token:stored.refreshToken},auth:false});
+      this.#adopt(data);
+      if(this.aal!=='aal2')throw Error('É necessário confirmar o segundo fator novamente.');
+      const identity=await this.#request('/auth/v1/user');
+      if(!identity?.id || identity.id!==this.#userId)throw Error('Sessão de usuário inválida.');
+      this.#trustThisDevice=true;
+      await this.#writeTrustedSession(true);
+      return {email:this.#email,aal:this.aal,restored:true};
+    }catch{
+      this.clear();this.#trustThisDevice=false;await clearTrustedSession();
+      return null;
+    }
   }
   async signUp(email,password) {
     if (!email || String(password).length<12) throw Error('Informe e-mail e senha com pelo menos 12 caracteres.');
@@ -146,6 +185,7 @@ export class CloudAccess {
       method:'POST',body:{challenge_id:challenge.id,code:String(code)}});
     this.#adopt(result);
     this.#factor=null;
+    if(this.#trustThisDevice)await this.#writeTrustedSession(true);
     if (this.aal!=='aal2') throw Error('Segundo fator não confirmado pelo servidor.');
     return {email:this.#email,aal:this.aal};
   }
@@ -170,10 +210,20 @@ export class CloudAccess {
     await this.#ensureSession();
     if(this.aal!=='aal2')throw Error('MFA obrigatório para indicadores.');
     if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
-    const result=await this.#request('/rest/v1/lkz_isp_aggregate_snapshots?select=id,tenant_id,fingerprint,snapshot,created_at&tenant_id=eq.'+
-      encodeURIComponent(tenant_id)+'&order=created_at.desc&limit=250');
-    if(!Array.isArray(result))throw Error('Resposta de indicadores inválida.');
-    return result.map(row=>{
+    const results=[];
+    // Paginação determinística: a versão anterior consultava somente os últimos 250.
+    // O bloqueio de duplicidade já existe no banco; esta paginação permite
+    // reconhecer também importações anteriores após meses de uso.
+    const pageSize=250;
+    for(let offset=0;offset<10000;offset+=pageSize){
+      const batch=await this.#request('/rest/v1/lkz_isp_aggregate_snapshots?select=id,tenant_id,fingerprint,snapshot,created_at&tenant_id=eq.'+
+        encodeURIComponent(tenant_id)+'&order=created_at.desc,id.desc&limit='+pageSize+'&offset='+offset);
+      if(!Array.isArray(batch))throw Error('Resposta de indicadores inválida.');
+      results.push(...batch);
+      if(batch.length<pageSize)break;
+      if(offset+pageSize>=10000)throw Error('Histórico acima do limite de consulta. Use filtros por período.');
+    }
+    return results.map(row=>{
       if(row.tenant_id!==tenant_id || !row.snapshot || row.fingerprint!==row.snapshot.fingerprint)
         throw Error('Falha de integridade no histórico de indicadores.');
       return {...row.snapshot,id:row.id,tenant_id:row.tenant_id};
@@ -281,6 +331,7 @@ export class CloudAccess {
     this.#expiresAt=0; this.#email=null; this.#userId=null; this.#recovery=false;
   }
   async signOut() {
+    await clearTrustedSession();this.#trustThisDevice=false;
     if (this.#token) {try {await this.#request('/auth/v1/logout',{method:'POST'});} catch { /* best effort */ }}
     this.clear();
   }
