@@ -4,6 +4,10 @@
  * Expiração por 6h de inatividade; tokens válidos continuam sujeitos a Auth/RLS/MFA.
  */
 export const IDLE_LIMIT_MS = 6*60*60*1000;
+export function isSessionWithinIdleLimit(lastActivity,now=Date.now()){
+ return Number.isFinite(lastActivity) && Number.isFinite(now) && lastActivity<=now+120000
+  && now-lastActivity>=0 && now-lastActivity<IDLE_LIMIT_MS;
+}
 const STORE='trusted-session';
 const DATABASE='lkzisp-secure-device-v1';
 function supported(){return typeof indexedDB!=='undefined' && !!globalThis.crypto?.subtle && globalThis.isSecureContext!==false;}
@@ -52,8 +56,7 @@ export async function loadTrustedSession(now=Date.now()){
    const r=obj.get('session');r.onsuccess=()=>done(r.result||null);r.onerror=()=>reject(r.error);
   });
   if(!state)return null;
-  if(!Number.isFinite(state.lastActivity)||state.lastActivity>now+120000
-    ||now-state.lastActivity>=IDLE_LIMIT_MS){
+  if(!isSessionWithinIdleLimit(state.lastActivity,now)){
     await clearTrustedSession();return null;
   }
   const key=await access('readonly',(obj,done,reject)=>{
