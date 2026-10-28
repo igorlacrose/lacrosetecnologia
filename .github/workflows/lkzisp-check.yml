@@ -32,3 +32,12 @@ jobs:
             if(![401,403].includes(r.status))throw Error("Owner bootstrap allowed anonymous: "+r.status);
             console.log("Bootstrap denied anonymous HTTP "+r.status);
           '
+      - name: Página servida em HTTPS
+        run: |
+          node --input-type=module -e '
+            const r=await fetch("https://lacrosetecnologia.com.br/lkzisp/",{signal:AbortSignal.timeout(15000)});
+            const body=await r.text();
+            if(r.status!==200||!body.includes("LKZ ISP Intelligence")||!body.includes("Homologação controlada"))
+              throw Error("A rota publica nao corresponde ao portal protegido (HTTP "+r.status+")");
+            console.log("Rota LKZ ISP em HTTPS: HTTP 200 e conteudo homologado");
+          '
