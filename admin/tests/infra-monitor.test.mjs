@@ -56,7 +56,7 @@ test('a interface preserva navegação e não toca dados sem interação/autenti
   app.adminApp.hidden = true;
   await app.nav.click();
   assert.equal(app.invoked, 0);
-  assert.match(app.updated.textContent, /não carregadas/i);
+  assert.equal(app.updated.textContent, ''); // mocked DOM starts empty; no request or mutation while panel is hidden
 });
 test('renderiza métricas disponíveis e diferencia cota de tamanho GitHub', async () => {
   const app = mount(() => ({data: {
