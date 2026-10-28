@@ -280,13 +280,13 @@ function executiveReviews(){
  '<p class="footnote">A avaliação aprova ou reprova o <strong>conjunto de indicadores deste relatório</strong>, não pessoas, alertas isolados ou metas financeiras.</p>'+
  (previous?
  '<div class="notice"><strong>'+ (previous.decision==='approve'?'Relatório aprovado':'Relatório reprovado')+
- '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.decided_at).toLocaleString('pt-BR'))+'.</p></div>':
+ '</strong><p>Justificativa registrada: '+esc(previous.rationale)+'</p><p class="footnote">Decisão imutável e auditada, registrada em '+esc(new Date(previous.reviewed_at).toLocaleString('pt-BR'))+'.</p></div>':
  manager?
  '<div class="executive-actions"><button class="btn primary" data-review-choice="approve">Aprovar resultado</button><button class="btn danger" data-review-choice="reject">Reprovar resultado</button></div>'+
  (state.reviewIntent?
  '<form id="executive-review-form" class="safe-list"><h3>'+ (state.reviewIntent==='approve'?'Confirmar aprovação':'Confirmar reprovação')+
  '</h3><p>Explique o motivo da decisão para preservar um histórico claro de avaliação.</p>'+
- '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="4000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
+ '<label class="field">Justificativa (mínimo 20 caracteres)<textarea id="executive-review-reason" required minlength="20" maxlength="2000" rows="4" placeholder="Descreva as evidências e o contexto da decisão."></textarea></label>'+
  '<div class="action-row"><button type="submit" class="btn primary" '+(state.reviewBusy?'disabled':'')+'>Registrar decisão</button><button type="button" class="btn" data-review-cancel>Cancelar</button></div></form>':'')+
  (state.reviewError?'<div class="notice warning">'+esc(state.reviewError)+'</div>':''):
  '<div class="notice">Este perfil pode consultar o resultado e a justificativa, mas não pode aprovar nem reprovar.</div>')+
@@ -297,7 +297,7 @@ async function submitExecutiveReview(){
   toast('Ação não autorizada para este perfil.',true);return;
  }
  const s=current(),reason=document.getElementById('executive-review-reason')?.value?.trim()||'';
- if(reason.length<20||reason.length>4000){toast('Escreva uma justificativa com 20 a 4000 caracteres.',true);return;}
+ if(reason.length<20||reason.length>2000){toast('Escreva uma justificativa com 20 a 2000 caracteres.',true);return;}
  if(state.reviews.some(x=>x.snapshot_id===s.id)){toast('Este resultado já foi avaliado.',true);return;}
  state.reviewBusy=true;state.reviewError='';render();
  try{
