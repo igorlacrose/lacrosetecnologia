@@ -346,7 +346,7 @@ function loginLanding(){
  </section></main>`;
 }
 function usersPage(){
- const editable=cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role));
+ const editable=cloudUi.memberships.filter(m=>m.role==='master');
  if(!editable.length)return heading('Usuários e Permissões','Acesso restrito à gestão.',false)+
    '<div class="notice warning">Você não possui permissão para gerenciar usuários.</div>';
  const selected=editable.find(m=>m.tenant_id===state.selectedTenant)||editable[0];
@@ -394,7 +394,7 @@ function cloudPage(){
  (cloudUi.message?`<div class="notice" role="status">${esc(cloudUi.message)}</div>`:'')+
  (!logged?`<form id="cloud-login-form" class="safe-list" autocomplete="on"><label class="field">E-mail<input id="cloud-email" type="email" autocomplete="username" maxlength="250" required></label><label class="field">Senha<input id="cloud-password" type="password" autocomplete="current-password" minlength="1" maxlength="250" required></label><div class="action-row"><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Entrar com segurança</button><button class="btn" type="button" data-cloud="signup" ${cloudUi.busy?'disabled':''}>Primeiro acesso · definir minha senha</button><button class="btn" type="button" data-cloud="recover">Recuperar acesso</button></div></form><p class="footnote">O cadastro não concede acesso empresarial. O MASTER inicial só será ativado depois de confirmar o e-mail e concluir o cadastro protegido. Usuários convidados definem sua própria senha. Nunca informe senhas por mensagem.</p>`:
  `<div class="safe-list"><div>${ic('check')}<span>Identidade: <strong>${name}</strong> · sessão ${esc(cloud.aal.toUpperCase())}</span></div></div>`+
- (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:cloud.invitationSetupPending?`<h3>Primeiro acesso por convite</h3><p class="muted">Seu e-mail foi validado. Defina sua senha exclusiva antes de configurar o segundo fator.</p><form id="cloud-invite-password-form" class="safe-list"><label class="field">Crie sua senha (mínimo 12 caracteres)<input id="cloud-invite-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Salvar senha e configurar MFA</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
+ (cloud.recoveryPending?`<h3>Redefinir senha</h3><p>Link de recuperação validado; defina a nova senha.</p><form id="cloud-reset-form" class="safe-list"><label class="field">Nova senha<input id="cloud-new-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit">Salvar nova senha</button></form>`:cloud.invitationSetupPending?`<h3>Primeiro acesso por convite</h3><p class="muted">Seu e-mail foi validado. Defina sua senha exclusiva antes de configurar o segundo fator.</p><form id="cloud-invite-password-form" class="safe-list"><label class="field">Crie sua senha (mínimo 12 caracteres)<input id="cloud-invite-password" type="password" minlength="12" maxlength="200" autocomplete="new-password" required></label><button class="btn primary" type="submit" ${cloudUi.busy?'disabled':''}>Salvar senha e configurar MFA</button></form>`:verified?`<h3>Vínculos autorizados pelo servidor</h3>${canUseAggregateWorkspace()?`<div class="action-row"><label class="field">Empresa ativa<select id="active-tenant">${cloudUi.memberships.filter(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role)).map(m=>`<option value="${esc(m.tenant_id)}" ${state.selectedTenant===m.tenant_id?'selected':''}>${esc(m.tenant_id)} (${esc(m.role)})</option>`).join('')}</select></label></div>`:''}${cloud.email?.toLowerCase()==='lacrose.igor@gmail.com' && !cloudUi.memberships.some(m=>m.role==='master')?`<div class="notice warning"><b>Ativação inicial do MASTER:</b> com e-mail confirmado e TOTP ativo, você pode solicitar a ativação da sua conta administrativa.</div><button class="btn primary" type="button" data-cloud="bootstrap" ${cloudUi.busy?'disabled':''}>Ativar meu acesso MASTER</button>`:''}
  ${cloudUi.memberships.length?`<div class="table-scroll"><table><thead><tr><th>Empresa (identificador)</th><th>Grupo</th><th>Setor autorizado</th></tr></thead><tbody>${cloudUi.memberships.map(m=>`<tr><td>${esc(m.tenant_id)}</td><td>${esc(m.role)}</td><td>${esc(m.sector_id||'Todos — perfil global')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="notice warning">Nenhuma empresa autorizada para esta conta ou vínculo ainda não ativado. A conta MASTER inicial exige ativação administrativa após confirmar o e-mail e MFA.</div>`}${cloudUi.memberships.some(m=>['master','gestor'].includes(m.role))?`<section class="card card-pad" style="margin-top:18px"><h3>Auditoria autorizada</h3><p class="footnote">O MASTER consulta todos os eventos, inclusive seus próprios atos. O Gestor vê apenas os eventos comuns autorizados para sua empresa.</p><button type="button" class="btn" data-cloud="audit">Consultar auditoria</button><div class="safe-list">${cloudUi.audit.map(a=>`<div>${esc(a.event_name)} · ${esc(a.occurred_at)}</div>`).join('')}</div></section>`:''}<div class="action-row"><button class="btn" data-cloud="memberships" ${cloudUi.busy?'disabled':''}>Atualizar vínculos</button><button class="btn danger" data-cloud="logout">Sair</button></div>`:
  `<h3>Segundo fator obrigatório (TOTP)</h3><p class="muted">Sem código do aplicativo autenticador, as políticas do banco impedem consultar os dados empresariais.</p>`+
  (cloudUi.factors.length?`<p class="muted">Autenticador verificado encontrado. Digite o código atual.</p>`:
@@ -488,12 +488,22 @@ async function cloudAction(type){
 const pages={dashboard,results,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
- if (!canUseAggregateWorkspace()) state.view='cloud';
- if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
- else if (!canAdministerLocalWorkspace() && ['imports','finance','settings'].includes(state.view)) state.view='cloud';
+ if(!canUseAggregateWorkspace())state.view='cloud';
+ else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
+ else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(state.view))state.view='dashboard';
  const page=pages[state.view]||cloudPage;
  root.innerHTML=shell(page());applyBrandPreview(state.brand);bindActions();}
-function setView(v){if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';if(!canAdministerLocalWorkspace()&&['imports','finance','settings'].includes(v))v='cloud';if(v==='users'&&!cloudUi.memberships.some(m=>['master','gestor','administrador'].includes(m.role)))v='cloud';state.view=v;state.menuOpen=false;if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}render();if(v==='users')loadInvitations();window.scrollTo({top:0,behavior:'instant'});}
+function setView(v){
+ if(v!=='cloud'&&!canUseAggregateWorkspace())v='cloud';
+ else if(executiveMode()&&!['dashboard','results','reports','cloud'].includes(v))v='dashboard';
+ else if(sectorMode()&&!['dashboard','reports','cloud'].includes(v))v='dashboard';
+ else if(!canAdministerLocalWorkspace()&&['imports','finance','settings','users','access','quality','tickets','radar','productivity'].includes(v))v='dashboard';
+ state.view=v;state.menuOpen=false;state.reviewIntent=null;
+ if(v!=='imports'&&state.staged){state.staged=null;state.mapping=null;}
+ render();if(v==='users'&&canAdministerLocalWorkspace())loadInvitations();
+ window.scrollTo({top:0,behavior:'instant'});
+}
 function bindActions(){
  root.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
  root.querySelector('#active-tenant')?.addEventListener('change',e=>{cloudUi.busy=true;loadCloudWorkspace(e.target.value).then(()=>{cloudUi.message='Empresa autorizada e indicadores sincronizados.'}).catch(err=>{cloudUi.error=err.message;state.view='cloud'}).finally(()=>{cloudUi.busy=false;render()});});
@@ -626,9 +636,9 @@ async function restoreBackup(){
  }catch(e){toast(e?.message||'Não foi possível restaurar o backup.',true)}finally{state.backupBusy=false;}
 }
 function exportSafe(){const s=current();if(!s)return;
- const csv=[['Grupo','Categoria','Total','Finalizados','Pendentes'],...Object.entries(subjectGroups(s)).map(([n,g])=>['Assunto',n,g.total,g.finalized,g.pending]),...Object.entries(s.sectors).map(([n,g])=>['Setor',n,g.total,g.finalized,g.pending]),...Object.entries(s.cities).map(([n,g])=>['Cidade',n,g.total,g.finalized,g.pending])];
+ const csv=[['Grupo','Categoria','Total','Finalizados','Pendentes'],...(sectorMode()?[]:Object.entries(subjectGroups(s)).map(([n,g])=>['Assunto',n,g.total,g.finalized,g.pending])),...Object.entries(s.sectors||{}).map(([n,g])=>['Setor',n,g.total,g.finalized,g.pending]),...(sectorMode()?[]:Object.entries(s.cities||{}).map(([n,g])=>['Cidade',n,g.total,g.finalized,g.pending]))];
  const content='\uFEFF'+csv.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(';')).join('\r\n');
- const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lkz-isp-indicadores-agregados.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+ const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=sectorMode()?'lkz-isp-relatorio-meu-setor.csv':'lkz-isp-indicadores-agregados.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 async function init(){
  try{const cb=await cloud.handleAuthCallback();if(cb){
