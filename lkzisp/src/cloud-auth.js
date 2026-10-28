@@ -204,6 +204,46 @@ export class CloudAccess {
     if(!saved)throw Error('Gravação não confirmada no Supabase: não descarte o arquivo original.');
     return {snapshot:saved,records:rows,duplicate};
   }
+  // Persistência atômica: resumo geral + nome/setor dos colaboradores, nunca clientes.
+  async saveSnapshotWithEmployees(tenant_id,snapshot,employees){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório para importar.');
+    if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||'')))throw Error('Empresa inválida.');
+    if(!Array.isArray(employees)||employees.length>500||!snapshot||!/^[a-f0-9]{64}$/.test(String(snapshot.fingerprint||'')))
+      throw Error('Relatório individual inválido.');
+    const {cleanBackupSnapshot}=await import('./backup.js');
+    const clean=cleanBackupSnapshot(snapshot);
+    clean.notes=['SLA do IXC não interpretado nesta versão.','Colaborador individual somente após pseudonimização segura no backend.'];
+    const safeEmployees=employees.map(x=>({
+      name:String(x.name||''),sector:String(x.sector||''),
+      total:x.total,finalized:x.finalized,pending:x.pending,
+      closedWithDates:x.closedWithDates,closedOver24:x.closedOver24,pendingOlder7d:x.pendingOlder7d
+    }));
+    let uncertain=null;
+    try{
+      await this.#request('/rest/v1/rpc/lkz_isp_save_snapshot_with_employees',{
+        method:'POST',body:{p_tenant:tenant_id,p_snapshot:clean,p_employees:safeEmployees}
+      });
+    }catch(err){uncertain=err;}
+    const records=await this.listAggregateSnapshots(tenant_id);
+    const saved=records.find(x=>x.fingerprint===clean.fingerprint);
+    if(!saved)throw uncertain||Error('Gravação não confirmada. Preserve o arquivo original.');
+    const persisted=await this.readEmployeeMetrics(tenant_id,clean.fingerprint);
+    if(uncertain||persisted.length!==safeEmployees.length)
+      throw uncertain||Error('Indicadores individuais não confirmados; preserve o arquivo original.');
+    return {records,snapshot:saved,employees:persisted};
+  }
+  async readEmployeeMetrics(tenant_id,fingerprint){
+    await this.#ensureSession();
+    if(this.aal!=='aal2')throw Error('MFA obrigatório.');
+    if(!/^[0-9a-f-]{36}$/i.test(String(tenant_id||''))||!/^[a-f0-9]{64}$/.test(String(fingerprint||'')))
+      throw Error('Empresa ou relatório inválido.');
+    const rows=await this.#request('/rest/v1/lkz_isp_employee_metrics?select=employee_name,sector_label,total,finalized,pending,closed_with_dates,closed_over_24,pending_older_7d&tenant_id=eq.'+
+      encodeURIComponent(tenant_id)+'&snapshot_fingerprint=eq.'+encodeURIComponent(fingerprint)+'&limit=500');
+    if(!Array.isArray(rows))throw Error('Resposta individual inválida.');
+    return rows.map(x=>({name:x.employee_name,sector:x.sector_label,total:x.total,finalized:x.finalized,pending:x.pending,
+      closedWithDates:x.closed_with_dates,closedOver24:x.closed_over_24,pendingOlder7d:x.pending_older_7d}));
+  }
   async createInvitation({tenant_id,invited_email,requested_role,sector_id=null}) {
     await this.#ensureSession();
     if(this.aal!=='aal2')throw Error('MFA obrigatório para gerir convites.');
