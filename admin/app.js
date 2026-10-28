@@ -48,6 +48,36 @@ const logoutBtn =
 const adminName =
   document.getElementById('adminName');
 
+const mfaScreen =
+  document.getElementById('mfaScreen');
+
+const mfaForm =
+  document.getElementById('mfaForm');
+
+const mfaCode =
+  document.getElementById('mfaCode');
+
+const mfaButton =
+  document.getElementById('mfaButton');
+
+const mfaMessage =
+  document.getElementById('mfaMessage');
+
+const mfaCancel =
+  document.getElementById('mfaCancel');
+
+const mfaEnroll =
+  document.getElementById('mfaEnroll');
+
+const mfaQr =
+  document.getElementById('mfaQr');
+
+const mfaSecret =
+  document.getElementById('mfaSecret');
+
+const mfaIntro =
+  document.getElementById('mfaIntro');
+
 
 let panelInitialized=false;
 
@@ -70,6 +100,12 @@ let currentEvents=[];
 let currentApprovals=[];
 
 let currentFollowups=[];
+
+let pendingMfaProfile=null;
+let pendingMfaUser=null;
+let pendingMfaFactorId=null;
+let pendingMfaChallengeId=null;
+let pendingMfaEnrollment=false;
 
 const ADMIN_IDLE_MS=30*60*1000;
 let adminIdleTimer=null;
@@ -223,6 +259,207 @@ function setAuthBusy(busy){
 }
 
 
+function setMfaBusy(busy){
+
+  if(!mfaButton){
+    return;
+  }
+
+  mfaButton.disabled=busy;
+  mfaButton.textContent=busy
+    ?'Verificando…'
+    :'Verificar código';
+}
+
+
+function mfaStatus(message='',ok=false){
+
+  if(!mfaMessage){
+    return;
+  }
+
+  mfaMessage.textContent=message;
+  mfaMessage.classList.toggle('ok',ok);
+}
+
+
+function clearMfaState(){
+
+  pendingMfaProfile=null;
+  pendingMfaUser=null;
+  pendingMfaFactorId=null;
+  pendingMfaChallengeId=null;
+  pendingMfaEnrollment=false;
+
+  if(mfaCode){
+    mfaCode.value='';
+  }
+
+  if(mfaQr){
+    mfaQr.removeAttribute('src');
+  }
+
+  if(mfaSecret){
+    mfaSecret.textContent='';
+  }
+
+  if(mfaEnroll){
+    mfaEnroll.hidden=true;
+  }
+
+  if(mfaScreen){
+    mfaScreen.hidden=true;
+  }
+
+  mfaStatus('');
+}
+
+
+function showMfaScreen({enrollment=false,qr='',secret=''}={}){
+
+  if(authScreen){
+    authScreen.hidden=true;
+  }
+
+  if(adminApp){
+    adminApp.hidden=true;
+  }
+
+  if(mfaScreen){
+    mfaScreen.hidden=false;
+  }
+
+  pendingMfaEnrollment=enrollment;
+
+  if(mfaEnroll){
+    mfaEnroll.hidden=!enrollment;
+  }
+
+  if(mfaIntro){
+    mfaIntro.textContent=enrollment
+      ?'Configure agora um autenticador TOTP. O painel só será liberado depois da confirmação.'
+      :'Digite o código atual do seu aplicativo autenticador.';
+  }
+
+  if(mfaQr && qr){
+    mfaQr.src=qr;
+  }
+
+  if(mfaSecret){
+    mfaSecret.textContent=secret || '';
+  }
+
+  mfaStatus('');
+
+  setTimeout(
+    ()=>mfaCode?.focus(),
+    50
+  );
+}
+
+
+async function enforceMfa(profile,user){
+
+  const {
+    data:aal,
+    error:aalError
+  }=
+    await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if(aalError){
+    throw aalError;
+  }
+
+  if(aal?.currentLevel==='aal2'){
+
+    await showAdmin(profile,user);
+
+    return;
+  }
+
+  const {
+    data:factors,
+    error:factorsError
+  }=
+    await sb.auth.mfa.listFactors();
+
+  if(factorsError){
+    throw factorsError;
+  }
+
+  pendingMfaProfile=profile;
+  pendingMfaUser=user;
+
+  const factor=
+    factors?.totp?.[0] || null;
+
+  if(factor){
+
+    const {
+      data:challenge,
+      error:challengeError
+    }=
+      await sb.auth.mfa.challenge({
+        factorId:factor.id
+      });
+
+    if(challengeError){
+      throw challengeError;
+    }
+
+    pendingMfaFactorId=factor.id;
+    pendingMfaChallengeId=challenge.id;
+
+    showMfaScreen({
+      enrollment:false
+    });
+
+    return;
+  }
+
+  const {
+    data:enrollment,
+    error:enrollError
+  }=
+    await sb.auth.mfa.enroll({
+      factorType:'totp',
+      friendlyName:'Lacrose Admin'
+    });
+
+  if(enrollError){
+    throw enrollError;
+  }
+
+  const {
+    data:challenge,
+    error:challengeError
+  }=
+    await sb.auth.mfa.challenge({
+      factorId:enrollment.id
+    });
+
+  if(challengeError){
+
+    try{
+      await sb.auth.mfa.unenroll({
+        factorId:enrollment.id
+      });
+    }catch(_){}
+
+    throw challengeError;
+  }
+
+  pendingMfaFactorId=enrollment.id;
+  pendingMfaChallengeId=challenge.id;
+
+  showMfaScreen({
+    enrollment:true,
+    qr:enrollment.totp?.qr_code || '',
+    secret:enrollment.totp?.secret || ''
+  });
+}
+
+
 
 async function authorizeUser(user){
 
@@ -272,6 +509,7 @@ async function authorizeUser(user){
 function showLogin(message=''){
 
   clearAdminIdleTimer();
+  clearMfaState();
 
   if(adminApp){
     adminApp.hidden=true;
@@ -414,7 +652,7 @@ async function validateCurrentSession(){
     }
 
 
-    await showAdmin(
+    await enforceMfa(
       profile,
       session.user
     );
@@ -487,7 +725,7 @@ loginForm?.addEventListener(
       }
 
 
-      await showAdmin(
+      await enforceMfa(
         profile,
         data.user
       );
@@ -521,6 +759,136 @@ loginForm?.addEventListener(
 
       setAuthBusy(false);
     }
+  }
+);
+
+
+
+mfaForm?.addEventListener(
+  'submit',
+  async event=>{
+
+    event.preventDefault();
+
+    const code=
+      String(mfaCode?.value || '')
+        .replace(/\D/g,'')
+        .slice(0,6);
+
+    if(!/^\d{6}$/.test(code)){
+
+      mfaStatus(
+        'Digite os 6 dígitos exibidos no aplicativo autenticador.'
+      );
+
+      return;
+    }
+
+    if(
+      !pendingMfaFactorId ||
+      !pendingMfaChallengeId ||
+      !pendingMfaProfile ||
+      !pendingMfaUser
+    ){
+
+      mfaStatus(
+        'A verificação expirou. Entre novamente.'
+      );
+
+      return;
+    }
+
+    setMfaBusy(true);
+    mfaStatus('');
+
+    try{
+
+      const {
+        error
+      }=
+        await sb.auth.mfa.verify({
+          factorId:pendingMfaFactorId,
+          challengeId:pendingMfaChallengeId,
+          code
+        });
+
+      if(error){
+        throw error;
+      }
+
+      const {
+        data:aal,
+        error:aalError
+      }=
+        await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+
+      if(
+        aalError ||
+        aal?.currentLevel!=='aal2'
+      ){
+
+        throw aalError || new Error('aal2_not_reached');
+      }
+
+      const profile=pendingMfaProfile;
+      const user=pendingMfaUser;
+
+      clearMfaState();
+
+      await showAdmin(
+        profile,
+        user
+      );
+
+    }catch(error){
+
+      console.error(error);
+
+      mfaStatus(
+        'Código inválido ou expirado. Gere um novo código no autenticador e tente novamente.'
+      );
+
+    }finally{
+
+      setMfaBusy(false);
+    }
+  }
+);
+
+
+mfaCancel?.addEventListener(
+  'click',
+  async()=>{
+
+    const factorId=
+      pendingMfaEnrollment
+        ?pendingMfaFactorId
+        :null;
+
+    if(factorId){
+
+      try{
+        await sb.auth.mfa.unenroll({
+          factorId
+        });
+      }catch(error){
+        console.error(error);
+      }
+    }
+
+    try{
+      await sb.auth.signOut();
+    }catch(error){
+      console.error(error);
+    }
+
+    panelInitialized=false;
+    currentProfile=null;
+    currentUser=null;
+
+    showLogin(
+      'Acesso cancelado.'
+    );
   }
 );
 
