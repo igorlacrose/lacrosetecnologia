@@ -115,3 +115,18 @@ test('auditoria exige MFA e nunca aceita tenant malformado',async()=>{
   await client.signIn('mfa@example.invalid','senha');
   await assert.rejects(client.readAudit('12345678-1234-4234-8234-123456789abc'),/MFA/);
 });
+
+test('native browser-style fetch keeps its global receiver',async()=>{
+ const original=globalThis.fetch;
+ let requests=0;
+ globalThis.fetch=function(url,init){
+   assert.equal(this,globalThis,'fetch must keep Window/global receiver');
+   requests++;
+   return Promise.resolve({ok:true,status:200,json:async()=>({access_token:'a.b.c',refresh_token:'testrefresh',expires_in:3600,user:{id:'u',email:'account@example.com'}})});
+ };
+ try{
+   const client=new CloudAccess();
+   await client.signIn('account@example.com','test-only');
+   assert.equal(requests,1);
+ }finally{globalThis.fetch=original;}
+});
