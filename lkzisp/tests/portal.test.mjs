@@ -34,3 +34,12 @@ test('CSP restritiva e interface responsiva',()=>{
  assert.match(html,/style-src 'self'/);
  assert.match(css,/@media\(max-width:800px\)/);
 });
+
+
+test('MFA consulta fatores pelo usuario autenticado, nao pela rota 422',()=>{
+ assert.match(js,/await api\('\/auth\/v1\/user'\)/);
+ assert.doesNotMatch(js,/api\('\/auth\/v1\/factors'\)/);
+ assert.match(js,/d\.factors/);
+ assert.match(js,/status==='verified'/);
+ assert.match(js,/autenticador já está ativo/);
+});
