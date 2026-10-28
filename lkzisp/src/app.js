@@ -49,7 +49,7 @@ function getMenu(){
   <div class="logo">${state.brand.logo?`<img class="brand-logo" src="${state.brand.logo}" alt="Logotipo da empresa">`:`LKZ<span class="mark">ISP</span>`}<small>${esc(state.brand.name)}</small></div>
   <div class="side-heading">GESTÃO E INTELIGÊNCIA</div>
   <nav aria-label="Navegação principal">${items.map(([view,icon,label])=>`<button class="side-link ${state.view===view?'active':''}" data-view="${view}">${ic(icon)}<span>${esc(label)}</span></button>`).join('')}</nav>
-  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · V1.0</div></div>
+  <div class="side-bottom"><div class="mini">PROJETO</div><strong><span class="status-dot"></span>${esc(state.brand.name)}</strong><div class="tiny" style="color:#9cafc2">Gestão na nuvem · ${canAdministerLocalWorkspace()?'V1.0':'V1.3'}</div></div>
  </aside>`;
 }
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
@@ -216,10 +216,12 @@ function imports(){return heading('Importar relatório','XLSX/CSV do IXC · proc
  <section class="card card-pad" style="margin-top:17px"><div class="section-head"><div><h2>Histórico na nuvem</h2><p>Indicadores persistidos e recuperados do ambiente de gestão</p></div></div>${state.snapshots.length?`<div class="timeline">${state.snapshots.map(s=>`<div class="timeline-row"><span><strong>${esc(s.source)}</strong><br/><span class="tiny muted">${esc(new Date(s.importedAt).toLocaleString('pt-BR'))} · ${fmt(s.total)} registros</span></span><button class="btn" data-snapshot="${esc(s.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="muted">Nenhum indicador foi gravado para esta empresa no ambiente seguro.</p>'}</section>`;
 }
 function reports(){const s=current();return heading('Relatórios executivos','Imprima ou exporte somente indicadores autorizados para sua conta.',false)+(!s?'<section class="card card-pad"><h2>Nenhum relatório disponível</h2><p class="muted">Aguarde a importação autorizada de indicadores.</p></section>':dataBanner()+
- '<section class="card card-pad executive-report"><div class="section-head"><div><h2>Resumo operacional consolidado</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
+ '<section class="card card-pad executive-report"><div class="section-head"><div><h2>'+ (sectorMode()?'Relatório do meu setor':'Resumo operacional consolidado')+'</h2><p>Referência: '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'</p></div></div>'+
  '<div class="cards">'+cardKpi('Atendimentos',fmt(s.total),'Total','activity')+cardKpi('Concluídos',fmt(s.finalized),pct(s.finalized,s.total),'check','green')+cardKpi('Pendentes',fmt(s.pending),'Não finalizados','clock','orange')+'</div>'+
- '<h3>Distribuição por setor</h3>'+pendingTable(sorted(s.sectors,'total'),50)+
- '<p class="footnote">Dados consolidados da exportação, não representam informações em tempo real. Relatório sem dados pessoais.</p></section>'+
+ '<div class="grid-2"><section><h3>Conclusão dos atendimentos</h3>'+donut(s)+'</section>'+
+ (sectorMode()?'': '<section><h3>Movimento do período</h3>'+dailyChart(s)+'</section>')+'</div>'+
+ '<h3>'+ (sectorMode()?'Meu setor':'Distribuição por setor')+'</h3>'+pendingTable(sorted(s.sectors,'total'),50)+
+ '<p class="footnote">Fonte: exportação do IXC. Gerado a partir do relatório autorizado em '+esc(s.earliest||'—')+' a '+esc(s.latest||'—')+'. Não representa dados em tempo real nem avaliação individual.</p></section>'+
  '<div class="action-row executive-report-actions"><button class="btn primary" data-action="print-report">Imprimir / salvar PDF</button><button class="btn" data-action="export">Baixar CSV</button></div>');
 }
 function access(){
@@ -385,6 +387,21 @@ async function loadInvitations(){
  finally{cloudUi.invitationsLoading=false;render();}
 }
 function cloudPage(){
+ if(cloud.hasSession&&cloud.aal==='aal2'&&(executiveMode()||sectorMode())){
+  const profile=activeRole();
+  const roleNames={gestor:'Gestor',administrador:'Administrador',lider_setor:'Líder de setor',financeiro:'Financeiro'};
+  const selections=cloudUi.memberships.filter(m=>['gestor','administrador','lider_setor','financeiro'].includes(m.role));
+  return heading('Minha conta','Acesso seguro e informações da sua sessão.',false)+
+   '<section class="card card-pad" style="max-width:750px">'+
+   '<h2>Seu acesso está protegido</h2><p>'+esc(cloud.email||'')+'</p>'+
+   '<div class="safe-list"><div>'+ic('check')+'<span>Autenticação de dois fatores confirmada</span></div>'+
+   '<div>'+ic('lock')+'<span>Perfil: <strong>'+esc(roleNames[profile]||profile)+'</strong></span></div>'+
+   '<div>'+ic('cloud')+'<span>Indicadores filtrados pelo servidor, conforme sua permissão</span></div></div>'+
+   (selections.length>1?'<label class="field">Empresa ativa<select id="active-tenant">'+
+    selections.map(m=>'<option value="'+esc(m.tenant_id)+'" '+(m.tenant_id===state.selectedTenant?'selected':'')+'>'+esc(roleNames[m.role]||m.role)+'</option>').join('')+
+    '</select></label>':'')+
+   '<div class="executive-actions"><button class="btn" data-cloud="logout">Encerrar minha sessão</button></div></section>';
+ }
  const logged=cloud.hasSession,verified=cloud.aal==='aal2';
  const name=esc(cloud.email||'—');
  return heading('Conta e Nuvem','Autenticação real no ambiente exclusivo: MFA obrigatório para leitura por empresa/setor.',false)+
