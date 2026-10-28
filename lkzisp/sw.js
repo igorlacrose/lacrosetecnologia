@@ -1,8 +1,8 @@
 /* Apenas recursos estáticos podem ser armazenados offline.
  * Nunca interceptar endpoints, dados empresariais, documentos ou respostas autenticadas.
  */
-const CACHE='lkz-isp-static-v100';
-const ASSETS=['./','./index.html','./styles.css?v=100','./src/app.js','./src/cloud-auth.js','./src/trusted-session.js','./src/engine.js','./src/employee-analytics.js','./src/quality.js','./src/importer.js','./src/db.js','./src/roles.js','./src/branding.js','./src/backup.js','./src/offline-crypto.js','./assets/jszip.min.js','./assets/icon.svg','./manifest.webmanifest'];
+const CACHE='lkz-isp-static-v110';
+const ASSETS=['./','./index.html','./styles.css?v=110','./src/app.js','./src/cloud-auth.js','./src/trusted-session.js','./src/engine.js','./src/employee-analytics.js','./src/quality.js','./src/importer.js','./src/db.js','./src/roles.js','./src/branding.js','./src/backup.js','./src/offline-crypto.js','./assets/jszip.min.js','./assets/icon.svg','./manifest.webmanifest'];
 const staticURLs = new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('lkz-isp-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
