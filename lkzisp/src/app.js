@@ -6,7 +6,7 @@ import {getAllSnapshots,saveSnapshot,deleteSnapshots,getSetting,saveSetting} fro
 import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
-import {CloudAccess} from './cloud-auth.js?v=120';
+import {CloudAccess} from './cloud-auth.js?v=130';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
