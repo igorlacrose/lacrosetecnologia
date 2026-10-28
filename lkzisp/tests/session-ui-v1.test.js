@@ -42,7 +42,7 @@ test('login premium em tela inteira, campos visiveis no mobile e saida segura',(
  assert.match(app,/document\.addEventListener\('visibilitychange'/);
  assert.match(css,/\.auth-layout\{display:grid/);
  assert.match(css,/@media\(max-width:900px\)/);
- assert.match(html,/styles\.css\?v=130/);
+ assert.match(html,/styles\.css\?v=131/);
  assert.doesNotMatch(html,/name="description"[^>]*Supabase/i);
 });
 test('area de usuarios e regras de cadastro por papel',()=>{
