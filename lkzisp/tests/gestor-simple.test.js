@@ -70,7 +70,7 @@ test('visão clássica e configurações sensíveis são preservadas como altern
  assert.match(app,/submitExecutiveReview\(reason\)/);
  assert.match(app,/cloud\.reviewSnapshot\(tenantId,s\.id,decision,reason\)/);
  assert.match(app,/function executiveDashboard\(/);
- assert.match(sw,/lkz-isp-static-v136/);
+ assert.match(sw,/lkz-isp-static-v137/);
  assert.match(sw,/gestor-simple\.css/);
  assert.match(auth,/this\.aal!=='aal2'/);
 });
