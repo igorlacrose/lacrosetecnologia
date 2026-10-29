@@ -57,7 +57,9 @@ test('cidade e setor são filtros independentes: nunca inventa interseção',()=
 test('sem relatório: não apresenta dados fictícios nem decisões no servidor',()=>{
  const ui=mockUI();mountGestorSimple(ui.host,fixture({snapshot:null}),handlers);
  assert.match(ui.node('.preview-tag').textContent,/SEM RELATÓRIOS/);
- assert.match(ui.node('#content').innerHTML,/0/);
+ assert.match(ui.node('#content').innerHTML,/Aguardando indicadores da empresa/);
+ assert.match(ui.node('#content').innerHTML,/Atualizar indicadores/);
+ assert.doesNotMatch(ui.node('#content').innerHTML,/class="metric-grid"/);
 });
 
 test('visão clássica e configurações sensíveis são preservadas como alternativa',()=>{
@@ -65,6 +67,10 @@ test('visão clássica e configurações sensíveis são preservadas como altern
  const auth=readFileSync(new URL('../src/cloud-auth.js',import.meta.url),'utf8');
  const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  assert.match(app,/SIMPLE_GESTOR_DEFAULT=true/);
+ assert.match(app,/function simpleManagerMode\(\)\{return !classicManagerUi && executiveMode\(\) && isMfaLinked\(\);\}/);
+ assert.match(app,/data-lkz-build|dataset\.lkzBuild/);
+ assert.match(app,/sw\.js\?v=137/);
+ assert.match(app,/updateViaCache:'none'/);
  assert.match(app,/data-manager-simple/);
  assert.match(app,/classicManagerUi=true/);
  assert.match(app,/submitExecutiveReview\(reason\)/);
