@@ -69,14 +69,14 @@ test('visão clássica e configurações sensíveis são preservadas como altern
  assert.match(app,/SIMPLE_GESTOR_DEFAULT=true/);
  assert.match(app,/function simpleManagerMode\(\)\{return !classicManagerUi && executiveMode\(\) && isMfaLinked\(\);\}/);
  assert.match(app,/data-lkz-build|dataset\.lkzBuild/);
- assert.match(app,/sw\.js\?v=137/);
+ assert.match(app,/sw\.js\?v=138/);
  assert.match(app,/updateViaCache:'none'/);
  assert.match(app,/data-manager-simple/);
  assert.match(app,/classicManagerUi=true/);
  assert.match(app,/submitExecutiveReview\(reason\)/);
  assert.match(app,/cloud\.reviewSnapshot\(tenantId,s\.id,decision,reason\)/);
  assert.match(app,/function executiveDashboard\(/);
- assert.match(sw,/lkz-isp-static-v137/);
+ assert.match(sw,/lkz-isp-static-v138/);
  assert.match(sw,/gestor-simple\.css/);
  assert.match(auth,/this\.aal!=='aal2'/);
 });
