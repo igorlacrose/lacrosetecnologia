@@ -1,0 +1,9 @@
+{
+  "name":"lkz-ixc-readonly-connector",
+  "private":true,
+  "version":"0.1.0",
+  "type":"module",
+  "engines":{"node":">=22"},
+  "scripts":{"inspect":"node src/cli.mjs","test":"node --test test/*.test.mjs"},
+  "dependencies":{"mysql2":"3.24.6"}
+}
