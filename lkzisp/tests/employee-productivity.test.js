@@ -65,7 +65,7 @@ test('UI não contém bloqueio LGPD e confirma consulta separada por MFA',()=>{
  assert.match(auth,/lkz_isp_employee_metrics/);
  assert.match(auth,/lkz_isp_save_snapshot_with_employees/);
  assert.match(auth,/this\.aal!=='aal2'/);
- assert.match(sw,/lkz-isp-static-v137/);
+ assert.match(sw,/lkz-isp-static-v138/);
  assert.match(sw,/src\/employee-analytics\.js/);
  assert.doesNotMatch(app,/análise individual está bloqueada neste protótipo/);
 });
