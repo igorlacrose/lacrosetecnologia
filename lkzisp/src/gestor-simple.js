@@ -2,9 +2,16 @@
    Não faz requisições HTTP: recebe exclusivamente resumos já autorizados. */
 export const gestorSimpleState={city:'',sector:'',view:'home',choice:'',reason:'',sending:false,context:null};
 export function mountGestorSimple(host,model,handlers){
- if(!model||!model.mfaConfirmed||!['gestor','administrador'].includes(model.role))throw Error('Gestor exige MFA e vínculo válido.');
+ const previewMode=model?.previewMode===true;
+ if(!model?.mfaConfirmed||!(previewMode?model.role==='master':['gestor','administrador'].includes(model.role)))
+   throw Error('Gestor exige MFA e vínculo válido. Prévia MASTER exige perfil MASTER autenticado.');
  const root=host.attachShadow({mode:'open'});
- root.innerHTML="<link rel=\"stylesheet\" href=\"./src/gestor-simple.css?v=137\">\n<header><div class=\"container\"><div class=\"brand\"><div class=\"brand-symbol\">LKZ<span>ISP</span></div><div class=\"brand-copy\"><strong>Intelligence</strong><small>Painel do Gestor</small></div></div><div class=\"top-right\"><span class=\"preview-tag\">SESSÃO SEGURA</span><button class=\"top-account\" data-go=\"conta\" aria-label=\"Abrir Minha conta\"><span class=\"inline-icon\" id=\"account-icon\"></span><span>Minha conta</span></button></div></div></header>\n<main class=\"container\"><div class=\"hero\"><div class=\"hero-row\"><div><div class=\"eyebrow\">LKZ ISP · GESTÃO SEM COMPLICAÇÃO</div><h1 id=\"hero-title\">Olá, Gestor! 👋</h1><p id=\"hero-copy\">Escolha o que deseja acompanhar. Toque nos botões e veja os resultados sem complicação.</p></div><div class=\"hero-icon\" id=\"hero-icon\" aria-hidden=\"true\"></div></div></div>\n<div class=\"filter-shell\"><div class=\"filter-row\"><div class=\"filter-group\"><label for=\"city\">Cidade</label><select id=\"city\" aria-label=\"Filtrar cidade\"><option value=\"\">Todas as cidades</option><option>Jequié</option><option>Ipiaú</option><option>Itagibá</option><option>Jitaúna</option></select></div><div class=\"filter-group\"><label for=\"sector\">Setor</label><select id=\"sector\" aria-label=\"Filtrar setor\"><option value=\"\">Todos os setores</option><option>Atendimento</option><option>NOC</option><option>Suporte N2</option><option>Técnicos</option></select></div><button class=\"small-clear\" data-action=\"clear-filters\">Limpar filtros</button></div><div class=\"filter-note\" id=\"filter-note\" aria-live=\"polite\"></div></div>\n<div id=\"content\" aria-live=\"polite\"></div>\n<footer class=\"footer-note\"><strong>LKZ ISP Intelligence</strong> · Indicadores consolidados autorizados e avaliações auditadas.<br><a href=\"https://lacrosetecnologia.com.br/\" target=\"_blank\" rel=\"noopener noreferrer\">Desenvolvido por Lacrose Tecnologia</a></footer></main>\n";
+ root.innerHTML="<link rel=\"stylesheet\" href=\"./src/gestor-simple.css?v=138\">\n<header><div class=\"container\"><div class=\"brand\"><div class=\"brand-symbol\">LKZ<span>ISP</span></div><div class=\"brand-copy\"><strong>Intelligence</strong><small>Painel do Gestor</small></div></div><div class=\"top-right\"><span class=\"preview-tag\">SESSÃO SEGURA</span><button class=\"top-account\" data-go=\"conta\" aria-label=\"Abrir Minha conta\"><span class=\"inline-icon\" id=\"account-icon\"></span><span>Minha conta</span></button></div></div></header>\n<main class=\"container\"><div class=\"hero\"><div class=\"hero-row\"><div><div class=\"eyebrow\">LKZ ISP · GESTÃO SEM COMPLICAÇÃO</div><h1 id=\"hero-title\">Olá, Gestor! 👋</h1><p id=\"hero-copy\">Escolha o que deseja acompanhar. Toque nos botões e veja os resultados sem complicação.</p></div><div class=\"hero-icon\" id=\"hero-icon\" aria-hidden=\"true\"></div></div></div>\n<div class=\"filter-shell\"><div class=\"filter-row\"><div class=\"filter-group\"><label for=\"city\">Cidade</label><select id=\"city\" aria-label=\"Filtrar cidade\"><option value=\"\">Todas as cidades</option><option>Jequié</option><option>Ipiaú</option><option>Itagibá</option><option>Jitaúna</option></select></div><div class=\"filter-group\"><label for=\"sector\">Setor</label><select id=\"sector\" aria-label=\"Filtrar setor\"><option value=\"\">Todos os setores</option><option>Atendimento</option><option>NOC</option><option>Suporte N2</option><option>Técnicos</option></select></div><button class=\"small-clear\" data-action=\"clear-filters\">Limpar filtros</button></div><div class=\"filter-note\" id=\"filter-note\" aria-live=\"polite\"></div></div>\n<div id=\"content\" aria-live=\"polite\"></div>\n<footer class=\"footer-note\"><strong>LKZ ISP Intelligence</strong> · Indicadores consolidados autorizados e avaliações auditadas.<br><a href=\"https://lacrosetecnologia.com.br/\" target=\"_blank\" rel=\"noopener noreferrer\">Desenvolvido por Lacrose Tecnologia</a></footer></main>\n";
+ if(previewMode){
+   // Faixa claramente identificada, sem alteração de papéis nem impersonação.
+   root.innerHTML=root.innerHTML.replace('</header>',
+    '</header><div class="master-preview-banner" role="status"><span><strong>Pré-visualização MASTER</strong> · Somente leitura. Você continua autenticado como MASTER.</span><button type="button" data-action="master-return">Voltar ao painel MASTER</button></div>');
+ }
  const $=s=>root.querySelector(s);
  const snap=model.snapshot||null;
  const state=gestorSimpleState;
@@ -47,6 +54,16 @@ function pendencias(){const s=summary();const critical=s.pending&&s.old!==null?p
 <div class="secondary-grid" style="margin-top:17px"><section class="surface"><h3>Onde agir primeiro</h3><p><strong>${fmt(s.old)}</strong> pendências estão abertas há mais de sete dias.</p><div class="progress alt"><span style="width:${critical}%"></span></div><div class="stat-sub">${critical}% das pendências são antigas.</div><div class="hint" style="margin-top:18px">Esses números indicam pontos de atenção. Não atribuem responsabilidade pessoal e não mostram dados individuais de clientes.</div></section><section class="surface"><h3>Por cidade</h3><p>Toque para concentrar a análise.</p>${list('city','pending','em aberto')}</section></div><section class="surface"><h3>Por setor</h3>${list('sector','pending','em aberto')}</section><div class="button-row"><button class="btn secondary" data-go="avaliacoes">${ico('clipboard')} Ir para avaliação de resultados</button></div>`}
 
  function avaliacoes(){
+ if(previewMode){
+   const s=allSummary();
+   return `${section('Avaliar resultado','Prévia do fluxo de avaliação. Nenhuma decisão pode ser registrada.',true)}
+    <section class="surface"><h3>Como o Gestor visualiza o relatório</h3>
+    <p>Relatório: ${safe(snap?.earliest||'—')} a ${safe(snap?.latest||'—')}</p>
+    ${snap?`<div class="metric-grid">${metric('Atendimentos',fmt(s.total),'users','atendimentos')}${metric('Concluídos',fmt(s.completed),'check','atendimentos')}${metric('Pendentes',fmt(s.pending),'clock','pendencias')}</div>`:'<p>Sem indicadores disponíveis.</p>'}
+    <div class="pending-filter-notice"><strong>Somente visualização:</strong> os botões de aprovação ficam bloqueados nesta prévia. Nenhuma decisão é enviada ao Supabase.</div>
+    <div class="approval-grid"><button class="choice approve" type="button" disabled>Aprovar relatório · indisponível</button><button class="choice reject" type="button" disabled>Reprovar relatório · indisponível</button></div>
+    </section>`;
+ }
  const s=allSummary(),review=model.review;
  return `${section('Avaliar resultado','Decisão sobre o relatório completo com justificativa e auditoria.',true)}
  <section class="surface"><h3>Relatório autorizado</h3><p>${safe(snap?.earliest||'—')} até ${safe(snap?.latest||'—')} · ${safe(snap?.source||'Nenhum relatório')}</p>
@@ -67,11 +84,14 @@ function pendencias(){const s=summary();const critical=s.pending&&s.old!==null?p
  ${snap?`<div class="metric-grid" style="margin:18px 0">${metric('Atendimentos',fmt(s.total),'users','atendimentos')}${metric('Concluídos',fmt(s.completed),'check','atendimentos')}${metric('Pendentes',fmt(s.pending),'clock','pendencias')}${metric('Antigos +7 dias',fmt(s.old),'alert','pendencias')}</div>
  ${state.city?'<p class="note">O relatório não contém o cruzamento cidade × setor. A distribuição por setor não pode ser exibida com filtro de cidade.</p>':
  `<h3>Resumo por setor</h3><div class="table-wrap"><table><thead><tr><th>Setor</th><th>Atendimentos</th><th>Concluídos</th><th>Pendentes</th></tr></thead><tbody>${groups.map(([n,g])=>`<tr><td>${safe(n)}</td><td>${fmt(g.total)}</td><td>${fmt(g.finalized)}</td><td>${fmt(g.pending)}</td></tr>`).join('')}</tbody></table></div>`}
- <div class="button-row"><button class="btn" data-action="print">${ico('file')} Imprimir / salvar PDF</button><button class="btn secondary" data-action="csv">${ico('download')} Exportar CSV</button></div>
+ <div class="button-row"><button class="btn" data-action="print" ${previewMode?'disabled':''}>${ico('file')} Imprimir / salvar PDF</button><button class="btn secondary" data-action="csv" ${previewMode?'disabled':''}>${ico('download')} Exportar CSV</button></div>
  <p class="stat-sub">Indicadores autorizados do relatório importado. Não representam dados em tempo real.</p>`:'<p>Nenhum relatório autorizado para esta empresa.</p>'}
  </section>`;
 }
  function conta(){
+ if(previewMode)return `${section('Prévia do perfil Gestor','Você permanece MASTER; este acesso não altera sua conta.',true)}
+ <section class="surface"><h3>Simulação visual segura</h3><p>O Gestor vê seus indicadores e relatórios autorizados. Nesta prévia, nenhuma decisão, exportação ou alteração é permitida.</p>
+ <div class="button-row"><button class="btn" data-action="master-return">Voltar ao painel MASTER</button><button class="btn secondary" data-action="refresh">Atualizar indicadores</button></div></section>`;
  return `${section('Minha conta','Seu perfil, segurança e preferências.',true)}
  <div class="secondary-grid"><section class="surface"><h3>Perfil de acesso</h3><p><strong>${safe(model.role==='administrador'?'Administrador':'Gestor')}</strong> · ${safe(model.email)}</p><div class="note">${ico('shield')} Acesso restrito por empresa com MFA e permissões no servidor.</div></section>
  <section class="surface"><h3>O que posso fazer?</h3><div class="group-list"><div class="group-row">${ico('check')} Consultar indicadores consolidados</div><div class="group-row">${ico('check')} Aprovar ou reprovar relatórios com justificativa</div><div class="group-row">${ico('check')} Exportar relatórios autorizados</div><div class="group-row">${ico('shield')} Sem importação ou administração MASTER</div></div></section></div>
@@ -97,8 +117,8 @@ function pendencias(){const s=summary();const critical=s.pending&&s.old!==null?p
  $('#city').innerHTML='<option value="">Todas as cidades</option>'+cities.map(x=>`<option value="${safe(x)}">${safe(x)}</option>`).join('');
  $('#sector').innerHTML='<option value="">Todos os setores</option>'+sectors.map(x=>`<option value="${safe(x)}">${safe(x)}</option>`).join('');
  $('#city').value=state.city;$('#sector').value=state.sector;
- $('.preview-tag').textContent=snap?'DADOS IMPORTADOS · MFA':'SEM RELATÓRIOS';
- $('.brand-copy small').textContent=(model.role==='administrador'?'Painel do Administrador':'Painel do Gestor')+' · v'+String(model.build||'137');
+ $('.preview-tag').textContent=previewMode?'PRÉVIA MASTER · LEITURA':(snap?'DADOS IMPORTADOS · MFA':'SEM RELATÓRIOS');
+ $('.brand-copy small').textContent=(previewMode?'Prévia do Gestor':(model.role==='administrador'?'Painel do Administrador':'Painel do Gestor'))+' · v'+String(model.build||'138');
  const filter=(k,v)=>{if(v&&!(k==='city'?cities:sectors).includes(v))return;state[k]=v;const other=k==='city'?'sector':'city';state[other]='';$('#'+k).value=v;$('#'+other).value='';state.choice='';state.reason='';renderSimple();};
  $('#city').addEventListener('change',e=>filter('city',e.target.value));
  $('#sector').addEventListener('change',e=>filter('sector',e.target.value));
@@ -109,16 +129,17 @@ function pendencias(){const s=summary();const critical=s.pending&&s.old!==null?p
  if(b.hasAttribute('data-go')){if(!['home','atendimentos','pendencias','avaliacoes','relatorios','conta','diagnosis'].includes(b.dataset.go))return;state.view=b.dataset.go;state.choice='';state.reason='';renderSimple();window.scrollTo({top:0,behavior:'instant'});return;}
  if(b.hasAttribute('data-filter-city')){filter('city',b.dataset.filterCity);return;}
  if(b.hasAttribute('data-filter-sector')){filter('sector',b.dataset.filterSector);return;}
- if(b.hasAttribute('data-choice')){if(!snap||model.review)return;state.choice=b.dataset.choice;state.reason='';renderSimple();$('#review-reason')?.focus();return;}
+ if(b.hasAttribute('data-choice')){if(previewMode||!snap||model.review)return;state.choice=b.dataset.choice;state.reason='';renderSimple();$('#review-reason')?.focus();return;}
  const action=b.dataset.action;
  if(action==='clear-filters'){filter('city','');filter('sector','');return;}
  if(action==='cancel-review'){state.choice='';state.reason='';renderSimple();return;}
- if(action==='confirm-review'){state.reason=$('#review-reason')?.value?.trim()||'';if(!snap||model.review||!['approve','reject'].includes(state.choice)||state.reason.length<20||state.reason.length>2000){$('#review-reason')?.focus();return;}state.sending=true;b.disabled=true;try{await handlers.review(state.choice,state.reason);state.choice='';state.reason='';}finally{state.sending=false;}return;}
- if(action==='print'){if(snap)window.print();return;}
- if(action==='csv'){if(snap)handlers.export({city:state.city,sector:state.sector});return;}
- if(action==='classic'){handlers.classic();return;}
+ if(action==='confirm-review'){if(previewMode)return;state.reason=$('#review-reason')?.value?.trim()||'';if(!snap||model.review||!['approve','reject'].includes(state.choice)||state.reason.length<20||state.reason.length>2000){$('#review-reason')?.focus();return;}state.sending=true;b.disabled=true;try{await handlers.review(state.choice,state.reason);state.choice='';state.reason='';}finally{state.sending=false;}return;}
+ if(action==='print'){if(!previewMode&&snap)window.print();return;}
+ if(action==='csv'){if(!previewMode&&snap)handlers.export({city:state.city,sector:state.sector});return;}
+ if(action==='classic'){if(!previewMode)handlers.classic();return;}
+ if(action==='master-return'){if(previewMode)handlers.returnMaster();return;}
  if(action==='refresh'){handlers.refresh();return;}
- if(action==='logout'){handlers.logout();return;}
+ if(action==='logout'){if(!previewMode)handlers.logout();return;}
  });
  renderSimple();
 }
