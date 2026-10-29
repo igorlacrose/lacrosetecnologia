@@ -847,7 +847,7 @@ async function init(){
  try{const setting=await getSetting('cost');if(setting?.value)state.cost={...sampleCost,...setting.value};}
  catch{state.cost={...sampleCost};}
  if(!state.cloudReady){state.snapshots=[];state.snapshot=null;}
- render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js?v=137',{updateViaCache:'none'}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
+ render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js?v=138',{updateViaCache:'none'}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
 }
 async function verifyInactivity(){
  if(sessionEnding||!cloud.hasSession)return;
