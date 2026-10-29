@@ -1,3 +1,4 @@
+import {withinDeadline} from './deadline.mjs';
 // Exclusivamente metadados do INFORMATION_SCHEMA: não ler linhas operacionais do IXC.
 export const LIMITS=Object.freeze({tables:1200,columns:15000});
 export const TABLES_SQL='SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME ASC LIMIT ?';
@@ -40,14 +41,21 @@ export function buildDiscovery(tables,columns,database){
   structure:[...indexed.values()].filter(x=>x.areas.length).sort((a,b)=>a.name.localeCompare(b.name))
  };
 }
-export async function inspectReadOnly(conn,database){
+export async function inspectReadOnly(conn,database,{queryTimeoutMs=10000,signal,onTimeout=()=>conn.destroy?.()}={}){
  if(typeof database!=='string'||!database)throw Error('Banco ausente.');
- await conn.query('START TRANSACTION READ ONLY');
+ let started=false,expired=false;
+ const run=operation=>withinDeadline(operation,queryTimeoutMs,{signal,onTimeout:error=>{
+  expired=true;onTimeout(error);
+ }});
  try{
-  const [tls]=await conn.query("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
+  await run(()=>conn.query('START TRANSACTION READ ONLY'));
+  started=true;
+  const [tls]=await run(()=>conn.query("SHOW SESSION STATUS LIKE 'Ssl_cipher'"));
   if(!Array.isArray(tls)||!tls[0]?.Value)throw Error('TLS não confirmado. Inspeção interrompida.');
-  const [tables]=await conn.execute(TABLES_SQL,[database,LIMITS.tables]);
-  const [columns]=await conn.execute(COLUMNS_SQL,[database,LIMITS.columns]);
+  const [tables]=await run(()=>conn.execute(TABLES_SQL,[database,LIMITS.tables]));
+  const [columns]=await run(()=>conn.execute(COLUMNS_SQL,[database,LIMITS.columns]));
   return buildDiscovery(tables,columns,database);
- }finally{await conn.query('ROLLBACK');}
+ }finally{
+  if(started&&!expired&&!signal?.aborted)await run(()=>conn.query('ROLLBACK'));
+ }
 }
