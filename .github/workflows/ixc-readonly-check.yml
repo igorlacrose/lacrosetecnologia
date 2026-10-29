@@ -1,0 +1,37 @@
+name: LKZ IXC Readonly Connector Tests
+
+on:
+  push:
+    paths:
+      - 'backend/ixc-connector/**'
+      - '.github/workflows/ixc-readonly-check.yml'
+  pull_request:
+    paths:
+      - 'backend/ixc-connector/**'
+      - '.github/workflows/ixc-readonly-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Teste estático e sintaxe
+        run: |
+          node --check backend/ixc-connector/src/config.mjs
+          node --check backend/ixc-connector/src/schema.mjs
+          node --check backend/ixc-connector/src/cli.mjs
+          node --test backend/ixc-connector/test/*.test.mjs
+      - name: Proibir TLS inseguro e inclusão no frontend
+        run: |
+          if grep -REq 'rejectUnauthorized:[[:space:]]*false|multipleStatements:[[:space:]]*true|curl[[:space:]]+.*3306' backend/ixc-connector/src; then
+            echo "Unsafe connector setting"; exit 1
+          fi
+          if grep -Rq 'ixc-connector' lkzisp/index.html lkzisp/src; then
+            echo "Backend referenced from static frontend"; exit 1
+          fi
