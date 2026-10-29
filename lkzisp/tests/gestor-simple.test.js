@@ -29,6 +29,68 @@ test('gestor exige MFA AAL2 e vínculo de gestor/admin, não admite master',()=>
  }
 });
 
+
+test('MASTER sem MFA ou Gestor tentando prévia MASTER são recusados',()=>{
+ for(const model of [
+  fixture({role:'master',previewMode:true,mfaConfirmed:false}),
+  fixture({role:'gestor',previewMode:true}),
+  fixture({role:'administrador',previewMode:true}),
+  fixture({role:'master',previewMode:false})
+ ]){
+  assert.throws(()=>mountGestorSimple(mockUI().host,model,handlers),/MFA e vínculo/);
+ }
+});
+
+test('MASTER autorizado vê painel do Gestor em prévia marcada, sem ações de gravação',async()=>{
+ const ui=mockUI();
+ let reviewCalls=0,exportCalls=0,classicCalls=0,returns=0,logoutCalls=0;
+ mountGestorSimple(ui.host,fixture({role:'master',previewMode:true,build:'138'}),{
+  review:async()=>{reviewCalls++;},
+  export:()=>{exportCalls++;},
+  classic:()=>{classicCalls++;},
+  returnMaster:()=>{returns++;},
+  logout:()=>{logoutCalls++;},
+  refresh:()=>{},switchTenant:()=>{}
+ });
+ assert.match(ui.root.innerHTML,/Pré-visualização MASTER/);
+ assert.match(ui.root.innerHTML,/Somente leitura/);
+ assert.match(ui.root.innerHTML,/Voltar ao painel MASTER/);
+ assert.match(ui.node('.preview-tag').textContent,/PRÉVIA MASTER/);
+ assert.match(ui.node('#content').innerHTML,/100/);
+ const click=async(attr,val)=>{
+  const data={};data[attr.replace('data-','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=val;
+  const button={dataset:data,disabled:false,hasAttribute:key=>key===attr};
+  await ui.root.listeners.click({target:{closest:()=>button}});
+ };
+ await click('data-go','avaliacoes');
+ assert.match(ui.node('#content').innerHTML,/Aprovar relatório · indisponível/);
+ assert.match(ui.node('#content').innerHTML,/Reprovar relatório · indisponível/);
+ await click('data-choice','approve');
+ await click('data-action','confirm-review');
+ await click('data-action','csv');
+ await click('data-action','print');
+ await click('data-action','logout');
+ assert.equal(reviewCalls,0);
+ assert.equal(exportCalls,0);
+ assert.equal(logoutCalls,0);
+ await click('data-action','master-return');
+ assert.equal(returns,1);
+ assert.equal(classicCalls,0);
+});
+
+test('botão de prévia no MASTER depende do vínculo do tenant e reverte sem mexer na conta',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ assert.match(app,/function canPreviewGestorAsMaster\(\)/);
+ assert.match(app,/m\.tenant_id===state\.selectedTenant && m\.role==='master'/);
+ assert.match(app,/data-manager-preview="open"/);
+ assert.match(app,/masterGestorPreview=false/);
+ assert.match(app,/renderSimpleManager\(true\)/);
+ assert.match(app,/previewMode\|\|!simpleManagerMode\(\)/);
+ assert.match(app,/returnMaster:\(\)=>/);
+ assert.match(app,/masterGestorPreview=false;state.view='dashboard';render\(\)/);
+ assert.match(app,/const LKZ_BUILD='138'/);
+});
+
 test('layout aprovado preserva botões grandes sem sidebar e exibe indicadores reais do servidor',()=>{
  const ui=mockUI();
  mountGestorSimple(ui.host,fixture(),handlers);
