@@ -14,3 +14,12 @@ main{padding:30px 0 60px}.hero{position:relative;overflow:hidden;background:line
 @media print{header,.hero,.filter-shell,.footer-note,.button-row,.section-bar .ghost-link,.action-grid,.btn,.choice,.form-label,textarea,.char-count,.top-account{display:none!important}:host{background:#fff}main{padding:0}.surface,.metric{box-shadow:none;break-inside:avoid}.container{width:100%}}
 
 :host{background:#f4f7fa;min-height:100vh;color:#19334d}.pending-filter-notice{margin:12px 0;padding:12px 15px;background:#fff8e9;border:1px solid #f0ddb9;border-radius:10px;color:#754d13;font-size:12px}.error-notice{padding:12px 15px;background:#fff1ed;border:1px solid #e7b3a0;color:#913f2b;border-radius:12px;margin:14px 0}.loading-note{font-size:12px;color:#587084}.manager-toggles{display:flex;flex-wrap:wrap;gap:10px}.manager-toggles button{border:1px solid #cadde6;background:#f7fafb;color:#29516c;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:700}.footer-note a{color:inherit;font-weight:800}
+
+/* Pré-visualização segura do layout do Gestor pelo MASTER. */
+.master-preview-banner{display:flex;align-items:center;justify-content:center;gap:15px;flex-wrap:wrap;background:#fff2d6;border-bottom:2px solid #e7b861;color:#6e460d;padding:12px 18px;font-size:14px;line-height:1.5;text-align:center}
+.master-preview-banner strong{font-weight:900}
+.master-preview-banner button{border:1px solid #ab731e;background:#fff;color:#5d3908;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:900;min-height:40px}
+.master-preview-banner button:focus-visible{outline:3px solid #0e807b;outline-offset:3px}
+.master-preview-banner button:hover{background:#fff9ec}
+@media(max-width:540px){.master-preview-banner{gap:8px;padding:10px 14px;font-size:12px}.master-preview-banner button{width:100%}}
+@media print{.master-preview-banner{display:none!important}}
