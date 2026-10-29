@@ -8,10 +8,12 @@ import {GROUPS, PERMISSIONS, describeAccess, mayInvite} from './roles.js';
 import {newBrand, validateBrandName, validateHexColor, validateDomain, prepareBrandImage, applyBrandPreview} from './branding.js';
 import {encryptBackup, decryptBackup} from './backup.js';
 import {CloudAccess} from './cloud-auth.js?v=135';
-import {mountGestorSimple,gestorSimpleState} from './gestor-simple.js?v=136';
+import {mountGestorSimple,gestorSimpleState} from './gestor-simple.js?v=137';
 import {IDLE_LIMIT_MS} from './trusted-session.js';
 
 const root=document.getElementById('app');
+const LKZ_BUILD='137';
+document.documentElement.dataset.lkzBuild=LKZ_BUILD;
 const IS_PUBLIC_HOMOLOGATION=location.protocol==='https:'; // gate externo: operações requerem RLS/MFA e leitura de volta
 const cloud=new CloudAccess();
 let lastActivity=Date.now();
@@ -59,7 +61,7 @@ function getMenu(){
 function isMfaLinked(){return cloud.hasSession && cloud.aal==='aal2' && cloudUi.memberships.length>0;}
 function activeRole(){return cloudUi.memberships.find(m=>m.tenant_id===state.selectedTenant)?.role||null;}
 function executiveMode(){return ['gestor','administrador'].includes(activeRole());}
-function simpleManagerMode(){return !classicManagerUi && executiveMode() && isMfaLinked() && state.cloudReady;}
+function simpleManagerMode(){return !classicManagerUi && executiveMode() && isMfaLinked();}
 function sectorMode(){return ['lider_setor','financeiro'].includes(activeRole());}
 function canUseAggregateWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>['master','gestor','administrador','lider_setor','financeiro'].includes(m.role));}
 function canAdministerLocalWorkspace(){return isMfaLinked()&&cloudUi.memberships.some(m=>m.role==='master');}
@@ -90,7 +92,7 @@ function shell(body){
  return `<div class="shell">${getMenu()}<main class="main"><header class="topbar"><div class="brand-top"><span>${esc(state.brand.name)}</span><span>›</span><span class="crumb">Intelligence</span></div><div class="top-right">
  <button class="btn responsive-toggle" data-action="menu" aria-label="Abrir menu">${ic('menu')}</button>
  <span class="pill ${navigator.onLine?'gray':'amber'}">${navigator.onLine?'● Navegador online':'● Sem internet'}</span>
- <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span>${canAdministerLocalWorkspace()?`<button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>`:`<button class="btn session-end" data-cloud="logout">Sair com segurança</button>`}${executiveMode()?'<button class="btn" data-manager-simple>Usar painel simples</button>':''}<span class="avatar">LKZ</span></div></header>
+ <span class="pill ${state.cloudReady?'green':'amber'}">${ic('cloud')} ${state.cloudReady?'Dados sincronizados':'Nuvem não conectada'}</span><span class="pill amber">MFA obrigatório · dados brutos não enviados</span>${canAdministerLocalWorkspace()?`<button class="btn session-end" data-action="backup-open">Finalizar e salvar</button>`:`<button class="btn session-end" data-cloud="logout">Sair com segurança</button>`}${executiveMode()?'<button class="btn" data-manager-simple>Usar painel simples</button>':''}<span class="pill gray">v${LKZ_BUILD}</span><span class="avatar">LKZ</span></div></header>
  <div class="content">${body}</div><footer class="lkz-footer" role="contentinfo"><a href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer">Desenvolvido por Lacrose Tecnologia</a></footer></main></div>${backupDialog()}`;
 }
 function backupDialog(){
@@ -622,11 +624,11 @@ function renderSimpleManager(){
  const tenants=cloudUi.memberships.filter(m=>['gestor','administrador'].includes(m.role));
  mountGestorSimple(host,{
   role:activeRole(),tenantId:state.selectedTenant,email:cloud.email,
-  mfaConfirmed:cloud.aal==='aal2',snapshot:current(),tenants,review,
+  mfaConfirmed:cloud.aal==='aal2',snapshot:current(),tenants,review,build:LKZ_BUILD,
   reviewBusy:state.reviewBusy,reviewError:state.reviewError
  },{
   review:async(decision,reason)=>{
-   if(!simpleManagerMode())return;
+   if(!simpleManagerMode()||!state.cloudReady)return;
    state.reviewIntent=decision;
    await submitExecutiveReview(reason);
    gestorSimpleState.view='avaliacoes';
@@ -650,6 +652,12 @@ function renderSimpleManager(){
 const pages={dashboard,results,analysis:reviewDiagnosis,quality:dataQuality,tickets,radar,productivity,finance,imports,reports,access,users:usersPage,settings,cloud:cloudPage};
 function render(){
  if(!cloud.hasSession){root.innerHTML=loginLanding();bindActions();return;}
+ // Resolve o tenant permitido do usuário autenticado antes de escolher seu layout.
+ // Sem isso, perfis convidados podem cair no painel clássico se os agregados falharem.
+ if(cloud.aal==='aal2'&&cloudUi.memberships.length &&
+    !cloudUi.memberships.some(m=>m.tenant_id===state.selectedTenant)){
+   state.selectedTenant=defaultTenant();
+ }
  if(!canUseAggregateWorkspace())state.view='cloud';
  else if(executiveMode()&&!['dashboard','results','analysis','reports','cloud'].includes(state.view))state.view='dashboard';
  else if(sectorMode()&&!['dashboard','reports','cloud'].includes(state.view))state.view='dashboard';
@@ -828,7 +836,7 @@ async function init(){
  try{const setting=await getSetting('cost');if(setting?.value)state.cost={...sampleCost,...setting.value};}
  catch{state.cost={...sampleCost};}
  if(!state.cloudReady){state.snapshots=[];state.snapshot=null;}
- render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ render();if('serviceWorker'in navigator && (location.protocol==='https:'||!IS_PUBLIC_HOMOLOGATION))navigator.serviceWorker.register('./sw.js?v=137',{updateViaCache:'none'}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
 }
 async function verifyInactivity(){
  if(sessionEnding||!cloud.hasSession)return;
