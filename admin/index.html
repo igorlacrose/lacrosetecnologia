@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#081D2E">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://icrtewhazpfauuroswri.supabase.co wss://icrtewhazpfauuroswri.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <title>LKZ ADM · Lacrose Tecnologia</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20261105-2">
 </head>
 <body>
 <section id="auth" class="auth">
@@ -40,7 +40,7 @@
 </section>
 
 <div id="app" class="shell" hidden>
-  <aside class="sidebar">
+  <aside id="sidebar" class="sidebar" aria-label="Navegação principal">
     <div class="brand"><strong><i>LKZ</i> ADM</strong><span>by Lacrose Tecnologia</span></div>
     <div class="nav-group"><small>ADMINISTRAÇÃO</small>
       <nav>
@@ -71,13 +71,18 @@
       <a class="credit" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener">Desenvolvido por Lacrose Tecnologia</a>
     </div>
   </aside>
+  <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" aria-label="Fechar menu" tabindex="-1"></button>
   <main>
-    <header><div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar cliente, lead, sistema..."></header>
+    <header>
+      <button id="mobileMenu" class="mobile-menu" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar cliente, lead, sistema..."></header>
     <div class="release"><b>Produção gradual:</b> Comercial usa dados reais. Módulos administrativos novos ainda estão em implantação. <a href="../admin-legacy/">Operação comercial completa ↗</a></div>
     <section id="content"></section>
   </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="app.js?v=20261105-1"></script>
+<script src="app.js?v=20261105-2"></script>
 </body>
 </html>
