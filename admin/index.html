@@ -3,141 +3,81 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="same-origin">
+<meta name="theme-color" content="#081D2E">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://icrtewhazpfauuroswri.supabase.co wss://icrtewhazpfauuroswri.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
-<title>Painel Comercial · Lacrose Tecnologia</title>
-<meta name="theme-color" content="#07111b">
+<title>LKZ ADM · Lacrose Tecnologia</title>
 <link rel="stylesheet" href="styles.css">
-<style>
-[hidden]{display:none!important}.auth-screen{min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(circle at 80% 10%,rgba(69,190,242,.10),transparent 30%),#07111b;color:#eaf5fb}.auth-card{width:min(430px,100%);border:1px solid #294352;border-radius:16px;background:#0a1823;padding:28px;box-shadow:0 28px 70px rgba(0,0,0,.35)}.auth-brand{display:flex;align-items:center;gap:14px;margin-bottom:24px}.auth-brand img{width:64px;height:64px;object-fit:contain}.auth-brand small{display:block;color:#66cdf5;letter-spacing:.14em;font-size:10px}.auth-brand strong{font-size:18px}.auth-card h1{margin:0 0 8px;font-size:30px}.auth-card>p{margin:0 0 24px;color:#91a8b7;line-height:1.55;font-size:13px}.auth-form{display:grid;gap:14px}.auth-form label{display:grid;gap:7px;font-size:11px;color:#a9bbc7}.auth-form input{width:100%;border:1px solid #2d4c5e;border-radius:8px;background:#07131d;color:#fff;padding:13px 14px;outline:none}.auth-form input:focus{border-color:#4cc4f3}.auth-form button{margin-top:4px;border:0;border-radius:8px;padding:13px 16px;background:#4cc4f3;color:#06131c;font-weight:800;cursor:pointer}.auth-form button:disabled{opacity:.55;cursor:wait}.auth-message{min-height:18px;margin-top:12px;font-size:12px;color:#ffb4b4}.auth-message.ok{color:#78dfad}.auth-foot{margin-top:20px;padding-top:16px;border-top:1px solid #1e3443;color:#688191;font-size:10px;line-height:1.5}.mfa-enroll{display:grid;gap:12px;margin:18px 0;padding:16px;border:1px solid #284657;border-radius:12px;background:#07131d}.mfa-enroll img{width:min(220px,100%);margin:auto;background:#fff;padding:10px;border-radius:10px}.mfa-secret{display:block;padding:10px;border-radius:8px;background:#061019;color:#b9ddeb;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;user-select:all}.mfa-cancel{width:100%;margin-top:10px;border:1px solid #2d4c5e;border-radius:8px;padding:11px 14px;background:transparent;color:#b9ccd7;font-weight:700;cursor:pointer}.mfa-cancel:hover{border-color:#4cc4f3;color:#fff}.logout-btn{margin-left:10px;border:1px solid #2d4c5e;background:transparent;color:#b9ccd7;border-radius:7px;padding:7px 9px;font-size:10px;cursor:pointer}.logout-btn:hover{border-color:#4cc4f3;color:#fff}
-</style>
 </head>
 <body>
-
-<section id="authScreen" class="auth-screen" aria-labelledby="authTitle">
-  <div class="auth-card">
-    <div class="auth-brand"><img src="../assets/brand/lacrose-tecnologia-dark.png" alt="Lacrose Tecnologia"><div><small>ÁREA RESTRITA</small><strong>Painel Comercial</strong></div></div>
-    <h1 id="authTitle">Acesso administrativo</h1>
-    <p>Entre com sua conta autorizada para visualizar oportunidades, conversas e dados comerciais.</p>
-    <form id="loginForm" class="auth-form">
-      <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required></label>
-      <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required></label>
-      <button id="loginButton" type="submit">Entrar</button>
-    </form>
-    <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
-    <div class="auth-foot">O endereço do painel pode ser público. Os dados só são liberados após autenticação e validação do perfil administrativo.</div>
-  </div>
+<section id="auth" class="auth">
+  <form id="loginForm" class="auth-card">
+    <div class="lockup"><strong><i>LKZ</i> ADM</strong><span>by Lacrose Tecnologia</span></div>
+    <h1>Acesso administrativo</h1>
+    <p>Conta autorizada + MFA obrigatório.</p>
+    <label>E-mail<input id="email" type="email" autocomplete="username" required></label>
+    <label>Senha<input id="password" type="password" autocomplete="current-password" required></label>
+    <button id="loginBtn" type="submit">Entrar</button>
+    <div id="authMsg" class="msg"></div>
+  </form>
 </section>
-<section id="mfaScreen" class="auth-screen" aria-labelledby="mfaTitle" hidden>
-  <div class="auth-card">
-    <div class="auth-brand"><img src="../assets/brand/lacrose-tecnologia-dark.png" alt="Lacrose Tecnologia"><div><small>SEGURANÇA ADMINISTRATIVA</small><strong>Painel Comercial</strong></div></div>
-    <h1 id="mfaTitle">Verificação em duas etapas</h1>
-    <p id="mfaIntro">Confirme o código do seu aplicativo autenticador para concluir o acesso.</p>
-    <div id="mfaEnroll" class="mfa-enroll" hidden>
-      <strong>Primeiro acesso com MFA</strong>
-      <span>Escaneie o QR Code no Google Authenticator, Microsoft Authenticator, 1Password ou aplicativo TOTP compatível.</span>
-      <img id="mfaQr" alt="QR Code para configurar autenticação em duas etapas">
-      <small>Se não conseguir escanear, cadastre esta chave manualmente:</small>
-      <code id="mfaSecret" class="mfa-secret"></code>
+
+<section id="mfa" class="auth" hidden>
+  <form id="mfaForm" class="auth-card">
+    <div class="lockup"><strong><i>LKZ</i> ADM</strong><span>Segurança administrativa</span></div>
+    <h1>Verificação em duas etapas</h1>
+    <p id="mfaIntro">Digite o código do autenticador.</p>
+    <div id="enroll" class="enroll" hidden>
+      <img id="qr" alt="QR Code MFA">
+      <small>Chave manual</small><code id="secret"></code>
     </div>
-    <form id="mfaForm" class="auth-form" autocomplete="off">
-      <label>Código de 6 dígitos<input id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
-      <button id="mfaButton" type="submit">Verificar código</button>
-    </form>
-    <div id="mfaMessage" class="auth-message" role="status" aria-live="polite"></div>
-    <button id="mfaCancel" class="mfa-cancel" type="button">Cancelar e sair</button>
-    <div class="auth-foot">O painel só é liberado depois que a sessão atinge o nível de autenticação MFA (AAL2).</div>
-  </div>
-</section>
-<div class="demo-banner">PAINEL DE LEADS DO AGENTE · LACROSE TECNOLOGIA</div>
-<div class="app" id="adminApp" hidden>
-<aside class="sidebar">
-  <a class="logo" href="../"><img src="../assets/brand/lacrose-tecnologia-dark.png" alt="Lacrose Tecnologia"></a>
-  <nav>
-    <button class="active" data-view="dashboard"><span>◫</span>Visão geral</button>
-    <button data-view="lead"><span>◎</span>Oportunidade</button>
-    <button data-view="conversation"><span>◌</span>Conversa</button>
-    <button data-view="audit"><span>≡</span>Auditoria</button>
-  </nav>
-  <div class="side-bottom"><span>Agente Comercial</span><small>Operacional · Supabase</small><a href="../#agente">← Voltar ao site</a></div>
-</aside>
-
-<main>
-<header class="topbar"><div><small>PAINEL COMERCIAL</small><h1 id="pageTitle">Visão geral</h1></div><div class="human"><span class="avatar">IL</span><div><b id="adminName">Igor Lacrose</b><small>Administrador</small></div><button id="logoutBtn" class="logout-btn" type="button">Sair</button></div></header>
-
-<section class="view active" id="dashboard">
-  <div class="kpis">
-    <article><span>Novos leads</span><strong>0</strong><small>recebidos pelo agente</small></article>
-    <article><span>Qualificados</span><strong id="kpiQualified">0</strong><small>aguardando análise</small></article>
-    <article><span>Follow-ups</span><strong>0</strong><small>pendentes</small></article>
-    <article><span>Propostas</span><strong>0</strong><small>em preparação ou aprovação</small></article>
-  </div>
-  <div class="grid-main">
-    <section class="panel">
-      <div class="panel-head"><div><small>OPORTUNIDADES RECENTES</small><h2>Fila comercial</h2></div><button class="ghost" data-view-jump="lead">Abrir selecionado ↗</button></div>
-      <div class="lead-table">
-        <div class="row head"><span>Empresa / contato</span><span>Necessidade</span><span>Prioridade</span><span>Status</span></div>
-      </div>
-    </section>
-    <aside class="panel activity"><div class="panel-head"><div><small>ATIVIDADE</small><h2>Próximas ações</h2></div></div><ol id="nextActions"></ol></aside>
-  </div>
+    <label>Código<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></label>
+    <button id="mfaBtn" type="submit">Verificar</button>
+    <button id="cancelMfa" class="ghost" type="button">Cancelar e sair</button>
+    <div id="mfaMsg" class="msg"></div>
+  </form>
 </section>
 
-<section class="view" id="lead">
-  <div class="lead-header">
-    <div><div class="breadcrumbs">OPORTUNIDADES / <span id="leadBreadcrumb">LEAD DO SITE</span></div><h2 id="leadHeading">Diagnóstico recebido pelo Agente Lacrose</h2><p id="leadSub">Lead estruturado a partir da conversa no site.</p></div>
-    <div class="status-block"><span id="leadStatusTop">QUALIFICADO</span><div class="score"><strong id="leadScoreTop">85</strong><small>/100</small></div></div>
-  </div>
-  <div class="lead-grid">
-    <section class="panel detail-panel">
-      <div class="panel-head"><div><small>DIAGNÓSTICO ESTRUTURADO</small><h2>Dados interpretados</h2></div><span class="ai-tag">IA + regras</span></div>
-      <dl class="facts">
-        <div><dt>Intenção</dt><dd id="fIntent">—</dd></div>
-        <div><dt>Empresa / segmento</dt><dd id="fSegment">—</dd></div>
-        <div><dt>Escala</dt><dd id="fScale">—</dd></div>
-        <div class="wide"><dt>Problema identificado</dt><dd id="fProblem">—</dd></div>
-        <div><dt>Impacto</dt><dd id="fImpact">—</dd></div>
-        <div><dt>Urgência</dt><dd id="fUrgency">—</dd></div>
-        <div><dt>Localização</dt><dd id="fLocation">—</dd></div>
-        <div><dt>Contato</dt><dd id="fContact">—</dd></div>
-        <div class="wide"><dt>Solução atual</dt><dd id="fCurrent">—</dd></div>
-        <div class="wide"><dt>Faixa / orientação de investimento</dt><dd id="fInvestment">Não informada / não aplicável</dd></div>
-      </dl>
-      <div class="recommend"><span>SOLUÇÃO PROVÁVEL</span><p id="fSolution">—</p></div>
-    </section>
-    <aside class="panel decision">
-      <div class="panel-head"><div><small>CONTROLE HUMANO</small><h2>Próximo passo</h2></div></div>
-      <div class="guard"><i>✓</i><p><b id="decisionGuardTitle">Aguardando análise</b><span id="decisionGuardText">Revise os dados do lead antes de executar ações comerciais.</span></p></div>
-      <div class="followup-summary" id="followupSummary">Nenhum follow-up pendente.</div>
-      <button class="primary" id="approve">Aprovar para contato</button>
-      <button class="secondary" id="contactDone" hidden>Marcar contato realizado</button>
-      <button class="secondary" id="request">Solicitar mais informações</button>
-      <button class="secondary" id="whatsapp">Preparar mensagem de WhatsApp</button>
-      <button class="secondary" id="followup">Criar follow-up</button>
-      <button class="secondary" id="completeFollowup" hidden>Concluir follow-up</button>
-      <button class="secondary" id="prepareProposal">Preparar proposta</button>
-      <button class="secondary" id="approveProposal">Aprovar proposta</button>
-      <button class="success" id="markWon" hidden>Marcar como fechado</button>
-      <button class="danger" id="markLost" hidden>Marcar como perdido</button>
-      <button class="secondary" id="reopenLead" hidden>Reabrir oportunidade</button>
-      <div class="note">Contato, proposta, follow-up e desfecho ficam registrados no histórico da oportunidade.</div>
-    </aside>
-  </div>
-</section>
-
-<section class="view" id="conversation">
-  <section class="panel conversation-panel"><div class="panel-head"><div><small>CONVERSA ORIGINAL</small><h2>Histórico do diagnóstico</h2></div><span class="ai-tag">somente leitura</span></div><div id="conversationList" class="conversation-list"></div></section>
-</section>
-
-<section class="view" id="audit">
-  <section class="panel"><div class="panel-head"><div><small>LOG / AUDITORIA</small><h2>Eventos da oportunidade</h2></div><span class="ai-tag">registro real</span></div>
-  <div class="audit-list" id="auditList"></div></section>
-</section>
-</main>
+<div id="app" class="shell" hidden>
+  <aside class="sidebar">
+    <div class="brand"><strong><i>LKZ</i> ADM</strong><span>by Lacrose Tecnologia</span></div>
+    <div class="nav-group"><small>ADMINISTRAÇÃO</small>
+      <nav>
+        <button data-view="overview" class="active">Visão Geral</button>
+        <button data-view="systems">Sistemas</button>
+        <button data-view="clients">Clientes</button>
+        <button data-view="finance">Financeiro</button>
+        <button data-view="usage">Uso e Atividade</button>
+        <button data-view="tasks">Demandas</button>
+      </nav>
+    </div>
+    <div class="nav-group"><small>COMERCIAL</small>
+      <nav>
+        <button data-view="commercial">Visão Comercial</button>
+        <button data-view="leads">Leads</button>
+        <button data-view="conversations">Conversas</button>
+        <button data-view="followups">Follow-ups</button>
+        <button data-view="approvals">Aprovações</button>
+      </nav>
+    </div>
+    <div class="nav-group"><small>ACESSO</small>
+      <nav><button data-view="settings">Configurações</button></nav>
+    </div>
+    <div class="side-foot">
+      <b id="userName">Administrador</b><span id="userRole">admin</span>
+      <a href="../admin-legacy/">Painel comercial legado</a>
+      <button id="logout">Sair</button>
+      <a class="credit" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener">Desenvolvido por Lacrose Tecnologia</a>
+    </div>
+  </aside>
+  <main>
+    <header><div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar cliente, lead, sistema..."></header>
+    <div class="release"><b>Produção gradual:</b> Comercial usa dados reais. Módulos administrativos novos ainda estão em implantação. <a href="../admin-legacy/">Operação comercial completa ↗</a></div>
+    <section id="content"></section>
+  </main>
 </div>
-<div id="toast" class="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="app.js?v=20261007-8"></script>
+<script src="app.js?v=20261105-1"></script>
 </body>
 </html>
