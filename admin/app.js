@@ -180,7 +180,7 @@ function conversations(){
 }
 
 const messageFolders={active:'Caixa de entrada',archived:'Arquivadas',deleted:'Lixeira'};
-const messageActions={active:{archived:'Arquivar',deleted:'Apagar'},archived:{active:'Desarquivar',deleted:'Apagar'},deleted:{active:'Restaurar',purge:'Apagar definitivamente'}};
+const messageActions={active:{archived:'Arquivar',deleted:'Mover para a Lixeira'},archived:{active:'Desarquivar',deleted:'Mover para a Lixeira'},deleted:{active:'Restaurar',purge:'Apagar definitivamente'}};
 async function openThread(id,folder='active',before=null,feedback=''){
   const thread=state.threads.find(item=>item.id===id);
   const pane=el('messagePane');
@@ -209,37 +209,62 @@ async function openThread(id,folder='active',before=null,feedback=''){
       '<button type="button" class="cta" aria-pressed="'+(folder===key)+'" data-folder="'+key+'">'+title+'</button>'
     ).join('')+'</div>':'')+
     '<p role="status">'+esc(available?feedback:'O gerenciamento de mensagens aguarda a atualização do banco.')+'</p>'+
+    (available&&items.length?'<div class="message-actions" aria-label="Ações das mensagens">'+
+      '<p data-selection role="status">Selecione as mensagens que deseja mover ou apagar.</p><div class="message-tools">'+
+      actions.map(([key,title])=>'<button class="cta" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+
+      '</div><div class="message-confirm" data-confirm hidden><p data-confirm-text></p><div class="message-tools">'+
+      '<button class="cta danger" type="button" data-confirm-delete>Confirmar exclusão definitiva</button>'+
+      '<button class="cta" type="button" data-cancel-delete>Cancelar</button></div></div></div>':'')+
     (items.length?'':'<p>Nenhuma mensagem nesta pasta.</p>')+
     items.slice(0,50).reverse().map(item=>{
-      const bubble='<span>'+esc(item.content)+'</span><small>'+esc(dateLabel(item.created_at))+'</small>';
+      const bubble='<span><span class="message-text">'+esc(item.content)+'</span><small>'+esc(dateLabel(item.created_at))+'</small></span>';
       const style='bubble'+(item.role==='user'?'':' out');
-      return available?'<label class="'+style+'"><input type="checkbox" value="'+esc(item.id)+'" aria-label="Selecionar mensagem"> '+bubble+'</label>':
+      return available?'<label class="'+style+' selectable"><input type="checkbox" value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>':
         '<div class="'+style+'">'+bubble+'</div>';
     }).join('')+
-    (available&&items.length?'<div class="message-tools">'+actions.map(([key,title])=>
-      '<button class="cta" type="button" data-move="'+key+'" disabled>'+title+' selecionadas</button>'
-    ).join('')+'</div>':'')+
     (next?'<button class="cta" type="button" data-older>Mensagens anteriores</button>':'')+
     (before?'<button class="cta" type="button" data-recent>Voltar às recentes</button>':'');
   const selected=()=>[...page.querySelectorAll('input:checked')].map(input=>input.value);
   const buttons=[...page.querySelectorAll('[data-move]')];
+  const selection=page.querySelector('[data-selection]');
+  const confirmation=page.querySelector('[data-confirm]');
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
-  page.onchange=()=>buttons.forEach(button=>button.disabled=selected().length===0);
-  buttons.forEach(button=>button.onclick=async()=>{
-    const ids=selected(),destination=button.dataset.move;
+  if(!selection)return page;
+  page.onchange=()=>{
+    const count=selected().length;
+    selection.textContent=count?count+' selecionada(s).':'Selecione as mensagens que deseja mover ou apagar.';
+    buttons.forEach(button=>button.disabled=count===0);
+    confirmation.hidden=true;
+  };
+  async function move(destination){
+    const ids=selected();
     if(!ids.length)return;
-    if(destination==='deleted'&&!window.confirm('Mover '+ids.length+' mensagem(ns) para a lixeira? Você poderá restaurá-las.'))return;
-    if(destination==='purge'&&!window.confirm('Apagar definitivamente '+ids.length+' mensagem(ns)? A lixeira não poderá restaurá-las.'))return;
     page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
-    const {error}=destination==='purge'
+    selection.textContent='Salvando…';
+    const {data,error}=destination==='purge'
       ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:ids})
       :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:ids,p_from:folder,p_to:destination});
     if(!page.isConnected||!user)return;
-    const success=destination==='purge'?'Mensagens apagadas definitivamente.':'Mensagens movidas para '+messageFolders[destination].toLowerCase()+'.';
-    await openThread(id,folder,null,error?'Não foi possível confirmar a mudança. Confira a lista e tente novamente.':success);
+    const success=destination==='purge'?'Mensagens apagadas definitivamente.':
+      destination==='deleted'?'Mensagens movidas para a Lixeira. Abra a Lixeira para restaurar ou apagar definitivamente.':
+      'Mensagens movidas para '+messageFolders[destination].toLowerCase()+'.';
+    const updated=await openThread(id,folder,before,error||data!==ids.length?'Não foi possível confirmar a mudança. Confira a lista e tente novamente.':success);
+    if(updated?.isConnected)updated.querySelector('[role=status]')?.scrollIntoView({block:'nearest'});
+  }
+  buttons.forEach(button=>button.onclick=()=>{
+    if(button.dataset.move!=='purge')return move(button.dataset.move);
+    confirmation.querySelector('[data-confirm-text]').textContent='Apagar definitivamente '+selected().length+' mensagem(ns)?';
+    confirmation.hidden=false;
+    confirmation.querySelector('[data-cancel-delete]').focus();
   });
+  confirmation.querySelector('[data-confirm-delete]').onclick=()=>move('purge');
+  confirmation.querySelector('[data-cancel-delete]').onclick=()=>{
+    confirmation.hidden=true;
+    page.querySelector('[data-move="purge"]').focus();
+  };
+  return page;
 }
 function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div>'}
 function approvals(feedback=''){

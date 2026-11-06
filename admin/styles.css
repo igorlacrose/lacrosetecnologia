@@ -208,8 +208,9 @@ tbody tr:hover{background:#F8FBFC}
   background:#EFF8FA;color:#355D6B;line-height:1.55
 }
 .notice b{color:#103C52}
-.chat{display:grid;grid-template-columns:310px 1fr;gap:12px;min-height:520px}
-.threads,.messages{border:1px solid var(--line-strong);border-radius:12px;background:#fff;overflow:hidden}
+.chat{display:grid;grid-template-columns:310px minmax(0,1fr);gap:12px;min-height:520px}
+.threads,.messages{min-width:0;border:1px solid var(--line-strong);border-radius:12px;background:#fff}
+.threads{overflow:hidden}
 .thread{
   display:block;width:100%;border:0;border-bottom:1px solid var(--line);
   padding:13px;text-align:left;background:#fff;color:var(--txt)
@@ -223,15 +224,23 @@ tbody tr:hover{background:#F8FBFC}
 .messages{padding:17px}
 .messages h2{color:var(--txt-strong)}
 .bubble{
-  max-width:75%;padding:10px 12px;margin:8px 0;border-radius:11px;
+  display:block;width:fit-content;max-width:85%;padding:10px 12px;margin:8px 0;border-radius:11px;
   background:#fff;border:1px solid var(--line);color:#263C4B
 }
+.bubble.selectable{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:8px;cursor:pointer}
+.bubble.selectable:has(input:checked){border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 .bubble.out{margin-left:auto;background:#DFF0F4;border-color:#C3E1E8}
+.message-text{display:block;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
 .message-tools{display:flex;flex-wrap:wrap;gap:8px;margin-block:12px}
 .message-tools [aria-pressed="true"]{background:var(--navy)}
 .message-tools button:disabled{opacity:.55;cursor:default}
+.message-actions{position:sticky;top:0;z-index:1;padding:9px 0;background:var(--surface);border-bottom:1px solid var(--line)}
+.message-actions .message-tools{margin-block:6px}
+.message-actions p{margin:0;color:var(--muted);font-size:13px}
+.message-confirm{margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px}
+.message-confirm .danger{background:var(--err)}
 .messages .bubble small{display:block;margin-top:4px;color:var(--muted)}
-.messages .bubble input{width:auto;margin:0 4px 0 0;vertical-align:middle}
+.messages .bubble input{width:16px;height:16px;margin:3px 0 0;accent-color:var(--blue)}
 .form-panel{margin-bottom:16px}
 .entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .entry-form label{display:grid;gap:5px}
@@ -292,6 +301,7 @@ tbody tr:hover{background:#F8FBFC}
   .kpi span{font-size:11px}
   .kpi strong{font-size:22px}
   .layout,.chat{grid-template-columns:1fr}
+  .bubble{max-width:100%}
   .panel{padding:16px}
   .panel h2{font-size:18px}
   .table{border-radius:10px}
