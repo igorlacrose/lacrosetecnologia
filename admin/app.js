@@ -36,7 +36,7 @@ async function loadCommercial(){
   const [lr,cr,vr,fr,ar]=await Promise.all([
     sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
     sb.from('contacts').select('id,company_name,person_name,email,phone').order('created_at',{ascending:false}).limit(200),
-    sb.from('conversations').select('id,lead_id,last_message_at,status').order('last_message_at',{ascending:false}).limit(100),
+    sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
     sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
     sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100)
   ]);
@@ -46,12 +46,29 @@ async function loadCommercial(){
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],
-    threads:(vr.data||[]).map(c=>({id:c.id,lead:lm.get(c.lead_id)?.name||'Conversa sem lead',last:c.last_message_at})),
+    threads:(vr.data||[]).map(c=>({
+  id:c.id,
+  lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
+  last:c.last_message_at||c.started_at,channel:c.channel||'Site'
+})),
     followups:(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'})),
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
   };
 }
-const titles={overview:['OCA · Hoje','Prioridades da Lacrose para acompanhar ao longo do dia.'],systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],clients:['Clientes','Cadastre e consulte clientes da Lacrose.'],finance:['Financeiro','Configuração de cobrança pendente.'],usage:['Uso e Atividade','Atividade nos registros comerciais carregados.'],tasks:['Demandas','Pendências comerciais que precisam de ação.'],commercial:['Visão Comercial','Dados do Agente Comercial.'],leads:['Leads','Oportunidades registradas pelo comercial.'],conversations:['Conversas','Consulte e organize as mensagens de cada conversa.'],followups:['Follow-ups','Retornos programados pelo comercial.'],approvals:['Aprovações','Decisões do fluxo comercial.'],settings:['Configurações','Preferências da sessão e gestão de acesso.']};
+const titles={
+  overview:['Painel geral','Indicadores e prioridades dos registros comerciais carregados.'],
+  systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
+  clients:['Clientes','Cadastros e contatos comerciais.'],
+  finance:['Financeiro','Integração de cobrança pendente.'],
+  usage:['Atividade','Indicadores dos registros comerciais carregados.'],
+  tasks:['Demandas','Pendências comerciais que precisam de ação.'],
+  commercial:['Visão comercial','Resumo dos registros comerciais.'],
+  leads:['Oportunidades','Leads e estágios comerciais.'],
+  conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
+  followups:['Agenda de retornos','Retornos programados, em modo de consulta.'],
+  approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
+  settings:['Configurações','Sessão e gestão de acesso.']
+};
 const mobileMenu=el('mobileMenu'),sidebarBackdrop=el('sidebarBackdrop');
 function setMenu(open){
   document.body.classList.toggle('menu-open',open);
@@ -115,7 +132,7 @@ function overview() {
     k('Retornos atrasados', overdue, 'Prazo vencido') +
     k('Retornos de hoje', dueToday, 'Ainda no prazo') +
     k('Aprovações', approvals, 'Decisões pendentes') +
-    '</div><div class="layout"><section class="panel"><h2>OCA · Prioridades do dia</h2>' +
+    '</div><div class="layout"><section class="panel"><h2>Prioridades do dia</h2>' +
     '<p>' + priorities.length + ' prioridades nos registros carregados.</p>' +
     (list || '<p>Nenhuma prioridade encontrada nos registros carregados.</p>') +
     '</section><section class="panel"><h2>Operação da Lacrose</h2>' +
@@ -160,8 +177,10 @@ function commercial(){
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
 }
 function leads(){
-  const body=state.leads.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
-  el('content').innerHTML='<div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+  const q=(el('search')?.value||'').trim().toLowerCase();
+ const filtered=q?state.leads.filter(l=>[l.name,l.contact,l.intent,l.category,l.suggested_solution].some(v=>String(v||'').toLowerCase().includes(q))):state.leads;
+ const body=filtered.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
+  el('content').innerHTML='<p class="result-count">'+filtered.length+' oportunidade(s) encontrada(s)</p><div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
   el('content').querySelectorAll('[data-lead]').forEach(button=>button.onclick=()=>{
     const lead=state.leads.find(item=>item.id===button.dataset.lead);
     el('leadDetails').innerHTML='<section class="panel form-panel"><h2>'+esc(lead.name)+'</h2>'+
@@ -392,5 +411,5 @@ async function loadUsers(target,feedback=''){
     await loadUsers(target,'Acesso atualizado.');
   });
 }
-el('search').onkeydown=e=>{if(e.key==='Enter'){const q=e.currentTarget.value.toLowerCase(),l=state.leads.find(x=>x.name.toLowerCase().includes(q));if(l){view('leads')}else alert('Nenhum lead encontrado.')}}; 
+el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();view('leads')}}; 
 (async()=>{const {data:{user:u}}=await sb.auth.getUser();if(!u)return showLogin();try{const p=await authorize(u);if(!p){await sb.auth.signOut();return showLogin('Conta sem permissão administrativa.')}await enforceMfa(p,u)}catch(e){console.error(e);await sb.auth.signOut();showLogin('Não foi possível validar a sessão.')}})();
