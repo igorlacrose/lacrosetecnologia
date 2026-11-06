@@ -227,6 +227,11 @@ tbody tr:hover{background:#F8FBFC}
   background:#fff;border:1px solid var(--line);color:#263C4B
 }
 .bubble.out{margin-left:auto;background:#DFF0F4;border-color:#C3E1E8}
+.message-tools{display:flex;flex-wrap:wrap;gap:8px;margin-block:12px}
+.message-tools [aria-pressed="true"]{background:var(--navy)}
+.message-tools button:disabled{opacity:.55;cursor:default}
+.messages .bubble small{display:block;margin-top:4px;color:var(--muted)}
+.messages .bubble input{width:auto;margin:0 4px 0 0;vertical-align:middle}
 
 /* TABLET */
 @media(max-width:1100px){
