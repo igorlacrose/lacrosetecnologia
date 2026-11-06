@@ -1,0 +1,94 @@
+/* LKZ ADM | Interface operacional renovada em 2026-11-06.
+   Mantenha as regras originais em styles.css para rollback simples. */
+.shell{grid-template-columns:244px minmax(0,1fr)}
+.sidebar{padding:20px 14px;background:linear-gradient(180deg,#051b2b,#071522)}
+.brand{padding-bottom:20px}
+.nav-group{margin-top:23px}
+.nav-group button{min-height:44px;font-size:13.5px;font-weight:630;border-radius:10px;padding:10px 13px}
+.nav-group button.active{background:#0e536a;box-shadow:inset 3px 0 #39c8e1}
+main{max-width:1800px;margin-inline:auto;padding:27px clamp(18px,2.6vw,38px)}
+header{align-items:center;margin-bottom:23px}
+header h1{font-size:30px}
+header input{width:min(380px,40vw)}
+.cta{border:0;display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 13px;font-size:12px;border-radius:9px}
+.cta:disabled{opacity:.52;cursor:not-allowed}
+.cta.danger{background:#aa3349}
+.result-count{color:#536c7b;font-size:12px;margin:0 0 12px}
+.chat{grid-template-columns:minmax(270px,310px) minmax(0,1fr);gap:16px;min-height:560px;height:calc(100dvh - 198px);max-height:980px}
+.threads,.messages{min-width:0;height:100%;min-height:0;overflow:hidden;box-shadow:0 8px 28px rgba(8,29,46,.055)}
+.threads{display:flex;flex-direction:column}
+.thread-header{padding:17px 16px 14px;border-bottom:1px solid var(--line)}
+.thread-header h2{margin:0;color:#092435;font-size:19px;font-weight:760}
+.thread-header p{margin:3px 0 12px;color:#627987;font-size:12px}
+.thread-header label{display:block}
+.thread-header input{height:40px;width:100%;border:1px solid #c7d7df;border-radius:9px;padding:0 12px;color:#132a39;background:#f8fbfc}
+.thread-scroller{flex:1;min-height:0;overflow:auto}
+.thread{display:flex;align-items:center;gap:10px;min-height:76px;padding:13px;border-left:3px solid transparent}
+.thread[hidden]{display:none}
+.thread.active{background:#e4f3f8;border-left-color:#07839b}
+.thread-avatar{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;background:#e7f0f4;color:#24566b;font-size:15px;font-weight:800}
+.thread-info{flex:1;min-width:0}
+.thread-info b,.thread-info small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thread-info b{color:#122f40;font-size:13px}
+.thread-info small{margin-top:4px;color:#627986;font-size:11px}
+.messages{display:block;padding:0;overflow-y:auto;overscroll-behavior:contain}
+.messages>section{min-height:100%}
+.chat-placeholder{height:100%;min-height:400px;display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center}
+.chat-placeholder strong{font-size:18px;color:#183e51}
+.chat-placeholder span{max-width:270px;font-size:12px}
+.message-heading{background:#fff;border-bottom:1px solid var(--line);padding:19px 19px 14px}
+.message-heading h2{margin:3px 0 0;font-size:20px;color:#0c2a3e;line-height:1.25;overflow-wrap:anywhere}
+.message-eyebrow{color:#087c95;letter-spacing:.13em;font-size:10px;font-weight:800}
+.message-back{display:none}
+.message-tools{padding:0 17px;gap:7px;margin:12px 0}
+.message-tools [aria-pressed=true]{background:#0e536a}
+.message-tools .cta{font-size:12px}
+.messages>section>p[role=status]{padding:0 19px;margin:8px 0;color:#436a79;font-size:12px}
+.message-actions{position:sticky;top:0;background:rgba(255,255,255,.98);border-block:1px solid var(--line);padding:11px 17px;z-index:2}
+.message-actions .message-tools{padding:0;margin:10px 0 0}
+.message-actions .message-tools .cta{font-size:11px;min-height:34px}
+.message-actions p{margin-top:7px;font-size:12px}
+.select-all{display:flex;align-items:center;gap:8px;color:#426273;font-weight:600;font-size:12px;cursor:pointer}
+.select-all input{height:16px;width:16px;accent-color:#087c95}
+.message-item{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:0 18px;margin:16px 0}
+.message-item.out{align-items:flex-end}
+.messages .bubble{max-width:min(82%,680px);font-size:13px;line-height:1.55;margin:0;box-shadow:0 1px 6px rgba(10,36,55,.05);padding:12px 14px}
+.messages .bubble.selectable{display:flex;align-items:flex-start;gap:10px;grid-template-columns:none}
+.message-item.out .bubble{margin-left:0;background:#dff0f4;border-color:#bedde7}
+.message-quick-delete{background:transparent;border:0;color:#436e80;font-size:11px;font-weight:650;text-decoration:underline;text-underline-offset:3px;padding:3px 5px}
+.message-quick-delete:hover{color:#a02f40}
+.message-confirm{background:#fff8f8;border-color:#eac2c8}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (min-width:851px) and (max-width:1180px){
+  body.menu-open{overflow:hidden}
+  .shell{display:block}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(84vw,310px);height:100dvh;transform:translateX(-104%);transition:transform .22s ease;box-shadow:22px 0 50px rgba(0,0,0,.28);z-index:60}
+  body.menu-open .sidebar{transform:translateX(0)}
+  .sidebar-backdrop{display:block;position:fixed;inset:0;border:0;padding:0;background:rgba(3,16,25,.58);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:50}
+  body.menu-open .sidebar-backdrop{opacity:1;pointer-events:auto}
+  .mobile-menu{display:grid;width:43px;height:43px;place-content:center;gap:4px;border:1px solid var(--line-strong);border-radius:10px;background:#fff}
+  .mobile-menu span{display:block;width:19px;height:2px;border-radius:3px;background:currentColor}
+  header{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px}
+  header input{grid-column:1/-1;width:100%;max-width:none}
+  .chat{height:calc(100dvh - 240px)}
+}
+@media(max-width:850px){
+  .chat{display:block;height:calc(100dvh - 203px);max-height:none;min-height:470px}
+  .chat .threads,.chat .messages{height:100%}
+  .chat:not(.is-detail) .messages{display:none}
+  .chat.is-detail .threads{display:none}
+  .chat.is-detail .messages{display:block}
+  .message-back{display:inline-flex;padding:3px 0 8px;margin:0;background:transparent;color:#087c95;font-size:12px;font-weight:750;border:0}
+  .message-heading{padding:14px 14px 11px}
+  .message-heading h2{font-size:18px}
+  .messages .bubble{max-width:96%}
+  .message-item{padding:0 12px}
+  .message-tools{padding:0 10px}
+  .message-actions{padding:9px 10px}
+}
+@media(max-width:520px){
+  .chat{height:calc(100dvh - 187px)}
+  .message-actions .message-tools{display:grid;grid-template-columns:1fr 1fr}
+  .messages .bubble{padding:10px;font-size:12.5px}
+  .message-heading h2{font-size:17px}
+}
