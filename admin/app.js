@@ -7,6 +7,8 @@ const accessGroups={master:'MASTER',admin:'Administrador',commercial:'Comercial'
 let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
 let idleMs=ADMIN_IDLE_MS;
 let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
+let conversationFolder='active',conversationFocus=null,conversationFlash='';
+let clientFocus=null,clientMode='detail';
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
@@ -33,23 +35,25 @@ el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=tr
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
 async function loadCommercial(){
-  const [lr,cr,vr,fr,ar]=await Promise.all([
+  const [lr,cr,vr,fr,ar,folders]=await Promise.all([
     sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
-    sb.from('contacts').select('id,company_name,person_name,email,phone').order('created_at',{ascending:false}).limit(200),
+    sb.from('contacts').select('id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact').order('created_at',{ascending:false}).limit(200),
     sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
     sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
-    sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100)
+    sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100),
+    sb.rpc('lkz_adm_list_conversation_folders')
   ]);
-  const err=lr.error||cr.error||vr.error||fr.error||ar.error;
+  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error;
   if(err)throw err;
   const contacts=cr.data||[],cm=new Map(contacts.map(c=>[c.id,c])),lm=new Map();
+  const folderMap=new Map((folders.data||[]).map(entry=>[entry.conversation_id,entry.folder]));
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],
     threads:(vr.data||[]).map(c=>({
   id:c.id,
   lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
-  last:c.last_message_at||c.started_at,channel:c.channel||'Site'
+  last:c.last_message_at||c.started_at,channel:c.channel||'Site',lead_id:c.lead_id,folder:folderMap.get(c.id)||'active'
 })),
     followups:(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'})),
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
@@ -190,138 +194,204 @@ function leads(){
   });
 }
 const dateLabel=value=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(value)):'—';
-function conversations(){
-  const entries=state.threads.map(t=>
+function conversations(folder=conversationFolder,selectId=null){
+  conversationFolder=folder;
+  const threads=state.threads.filter(t=>t.folder===folder);
+  const counts=Object.fromEntries(Object.keys(messageFolders).map(key=>[key,state.threads.filter(t=>t.folder===key).length]));
+  const list=threads.map(t=>
     '<button type="button" class="thread" data-thread="'+esc(t.id)+'" data-search="'+esc((t.lead+' '+t.channel).toLowerCase())+'">'+
-    '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
-    '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span></button>'
-  ).join('');
-  el('content').innerHTML='<div class="chat" id="chatWorkspace">'+
-    '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2>'+
-    '<p>'+state.threads.length+' conversas carregadas</p>'+
-    '<label><span class="sr-only">Filtrar atendimentos</span><input id="threadFilter" type="search" placeholder="Buscar atendimento..."></label></div>'+
-    '<div class="thread-scroller">'+(entries||'<div class="empty">Nenhuma conversa encontrada.</div>')+'</div></div>'+
-    '<div id="messagePane" class="messages"><div class="empty chat-placeholder"><strong>Selecione um atendimento</strong>'+
-    '<span>Consulte o histórico e gerencie as mensagens com segurança.</span></div></div></div>';
+      '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
+      '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span>'+
+    '</button>').join('');
+  el('content').innerHTML=
+    '<div class="chat" id="chatWorkspace">'+
+      '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2><p>'+threads.length+' nessa pasta</p>'+
+        '<div class="conversation-folder-tabs" role="group" aria-label="Pastas de atendimentos">'+
+          Object.entries(messageFolders).map(([key,title])=>
+            '<button type="button" data-workfolder="'+key+'" aria-pressed="'+(folder===key)+'">'+esc(title)+' <span>'+counts[key]+'</span></button>').join('')+
+        '</div>'+
+        '<label><span class="sr-only">Buscar atendimento</span><input id="threadFilter" type="search" placeholder="Buscar atendimento..."></label>'+
+      '</div><div class="thread-scroller">'+(list||'<div class="empty">Nenhum atendimento nesta pasta.</div>')+'</div></div>'+
+      '<div id="messagePane" class="messages"><div class="empty chat-placeholder">'+
+        '<strong>Selecione um atendimento</strong><span>Gerencie histórico, mensagens e o atendimento completo.</span></div></div>'+
+    '</div>';
   const root=el('chatWorkspace');
+  root.querySelectorAll('[data-workfolder]').forEach(button=>button.onclick=()=>{
+    conversationFocus=null;conversationFlash='';conversations(button.dataset.workfolder);
+  });
   root.querySelectorAll('[data-thread]').forEach(button=>button.onclick=()=>openThread(button.dataset.thread));
   const input=el('threadFilter');
   input.oninput=()=>{
-    const term=input.value.trim().toLowerCase();
-    const norm=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const norm=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     let total=0;
     root.querySelectorAll('[data-thread]').forEach(button=>{
-      const match=norm(button.dataset.search).includes(norm(term));
-      button.hidden=!match;
-      if(match)total++;
+      const matched=norm(button.dataset.search).includes(norm(input.value.trim()));
+      button.hidden=!matched;if(matched)total++;
     });
-    root.querySelector('.thread-header p').textContent=total+' conversas encontradas';
+    root.querySelector('.thread-header p').textContent=total+' encontrado(s) nessa pasta';
   };
+  if(conversationFlash){
+    const notice=document.createElement('p');
+    notice.className='operation-feedback';notice.setAttribute('role','status');
+    notice.textContent=conversationFlash;conversationFlash='';
+    root.prepend(notice);
+  }
+  if(selectId&&threads.some(t=>t.id===selectId))openThread(selectId);
 }
 
-const messageFolders={active:'Caixa de entrada',archived:'Arquivadas',deleted:'Lixeira'};
-const messageActions={active:{archived:'Arquivar',deleted:'Mover para a Lixeira'},archived:{active:'Desarquivar',deleted:'Mover para a Lixeira'},deleted:{active:'Restaurar',purge:'Apagar definitivamente'}};
+const messageFolders={active:'Caixa de entrada',archived:'Arquivados',deleted:'Lixeira'};
+const messageActions={
+  active:{archived:'Arquivar mensagens',deleted:'Excluir mensagens'},
+  archived:{active:'Restaurar mensagens',deleted:'Excluir mensagens'},
+  deleted:{active:'Restaurar mensagens',purge:'Apagar definitivamente'}
+};
+async function conversationAction(id,action){
+  const t=state.threads.find(item=>item.id===id);
+  if(!t)return;
+  if(action==='trash'&&!window.confirm('Excluir este atendimento da lista e mover todo o histórico à Lixeira? Você poderá restaurá-lo.'))return;
+  if(action==='purge'){
+    if(profile?.role!=='master')return;
+    const answer=window.prompt('EXCLUSÃO DEFINITIVA do atendimento e de todas as suas mensagens. Não é possível desfazer. Digite EXCLUIR para confirmar:');
+    if(answer!=='EXCLUIR')return;
+  }
+  const actionLabels={archive:'Atendimento arquivado.',trash:'Atendimento movido para a Lixeira.',
+    restore:'Atendimento restaurado.',purge:'Atendimento e mensagens excluídos definitivamente.'};
+  const oldFolder=t.folder;
+  const {data,error}=await sb.rpc('lkz_adm_conversation_action',
+    {p_id:id,p_action:action,p_expected_folder:oldFolder});
+  if(error||!data){
+    const pane=el('messagePane');
+    const warning=document.createElement('p');warning.className='operation-feedback error';
+    warning.setAttribute('role','alert');
+    warning.textContent='Falha ao alterar o atendimento. Código: '+(error?.code||'SEM_CONFIRMACAO')+'. Atualize e tente novamente.';
+    pane?.prepend(warning);
+    return;
+  }
+  if(action==='purge')state.threads=state.threads.filter(item=>item.id!==id);
+  else t.folder=data.folder;
+  conversationFocus=null;conversationFlash=actionLabels[action]||'Operação concluída.';
+  conversations(conversationFolder);
+}
+
 async function openThread(id,folder='active',before=null,feedback=''){
   const thread=state.threads.find(item=>item.id===id);
   const pane=el('messagePane');
   if(!thread||!pane)return;
+  conversationFocus=id;
   el('chatWorkspace')?.classList.add('is-detail');
-  el('content').querySelectorAll('[data-thread]').forEach(button=>button.classList.toggle('active',button.dataset.thread===id));
+  el('content').querySelectorAll('[data-thread]').forEach(button=>{
+    button.classList.toggle('active',button.dataset.thread===id);
+    button.setAttribute('aria-pressed',String(button.dataset.thread===id));
+  });
   const page=document.createElement('section');
   page.setAttribute('aria-busy','true');
-  page.innerHTML='<h2>'+esc(thread.lead)+'</h2><p role="status">Carregando mensagens…</p>';
+  page.innerHTML='<p role="status" class="message-loading">Carregando mensagens...</p>';
   pane.replaceChildren(page);
-  let result=await sb.rpc('lkz_adm_list_messages',{p_conversation:id,p_folder:folder,p_before:before});
-  const available=result.error?.code!=='PGRST202';
-  if(!available&&folder==='active'){
-    result=await sb.from('messages').select('role,content,created_at').eq('conversation_id',id).order('id',{ascending:false}).limit(50);
-  }
+  const {data,error}=await sb.rpc('lkz_adm_list_messages',
+    {p_conversation:id,p_folder:folder,p_before:before});
   if(!page.isConnected||!user)return;
   page.removeAttribute('aria-busy');
-  if(result.error){
-    page.querySelector('[role=status]').textContent='Não foi possível carregar as mensagens.';
+  if(error){
+    page.innerHTML='<div class="message-error" role="alert"><h2>Não foi possível carregar</h2>'+
+      '<p>Falha na consulta ao banco (código '+esc(error.code||'desconhecido')+').</p>'+
+      '<button type="button" class="cta" data-retry>Tentar novamente</button></div>';
+    page.querySelector('[data-retry]').onclick=()=>openThread(id,folder,before);
     return;
   }
-  const items=result.data||[];
-  const next=available&&items.length>50?items[49].id:null;
-  const actions=Object.entries(messageActions[folder]);
-  page.innerHTML='<div class="message-heading"><button class="message-back" type="button">‹ Voltar</button><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel||'Site')+'</span><h2>'+esc(thread.lead)+'</h2></div></div>'+
-    (available?'<div class="message-tools" aria-label="Pastas de mensagens">'+Object.entries(messageFolders).map(([key,title])=>
-      '<button type="button" class="cta" aria-pressed="'+(folder===key)+'" data-folder="'+key+'">'+title+'</button>'
-    ).join('')+'</div>':'')+
-    '<p role="status">'+esc(available?feedback:'O gerenciamento de mensagens aguarda a atualização do banco.')+'</p>'+
-    (available&&items.length?'<div class="message-actions" aria-label="Ações das mensagens">'+
-      '<label class="select-all"><input type="checkbox" data-select-all> Selecionar todas desta página</label>'+ 
-       '<p data-selection role="status">Selecione as mensagens para arquivar ou excluir.</p><div class="message-tools">'+
-      actions.map(([key,title])=>'<button class="cta" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+
-      '</div><div class="message-confirm" data-confirm hidden><p data-confirm-text></p><div class="message-tools">'+
-      '<button class="cta danger" type="button" data-confirm-delete>Confirmar exclusão definitiva</button>'+
-      '<button class="cta" type="button" data-cancel-delete>Cancelar</button></div></div></div>':'')+
-    (items.length?'':'<p>Nenhuma mensagem nesta pasta.</p>')+
-    items.slice(0,50).reverse().map(item=>{
-      const bubble='<span><span class="message-text">'+esc(item.content)+'</span><small>'+esc(dateLabel(item.created_at))+'</small></span>';
-      const style='bubble'+(item.role==='user'?'':' out');
-      return available?'<div class="message-item'+(item.role==='user'?'':' out')+'">'+
-        '<label class="'+style+' selectable"><input type="checkbox" data-message-select value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>'+
-        '<button type="button" class="message-quick-delete" data-single="'+esc(item.id)+'" data-target="'+(folder==='deleted'?'active':'deleted')+'">'+
-        (folder==='deleted'?'Restaurar':'Mover para a Lixeira')+'</button></div>':
-        '<div class="'+style+'">'+bubble+'</div>';
-    }).join('')+
-    (next?'<button class="cta" type="button" data-older>Mensagens anteriores</button>':'')+
-    (before?'<button class="cta" type="button" data-recent>Voltar às recentes</button>':'');
-  const selected=()=>[...page.querySelectorAll('[data-message-select]:checked')].map(input=>input.value);
-  const selectAll=page.querySelector('[data-select-all]');
-  const buttons=[...page.querySelectorAll('[data-move]')];
-  const selection=page.querySelector('[data-selection]');
-  const confirmation=page.querySelector('[data-confirm]');
+  const messages=data||[];
+  const next=messages.length>50?messages[49].id:null;
+  const visible=messages.slice(0,50).reverse();
+  const controls=thread.folder==='deleted'
+    ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
+      (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
+    :'<button type="button" class="cta" data-conversation-action="'+(thread.folder==='active'?'archive':'restore')+'">'+
+      (thread.folder==='active'?'Arquivar':'Restaurar')+'</button>'+
+     '<button type="button" class="cta danger-outline" data-conversation-action="trash">Excluir atendimento completo</button>';
+  const items=visible.map(item=>{
+    const outbound=item.role!=='user';
+    const bubble='<span class="message-copy"><span class="message-text">'+esc(item.content)+'</span>'+
+      '<small>'+esc(dateLabel(item.created_at))+'</small></span>';
+    return '<div class="message-item'+(outbound?' out':'')+'">'+
+      '<label class="bubble selectable"><input type="checkbox" data-message-select value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>'+
+      '<div class="message-item-actions">'+
+        (folder==='deleted'
+          ?'<button type="button" data-single="'+esc(item.id)+'" data-target="active">Restaurar</button>'+
+           '<button type="button" class="text-danger" data-single="'+esc(item.id)+'" data-target="purge">Apagar definitivamente</button>'
+          :'<button type="button" class="text-danger" data-single="'+esc(item.id)+'" data-target="deleted">Excluir mensagem</button>')+
+      '</div></div>';
+  }).join('');
+  page.innerHTML=
+    '<div class="message-heading">'+
+      '<button class="message-back" type="button">‹ Voltar aos atendimentos</button>'+
+      '<div class="message-heading-main"><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel)+'</span>'+
+        '<h2>'+esc(thread.lead)+'</h2><small>Oportunidade vinculada: '+(thread.lead_id?'Sim':'Não')+'</small></div>'+
+        '<div class="conversation-actions">'+controls+'</div></div>'+
+    '</div>'+
+    '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
+      '<button class="cta" type="button" data-folder="'+key+'" aria-pressed="'+(folder===key)+'">'+
+       esc(key==='deleted'?'Lixeira de mensagens':title)+'</button>').join('')+'</nav>'+
+    '<div class="message-actions">'+
+      '<label class="select-all"><input type="checkbox" data-select-all> Selecionar mensagens da página</label>'+
+      '<p data-selection role="status">Para excluir definitivamente uma mensagem, abra a Lixeira de mensagens.</p>'+
+      '<div class="message-tools">'+Object.entries(messageActions[folder]).map(([key,title])=>
+        '<button class="cta'+(key==='purge'?' danger':'')+'" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+'</div>'+
+    '</div>'+
+    '<p class="message-status" data-notice role="status">'+esc(feedback)+'</p>'+
+    '<div class="message-stream">'+(items||'<p class="empty">Nenhuma mensagem nesta pasta.</p>')+'</div>'+
+    '<div class="message-pagination">'+
+      (next?'<button type="button" class="cta" data-older>Mensagens anteriores</button>':'')+
+      (before?'<button type="button" class="cta" data-recent>Voltar às recentes</button>':'')+
+    '</div>';
+  page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
+  page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
-  page.querySelector('.message-back')?.addEventListener('click',()=>el('chatWorkspace')?.classList.remove('is-detail'));
-  selectAll?.addEventListener('change',()=>{
-    page.querySelectorAll('[data-message-select]').forEach(input=>input.checked=selectAll.checked);
-    page.onchange?.();
-  });
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
-  if(!selection)return page;
-  page.onchange=()=>{
-    const count=selected().length;
-    selection.textContent=count?count+' selecionada(s).':'Selecione as mensagens que deseja mover ou apagar.';
-    buttons.forEach(button=>button.disabled=count===0);
-    if(selectAll){
-      selectAll.checked=count>0&&count===items.slice(0,50).length;
-      selectAll.indeterminate=count>0&&count<items.slice(0,50).length;
-    }
-    confirmation.hidden=true;
-  };
-  async function move(destination,chosenIds=null){
-    const ids=chosenIds||selected();
-    if(!ids.length)return;
-    page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
-    selection.textContent='Salvando…';
-    const {data,error}=destination==='purge'
-      ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:ids})
-      :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:ids,p_from:folder,p_to:destination});
-    if(!page.isConnected||!user)return;
-    const success=destination==='purge'?'Mensagens apagadas definitivamente.':
-      destination==='deleted'?'Mensagens movidas para a Lixeira. Abra a Lixeira para restaurar ou apagar definitivamente.':
-      'Mensagens movidas para '+messageFolders[destination].toLowerCase()+'.';
-    const updated=await openThread(id,folder,before,error||Number(data)!==ids.length?
-      'Operação não confirmada'+(error?.code?' (código '+esc(error.code)+')':'')+'. Confira a lista; nenhuma exclusão deve ser presumida.':success);
-    if(updated?.isConnected)updated.querySelector('[role=status]')?.scrollIntoView({block:'nearest'});
+  const checked=()=>[...page.querySelectorAll('[data-message-select]:checked')].map(input=>input.value);
+  const bulk=[...page.querySelectorAll('[data-move]')];
+  const selectAll=page.querySelector('[data-select-all]');
+  function updateButtons(){
+    const count=checked().length;
+    const status=page.querySelector('[data-selection]');
+    status.textContent=count?count+' mensagem(ns) selecionada(s).':'Selecione mensagens da página.';
+    bulk.forEach(button=>button.disabled=count===0);
+    selectAll.checked=count>0&&count===visible.length;
+    selectAll.indeterminate=count>0&&count<visible.length;
   }
-  page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
-  buttons.forEach(button=>button.onclick=()=>{
-    if(button.dataset.move!=='purge')return move(button.dataset.move);
-    confirmation.querySelector('[data-confirm-text]').textContent='Apagar definitivamente '+selected().length+' mensagem(ns)?';
-    confirmation.hidden=false;
-    confirmation.querySelector('[data-cancel-delete]').focus();
-  });
-  confirmation.querySelector('[data-confirm-delete]').onclick=()=>move('purge');
-  confirmation.querySelector('[data-cancel-delete]').onclick=()=>{
-    confirmation.hidden=true;
-    page.querySelector('[data-move="purge"]').focus();
+  selectAll.onchange=()=>{
+    page.querySelectorAll('[data-message-select]').forEach(input=>input.checked=selectAll.checked);
+    updateButtons();
   };
-  return page;
+  page.querySelectorAll('[data-message-select]').forEach(input=>input.onchange=updateButtons);
+  async function move(destination,ids){
+    if(!ids.length||ids.length>50)return;
+    if(destination==='purge'){
+      const answer=window.prompt('Apagar definitivamente '+ids.length+' mensagem(ns)? Digite EXCLUIR para confirmar:');
+      if(answer!=='EXCLUIR')return;
+    }
+    const status=page.querySelector('[data-notice]');
+    page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
+    status.textContent='Processando '+ids.length+' mensagem(ns)...';
+    let result;
+    try{
+      result=destination==='purge'
+        ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:ids})
+        :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:ids,p_from:folder,p_to:destination});
+    }catch{result={error:{code:'REDE'}}}
+    if(!page.isConnected||!user)return;
+    if(result.error||Number(result.data)!==ids.length){
+      page.querySelectorAll('button,input').forEach(control=>control.disabled=false);
+      updateButtons();
+      status.textContent='Não foi possível confirmar a operação. Código: '+
+        (result.error?.code||'RESPOSTA_INVALIDA')+'. Nenhuma exclusão foi confirmada.';
+      return;
+    }
+    const done=destination==='purge'?'Mensagens definitivamente excluídas.':
+       destination==='deleted'?'Mensagens movidas à Lixeira.':'Mensagens movidas com sucesso.';
+    await openThread(id,folder,before,done);
+  }
+  bulk.forEach(button=>button.onclick=()=>move(button.dataset.move,checked()));
+  page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
 }
 function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div><p class="notice">Consulta de retornos. Reagendamento e contato são feitos pelo LCRM, até existir integração operacional homologada.</p>'}
 function approvals(feedback=''){
