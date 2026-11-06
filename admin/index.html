@@ -9,6 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://icrtewhazpfauuroswri.supabase.co wss://icrtewhazpfauuroswri.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <title>LKZ ADM · Lacrose Tecnologia</title>
 <link rel="stylesheet" href="styles.css?v=20261106-4">
+<link rel="stylesheet" href="operacao.css?v=20261106-1">
 </head>
 <body>
 <section id="auth" class="auth">
@@ -44,21 +45,17 @@
     <div class="brand"><strong><i>LKZ</i> ADM</strong><span>by Lacrose Tecnologia</span></div>
     <div class="nav-group"><small>ADMINISTRAÇÃO</small>
       <nav>
-        <button data-view="overview" class="active">OCA · Hoje</button>
+        <button data-view="overview" class="active">Painel geral</button>
         <button data-view="systems">Sistemas</button>
-        <button data-view="finance">Financeiro</button>
-        <button data-view="usage">Uso e Atividade</button>
       </nav>
     </div>
-    <div class="nav-group"><small>OPERACIONAL</small>
+    <div class="nav-group"><small>OPERAÇÃO</small>
       <nav>
-        <button data-view="commercial">Visão Comercial</button>
+        <button data-view="conversations">Atendimentos</button>
+        <button data-view="leads">Oportunidades</button>
         <button data-view="clients">Clientes</button>
-        <button data-view="leads">Leads</button>
-        <button data-view="conversations">Conversas</button>
-        <button data-view="followups">Follow-ups</button>
-        <button data-view="approvals">Aprovações</button>
-        <button data-view="tasks">Demandas</button>
+        <button data-view="approvals">Aprovações e exceções</button>
+        <button data-view="followups">Agenda de retornos</button>
       </nav>
     </div>
     <div class="nav-group"><small>ACESSO</small>
@@ -76,11 +73,11 @@
       <button id="mobileMenu" class="mobile-menu" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
-      <div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar cliente, lead, sistema..."></header>
+      <div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar oportunidades..."></header>
     <section id="content"></section>
   </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="app.js?v=20261106-4"></script>
+<script src="app.js?v=20261106-5"></script>
 </body>
 </html>
