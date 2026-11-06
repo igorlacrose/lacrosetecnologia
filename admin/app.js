@@ -234,7 +234,7 @@ function conversations(folder=conversationFolder,selectId=null){
     const notice=document.createElement('p');
     notice.className='operation-feedback';notice.setAttribute('role','status');
     notice.textContent=conversationFlash;conversationFlash='';
-    root.prepend(notice);
+    root.parentElement?.insertBefore(notice,root);
   }
   if(selectId&&threads.some(t=>t.id===selectId))openThread(selectId);
 }
@@ -257,8 +257,12 @@ async function conversationAction(id,action){
   const actionLabels={archive:'Atendimento arquivado.',trash:'Atendimento movido para a Lixeira.',
     restore:'Atendimento restaurado.',purge:'Atendimento e mensagens excluídos definitivamente.'};
   const oldFolder=t.folder;
-  const {data,error}=await sb.rpc('lkz_adm_conversation_action',
-    {p_id:id,p_action:action,p_expected_folder:oldFolder});
+  let result;
+  try{
+    result=await sb.rpc('lkz_adm_conversation_action',
+      {p_id:id,p_action:action,p_expected_folder:oldFolder});
+  }catch{result={error:{code:'REDE'}}}
+  const {data,error}=result;
   if(error||!data){
     const pane=el('messagePane');
     const warning=document.createElement('p');warning.className='operation-feedback error';
