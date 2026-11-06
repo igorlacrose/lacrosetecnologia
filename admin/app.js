@@ -429,34 +429,154 @@ function systems(){el('content').innerHTML='<div class="layout">'+systemCatalog.
   '<a class="cta" href="'+system.url+'">Abrir '+system.code+'</a></section>'
 ).join('')+'</div><p class="notice">O acesso usa o login de cada sistema. O provisionamento de um banco por empresa ainda está em implantação.</p>'}
 function clients(feedback=''){
-  const body=state.contacts.map(contact=>'<tr><td><b>'+esc(contact.company_name||'—')+'</b></td><td>'+esc(contact.person_name||'—')+
-    '</td><td>'+esc(contact.email||'—')+'</td><td>'+esc(contact.phone||'—')+'</td></tr>').join('');
-  el('content').innerHTML='<section class="panel form-panel"><h2>Novo cliente</h2><form id="clientForm" class="entry-form">'+
-    '<label>Empresa <input name="company" maxlength="120"></label><label>Nome <input name="name" maxlength="120"></label>'+
-    '<label>E-mail <input name="email" type="email" maxlength="254"></label><label>Telefone <input name="phone" type="tel" maxlength="32"></label>'+
-    '<div class="action-row"><button class="cta">Cadastrar cliente</button><span role="status">'+esc(feedback)+'</span></div></form></section>'+
-    (body?'<div class="table"><table><thead><tr><th>Empresa</th><th>Pessoa</th><th>E-mail</th><th>Telefone</th></tr></thead><tbody>'+
-    body+'</tbody></table></div>':'<section class="panel">Nenhum cliente encontrado.</section>');
-  const form=el('clientForm');
+  const contacts=state.contacts;
+  const clientLeads=c=>state.leads.filter(l=>l.contact_id===c.id);
+  const withLeads=new Set(state.leads.map(l=>l.contact_id).filter(Boolean)).size;
+  const unidentified=contacts.filter(c=>!c.company_name&&!c.person_name).length;
+  const nameOf=c=>c.company_name||c.person_name||'Contato sem identificação';
+  const clientRows=contacts.map(c=>{
+    const leads=clientLeads(c);
+    const active=leads.filter(l=>!['won','lost','archived'].includes(l.status)).length;
+    return '<tr data-client-row="'+esc(c.id)+'" data-search="'+esc([c.company_name,c.person_name,c.segment,c.email,c.phone,c.city,c.state]
+         .filter(Boolean).join(' ').toLowerCase())+'">'+
+      '<td><div class="client-name-cell"><strong>'+esc(nameOf(c))+'</strong><small>'+esc(c.person_name&&c.company_name?c.person_name:c.segment||'Sem segmento')+'</small></div></td>'+
+      '<td>'+esc([c.city,c.state].filter(Boolean).join(' / ')||'—')+'</td>'+
+      '<td>'+esc(c.email||'—')+'<br>'+esc(c.phone||'—')+'</td>'+
+      '<td><strong>'+leads.length+'</strong> registro(s) · '+active+' em andamento</td>'+
+      '<td>'+esc(dateLabel(c.updated_at))+'</td>'+
+      '<td><button type="button" class="cta secondary" data-open-client="'+esc(c.id)+'">'+
+        (!c.company_name&&!c.person_name?'Completar':'Ver detalhes')+'</button></td>'+
+    '</tr>';
+  }).join('');
+  const selected=contacts.find(c=>c.id===clientFocus)||contacts[0]||null;
+  if(selected)clientFocus=selected.id;
+  const selectedLeads=selected?clientLeads(selected):[];
+  const history=selectedLeads.slice(0,8).map(l=>
+    '<div class="client-event"><div><b>'+esc(l.suggested_solution||l.intent||'Oportunidade')+'</b>'+
+      '<small>'+esc(dateLabel(l.updated_at))+' · '+esc(l.source||'Origem não informada')+'</small></div>'+
+      '<div>'+tag(l.status)+' <button type="button" class="cta secondary" data-client-lead="'+esc(l.id)+'">Abrir</button></div></div>'
+  ).join('');
+  let detail='';
+  const editMode=clientMode==='edit'&&selected;
+  const newMode=clientMode==='new';
+  if(newMode||editMode){
+    const c=editMode?selected:{};
+    const field=(title,key,type='text',max=120,required='')=>
+      '<label>'+title+'<input name="'+key+'" type="'+type+'" maxlength="'+max+'" '+required+
+      ' value="'+esc(c[key]||'')+'"></label>';
+    detail='<section class="panel client-profile"><div class="client-panel-head">'+
+      '<div><small class="client-eyebrow">'+(newMode?'NOVO CADASTRO':'EDITAR CLIENTE')+'</small>'+
+      '<h2>'+(newMode?'Cadastrar cliente':esc(nameOf(c)))+'</h2>'+
+      '<p>Informações comerciais verificáveis, sem campos inventados.</p></div>'+
+      '<button type="button" class="cta secondary" data-client-cancel>Cancelar</button></div>'+
+      '<form id="professionalClientForm" class="entry-form client-form">'+
+      field('Empresa','company_name')+field('Contato responsável','person_name')+
+      field('Segmento','segment', 'text',100)+
+      field('E-mail','email','email',254)+field('Telefone','phone','tel',32)+
+      field('Cidade','city','text',100)+field('UF','state','text',2)+
+      '<div class="action-row"><button type="submit" class="cta">'+(newMode?'Cadastrar cliente':'Salvar alterações')+'</button>'+
+      '<span data-form-status role="status">Informe ao menos empresa ou contato responsável.</span></div>'+
+      '</form></section>';
+  }else if(selected){
+    const location=[selected.city,selected.state].filter(Boolean).join(' / ')||'Não informada';
+    const name=nameOf(selected);
+    const linked=new Set(selectedLeads.map(l=>l.id));
+    const countThreads=state.threads.filter(t=>linked.has(t.lead_id)).length;
+    detail='<section class="panel client-profile"><div class="client-panel-head"><div>'+
+      '<small class="client-eyebrow">FICHA DO CLIENTE</small><h2>'+esc(name)+'</h2>'+
+      '<p>'+esc(selected.segment||'Segmento não informado')+'</p></div>'+
+      '<button type="button" class="cta" data-client-edit>Editar cadastro</button></div>'+
+      '<div class="client-facts">'+
+        '<div><span>Pessoa de contato</span><strong>'+esc(selected.person_name||'Não informada')+'</strong></div>'+
+        '<div><span>E-mail</span><strong>'+esc(selected.email||'Não informado')+'</strong></div>'+
+        '<div><span>Telefone</span><strong>'+esc(selected.phone||'Não informado')+'</strong></div>'+
+        '<div><span>Localização</span><strong>'+esc(location)+'</strong></div>'+
+        '<div><span>Criado em</span><strong>'+esc(dateLabel(selected.created_at))+'</strong></div>'+
+        '<div><span>Atualizado em</span><strong>'+esc(dateLabel(selected.updated_at))+'</strong></div>'+
+      '</div>'+
+      '<div class="client-stats">'+
+        '<div><span>Oportunidades</span><strong>'+selectedLeads.length+'</strong></div>'+
+        '<div><span>Atendimentos vinculados</span><strong>'+countThreads+'</strong></div>'+
+        '<div><span>Consentimento de contato</span><strong>'+(selected.consent_contact?'Registrado':'Não registrado')+'</strong></div>'+
+      '</div><div class="client-history"><h3>Histórico comercial</h3>'+
+      (history||'<p>Nenhuma oportunidade vinculada a este cadastro.</p>')+
+      '</div></section>';
+  }else detail='<section class="panel client-profile"><p>Nenhum cliente cadastrado.</p></section>';
+  el('content').innerHTML=
+    '<div class="grid client-kpis">'+
+      k('Contatos',contacts.length,'Registros carregados')+
+      k('Com oportunidades',withLeads,'Relacionados ao pipeline')+
+      k('Para identificar',unidentified,'Cadastros incompletos')+'</div>'+
+    '<div class="client-toolbar"><div><h2>Carteira de clientes</h2>'+
+      '<p>Consulte, atualize cadastros e acompanhe oportunidades reais.</p></div>'+
+      '<div class="client-toolbar-actions"><input id="clientSearch" type="search" placeholder="Buscar cliente, cidade, segmento...">'+
+        '<button type="button" class="cta" data-new-client>Novo cliente</button></div></div>'+
+    '<p class="operation-feedback" data-client-feedback role="status">'+esc(feedback)+'</p>'+
+    '<div class="table client-table"><table><thead><tr>'+
+      '<th>Empresa / contato</th><th>Local</th><th>Contato</th>'+
+      '<th>Oportunidades</th><th>Atualização</th><th>Ação</th></tr></thead>'+
+      '<tbody>'+clientRows+'</tbody></table></div>'+
+    '<div class="client-detail" id="clientDetail">'+detail+'</div>';
+  el('content').querySelectorAll('[data-open-client]').forEach(b=>b.onclick=()=>{
+    clientFocus=b.dataset.openClient;clientMode='detail';clients();
+    el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
+  el('content').querySelector('[data-new-client]').onclick=()=>{
+    clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };
+  el('content').querySelector('[data-client-edit]')?.addEventListener('click',()=>{
+    clientMode='edit';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
+  el('content').querySelector('[data-client-cancel]')?.addEventListener('click',()=>{clientMode='detail';clients()});
+  el('content').querySelectorAll('[data-client-lead]').forEach(b=>b.onclick=()=>{
+    el('search').value='';
+    view('leads');
+    el('content').querySelector('[data-lead="'+b.dataset.clientLead+'"]')?.click();
+  });
+  const search=el('clientSearch');
+  search.oninput=()=>{
+    const norm=v=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    el('content').querySelectorAll('[data-client-row]').forEach(row=>{
+      row.hidden=!norm(row.dataset.search).includes(norm(search.value.trim()));
+    });
+  };
+  const form=el('professionalClientForm');
+  if(!form)return;
   let requestId=crypto.randomUUID();
-  form.oninput=()=>{requestId=crypto.randomUUID()};
-  form.onsubmit=async event=>{
-    event.preventDefault();
-    const fields=new FormData(form),status=form.querySelector('[role=status]');
-    const company=fields.get('company').trim(),name=fields.get('name').trim();
-    if(!company&&!name){msg(status,'Informe a empresa ou o nome.');return}
-    const controls=[...form.querySelectorAll('input,button')];
-    controls.forEach(control=>control.disabled=true);
-    const {data,error}=await sb.rpc('lkz_adm_register_client',{p_id:requestId,p_company:company,p_name:name,
-      p_email:fields.get('email').trim(),p_phone:fields.get('phone').trim()});
+  form.oninput=()=>{if(newMode)requestId=crypto.randomUUID()};
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const f=new FormData(form),status=form.querySelector('[data-form-status]');
+    const val=key=>String(f.get(key)||'').trim();
+    if(!val('company_name')&&!val('person_name')){
+      status.textContent='Informe a empresa ou pessoa de contato.';return;
+    }
+    const payload={
+      p_company:val('company_name'),p_name:val('person_name'),
+      p_segment:val('segment'),p_email:val('email'),p_phone:val('phone'),
+      p_city:val('city'),p_state:val('state').toUpperCase()
+    };
+    const buttons=[...form.querySelectorAll('button,input')];
+    buttons.forEach(item=>item.disabled=true);
+    status.textContent='Salvando cadastro...';
+    let result;
+    try{
+      result=newMode
+        ?await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload})
+        :await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+    }catch{result={error:{code:'REDE'}}}
     if(!form.isConnected||!user)return;
-    if(error||!data){
-      msg(status,error?.code==='22023'?'Confira o nome e os dados de contato.':'Não foi possível confirmar o cadastro. Tente novamente.');
-      controls.forEach(control=>control.disabled=false);
+    if(result.error||!result.data?.id){
+      status.textContent='Não foi possível salvar. Código: '+(result.error?.code||'SEM_CONFIRMACAO')+
+        '. Verifique os campos e o estado atual antes de tentar novamente.';
+      buttons.forEach(item=>item.disabled=false);
       return;
     }
-    state.contacts=[data,...state.contacts.filter(item=>item.id!==data.id)];
-    clients('Cliente cadastrado.');
+    const updated=result.data;
+    state.contacts=[updated,...state.contacts.filter(c=>c.id!==updated.id)];
+    clientFocus=updated.id;clientMode='detail';
+    try{await loadCommercial()}catch{ /* O registro retornado pela RPC permanece disponível. */ }
+    clients(newMode?'Cliente cadastrado com sucesso.':'Cadastro atualizado com sucesso.');
   };
 }
 function finance(){el('content').innerHTML='<section class="panel"><h2>Cobranças</h2><p>A integração de pagamento ainda está pendente.</p></section>'}
