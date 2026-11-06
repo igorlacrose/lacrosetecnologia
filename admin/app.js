@@ -36,7 +36,7 @@ async function loadCommercial(){
   const [lr,cr,vr,fr,ar]=await Promise.all([
     sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
     sb.from('contacts').select('id,company_name,person_name,email,phone').order('created_at',{ascending:false}).limit(200),
-    sb.from('conversations').select('id,lead_id,last_message_at,status').order('last_message_at',{ascending:false}).limit(100),
+    sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
     sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
     sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100)
   ]);
@@ -46,12 +46,29 @@ async function loadCommercial(){
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],
-    threads:(vr.data||[]).map(c=>({id:c.id,lead:lm.get(c.lead_id)?.name||'Conversa sem lead',last:c.last_message_at})),
+    threads:(vr.data||[]).map(c=>({
+  id:c.id,
+  lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
+  last:c.last_message_at||c.started_at,channel:c.channel||'Site'
+})),
     followups:(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'})),
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
   };
 }
-const titles={overview:['OCA · Hoje','Prioridades da Lacrose para acompanhar ao longo do dia.'],systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],clients:['Clientes','Cadastre e consulte clientes da Lacrose.'],finance:['Financeiro','Configuração de cobrança pendente.'],usage:['Uso e Atividade','Atividade nos registros comerciais carregados.'],tasks:['Demandas','Pendências comerciais que precisam de ação.'],commercial:['Visão Comercial','Dados do Agente Comercial.'],leads:['Leads','Oportunidades registradas pelo comercial.'],conversations:['Conversas','Consulte e organize as mensagens de cada conversa.'],followups:['Follow-ups','Retornos programados pelo comercial.'],approvals:['Aprovações','Decisões do fluxo comercial.'],settings:['Configurações','Preferências da sessão e gestão de acesso.']};
+const titles={
+  overview:['Painel geral','Indicadores e prioridades dos registros comerciais carregados.'],
+  systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
+  clients:['Clientes','Cadastros e contatos comerciais.'],
+  finance:['Financeiro','Integração de cobrança pendente.'],
+  usage:['Atividade','Indicadores dos registros comerciais carregados.'],
+  tasks:['Demandas','Pendências comerciais que precisam de ação.'],
+  commercial:['Visão comercial','Resumo dos registros comerciais.'],
+  leads:['Oportunidades','Leads e estágios comerciais.'],
+  conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
+  followups:['Agenda de retornos','Retornos programados, em modo de consulta.'],
+  approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
+  settings:['Configurações','Sessão e gestão de acesso.']
+};
 const mobileMenu=el('mobileMenu'),sidebarBackdrop=el('sidebarBackdrop');
 function setMenu(open){
   document.body.classList.toggle('menu-open',open);
@@ -115,7 +132,7 @@ function overview() {
     k('Retornos atrasados', overdue, 'Prazo vencido') +
     k('Retornos de hoje', dueToday, 'Ainda no prazo') +
     k('Aprovações', approvals, 'Decisões pendentes') +
-    '</div><div class="layout"><section class="panel"><h2>OCA · Prioridades do dia</h2>' +
+    '</div><div class="layout"><section class="panel"><h2>Prioridades do dia</h2>' +
     '<p>' + priorities.length + ' prioridades nos registros carregados.</p>' +
     (list || '<p>Nenhuma prioridade encontrada nos registros carregados.</p>') +
     '</section><section class="panel"><h2>Operação da Lacrose</h2>' +
@@ -160,8 +177,10 @@ function commercial(){
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
 }
 function leads(){
-  const body=state.leads.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
-  el('content').innerHTML='<div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+  const q=(el('search')?.value||'').trim().toLowerCase();
+ const filtered=q?state.leads.filter(l=>[l.name,l.contact,l.intent,l.category,l.suggested_solution].some(v=>String(v||'').toLowerCase().includes(q))):state.leads;
+ const body=filtered.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
+  el('content').innerHTML='<p class="result-count">'+filtered.length+' oportunidade(s) encontrada(s)</p><div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
   el('content').querySelectorAll('[data-lead]').forEach(button=>button.onclick=()=>{
     const lead=state.leads.find(item=>item.id===button.dataset.lead);
     el('leadDetails').innerHTML='<section class="panel form-panel"><h2>'+esc(lead.name)+'</h2>'+
@@ -172,11 +191,32 @@ function leads(){
 }
 const dateLabel=value=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(value)):'—';
 function conversations(){
-  el('content').innerHTML='<div class="chat"><div class="threads">'+state.threads.map(t=>
-    '<button class="thread" data-thread="'+esc(t.id)+'"><b>'+esc(t.lead)+'</b><span>'+esc(dateLabel(t.last))+'</span></button>'
-  ).join('')+'</div><div id="messagePane" class="messages"><div class="empty">'+
-    (state.threads.length?'Selecione uma conversa.':'Nenhuma conversa encontrada.')+'</div></div></div>';
-  el('content').querySelectorAll('[data-thread]').forEach(button=>button.onclick=()=>openThread(button.dataset.thread));
+  const entries=state.threads.map(t=>
+    '<button type="button" class="thread" data-thread="'+esc(t.id)+'" data-search="'+esc((t.lead+' '+t.channel).toLowerCase())+'">'+
+    '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
+    '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span></button>'
+  ).join('');
+  el('content').innerHTML='<div class="chat" id="chatWorkspace">'+
+    '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2>'+
+    '<p>'+state.threads.length+' conversas carregadas</p>'+
+    '<label><span class="sr-only">Filtrar atendimentos</span><input id="threadFilter" type="search" placeholder="Buscar atendimento..."></label></div>'+
+    '<div class="thread-scroller">'+(entries||'<div class="empty">Nenhuma conversa encontrada.</div>')+'</div></div>'+
+    '<div id="messagePane" class="messages"><div class="empty chat-placeholder"><strong>Selecione um atendimento</strong>'+
+    '<span>Consulte o histórico e gerencie as mensagens com segurança.</span></div></div></div>';
+  const root=el('chatWorkspace');
+  root.querySelectorAll('[data-thread]').forEach(button=>button.onclick=()=>openThread(button.dataset.thread));
+  const input=el('threadFilter');
+  input.oninput=()=>{
+    const term=input.value.trim().toLowerCase();
+    const norm=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    let total=0;
+    root.querySelectorAll('[data-thread]').forEach(button=>{
+      const match=norm(button.dataset.search).includes(norm(term));
+      button.hidden=!match;
+      if(match)total++;
+    });
+    root.querySelector('.thread-header p').textContent=total+' conversas encontradas';
+  };
 }
 
 const messageFolders={active:'Caixa de entrada',archived:'Arquivadas',deleted:'Lixeira'};
@@ -185,6 +225,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const thread=state.threads.find(item=>item.id===id);
   const pane=el('messagePane');
   if(!thread||!pane)return;
+  el('chatWorkspace')?.classList.add('is-detail');
   el('content').querySelectorAll('[data-thread]').forEach(button=>button.classList.toggle('active',button.dataset.thread===id));
   const page=document.createElement('section');
   page.setAttribute('aria-busy','true');
@@ -204,13 +245,14 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const items=result.data||[];
   const next=available&&items.length>50?items[49].id:null;
   const actions=Object.entries(messageActions[folder]);
-  page.innerHTML='<h2>'+esc(thread.lead)+'</h2>'+
+  page.innerHTML='<div class="message-heading"><button class="message-back" type="button">‹ Voltar</button><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel||'Site')+'</span><h2>'+esc(thread.lead)+'</h2></div></div>'+
     (available?'<div class="message-tools" aria-label="Pastas de mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button type="button" class="cta" aria-pressed="'+(folder===key)+'" data-folder="'+key+'">'+title+'</button>'
     ).join('')+'</div>':'')+
     '<p role="status">'+esc(available?feedback:'O gerenciamento de mensagens aguarda a atualização do banco.')+'</p>'+
     (available&&items.length?'<div class="message-actions" aria-label="Ações das mensagens">'+
-      '<p data-selection role="status">Selecione as mensagens que deseja mover ou apagar.</p><div class="message-tools">'+
+      '<label class="select-all"><input type="checkbox" data-select-all> Selecionar todas desta página</label>'+ 
+       '<p data-selection role="status">Selecione as mensagens para arquivar ou excluir.</p><div class="message-tools">'+
       actions.map(([key,title])=>'<button class="cta" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+
       '</div><div class="message-confirm" data-confirm hidden><p data-confirm-text></p><div class="message-tools">'+
       '<button class="cta danger" type="button" data-confirm-delete>Confirmar exclusão definitiva</button>'+
@@ -219,16 +261,25 @@ async function openThread(id,folder='active',before=null,feedback=''){
     items.slice(0,50).reverse().map(item=>{
       const bubble='<span><span class="message-text">'+esc(item.content)+'</span><small>'+esc(dateLabel(item.created_at))+'</small></span>';
       const style='bubble'+(item.role==='user'?'':' out');
-      return available?'<label class="'+style+' selectable"><input type="checkbox" value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>':
+      return available?'<div class="message-item'+(item.role==='user'?'':' out')+'">'+
+        '<label class="'+style+' selectable"><input type="checkbox" data-message-select value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>'+
+        '<button type="button" class="message-quick-delete" data-single="'+esc(item.id)+'" data-target="'+(folder==='deleted'?'active':'deleted')+'">'+
+        (folder==='deleted'?'Restaurar':'Mover para a Lixeira')+'</button></div>':
         '<div class="'+style+'">'+bubble+'</div>';
     }).join('')+
     (next?'<button class="cta" type="button" data-older>Mensagens anteriores</button>':'')+
     (before?'<button class="cta" type="button" data-recent>Voltar às recentes</button>':'');
-  const selected=()=>[...page.querySelectorAll('input:checked')].map(input=>input.value);
+  const selected=()=>[...page.querySelectorAll('[data-message-select]:checked')].map(input=>input.value);
+  const selectAll=page.querySelector('[data-select-all]');
   const buttons=[...page.querySelectorAll('[data-move]')];
   const selection=page.querySelector('[data-selection]');
   const confirmation=page.querySelector('[data-confirm]');
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
+  page.querySelector('.message-back')?.addEventListener('click',()=>el('chatWorkspace')?.classList.remove('is-detail'));
+  selectAll?.addEventListener('change',()=>{
+    page.querySelectorAll('[data-message-select]').forEach(input=>input.checked=selectAll.checked);
+    page.onchange?.();
+  });
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
   if(!selection)return page;
@@ -236,10 +287,14 @@ async function openThread(id,folder='active',before=null,feedback=''){
     const count=selected().length;
     selection.textContent=count?count+' selecionada(s).':'Selecione as mensagens que deseja mover ou apagar.';
     buttons.forEach(button=>button.disabled=count===0);
+    if(selectAll){
+      selectAll.checked=count>0&&count===items.slice(0,50).length;
+      selectAll.indeterminate=count>0&&count<items.slice(0,50).length;
+    }
     confirmation.hidden=true;
   };
-  async function move(destination){
-    const ids=selected();
+  async function move(destination,chosenIds=null){
+    const ids=chosenIds||selected();
     if(!ids.length)return;
     page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
     selection.textContent='Salvando…';
@@ -250,9 +305,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
     const success=destination==='purge'?'Mensagens apagadas definitivamente.':
       destination==='deleted'?'Mensagens movidas para a Lixeira. Abra a Lixeira para restaurar ou apagar definitivamente.':
       'Mensagens movidas para '+messageFolders[destination].toLowerCase()+'.';
-    const updated=await openThread(id,folder,before,error||data!==ids.length?'Não foi possível confirmar a mudança. Confira a lista e tente novamente.':success);
+    const updated=await openThread(id,folder,before,error||Number(data)!==ids.length?
+      'Operação não confirmada'+(error?.code?' (código '+esc(error.code)+')':'')+'. Confira a lista; nenhuma exclusão deve ser presumida.':success);
     if(updated?.isConnected)updated.querySelector('[role=status]')?.scrollIntoView({block:'nearest'});
   }
+  page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
   buttons.forEach(button=>button.onclick=()=>{
     if(button.dataset.move!=='purge')return move(button.dataset.move);
     confirmation.querySelector('[data-confirm-text]').textContent='Apagar definitivamente '+selected().length+' mensagem(ns)?';
@@ -266,7 +323,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
   };
   return page;
 }
-function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div>'}
+function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div><p class="notice">Consulta de retornos. Reagendamento e contato são feitos pelo LCRM, até existir integração operacional homologada.</p>'}
 function approvals(feedback=''){
   const body=state.approvals.map(a=>{
     const action={contact:'Contato',proposal:'Proposta'}[a.action_type]||a.action_type;
@@ -274,8 +331,13 @@ function approvals(feedback=''){
       ?'<div class="action-row"><button class="cta" data-decision="approved">Aprovar</button><button class="cta" data-decision="rejected">Rejeitar</button></div>':'—';
     return '<tr data-approval="'+esc(a.id)+'"><td><b>'+esc(a.lead)+'</b></td><td>'+esc(action)+'</td><td>'+tag(a.status)+'</td><td>'+actions+'</td></tr>';
   }).join('');
-  el('content').innerHTML='<p id="approvalFeedback" role="status">'+esc(feedback)+'</p>'+
+  const review=state.leads.filter(lead=>!['lost','archived','won'].includes(lead.status)&&
+    (lead.needs_human_review||lead.status==='human_review'));
+  const reviewHtml=review.length?'<section class="panel form-panel"><h2>Casos para revisão</h2><p>Leads sinalizados para análise humana.</p>'+
+    review.slice(0,15).map(lead=>'<div class="row"><b>'+esc(lead.name)+'</b><button class="cta" type="button" data-review-lead="'+esc(lead.id)+'">Ver oportunidade</button></div>').join('')+'</section>':'';
+  el('content').innerHTML=reviewHtml+'<p id="approvalFeedback" role="status">'+esc(feedback)+'</p>'+
     (body?'<div class="table"><table><thead><tr><th>Lead</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>':'<p>Nenhuma aprovação encontrada.</p>');
+  el('content').querySelectorAll('[data-review-lead]').forEach(button=>button.onclick=()=>{view('leads');const lead=el('content').querySelector('[data-lead="'+button.dataset.reviewLead+'"]');lead?.click()});
   el('content').querySelectorAll('[data-decision]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-approval]'),status=button.dataset.decision;
     if(!window.confirm(status==='approved'?'Confirmar aprovação?':'Confirmar rejeição?'))return;
@@ -392,5 +454,5 @@ async function loadUsers(target,feedback=''){
     await loadUsers(target,'Acesso atualizado.');
   });
 }
-el('search').onkeydown=e=>{if(e.key==='Enter'){const q=e.currentTarget.value.toLowerCase(),l=state.leads.find(x=>x.name.toLowerCase().includes(q));if(l){view('leads')}else alert('Nenhum lead encontrado.')}}; 
+el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();view('leads')}}; 
 (async()=>{const {data:{user:u}}=await sb.auth.getUser();if(!u)return showLogin();try{const p=await authorize(u);if(!p){await sb.auth.signOut();return showLogin('Conta sem permissão administrativa.')}await enforceMfa(p,u)}catch(e){console.error(e);await sb.auth.signOut();showLogin('Não foi possível validar a sessão.')}})();
