@@ -28,5 +28,8 @@ jobs:
       - name: Validar arquivos, links e SEO
         run: python scripts/site_check.py
 
+      - name: Validar sintaxe do LKZ ADM
+        run: node --check admin/app.js
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
