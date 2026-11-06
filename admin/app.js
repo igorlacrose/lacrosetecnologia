@@ -225,6 +225,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const thread=state.threads.find(item=>item.id===id);
   const pane=el('messagePane');
   if(!thread||!pane)return;
+  el('chatWorkspace')?.classList.add('is-detail');
   el('content').querySelectorAll('[data-thread]').forEach(button=>button.classList.toggle('active',button.dataset.thread===id));
   const page=document.createElement('section');
   page.setAttribute('aria-busy','true');
@@ -244,7 +245,6 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const items=result.data||[];
   const next=available&&items.length>50?items[49].id:null;
   const actions=Object.entries(messageActions[folder]);
-  el('chatWorkspace')?.classList.add('is-detail');
   page.innerHTML='<div class="message-heading"><button class="message-back" type="button">‹ Voltar</button><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel||'Site')+'</span><h2>'+esc(thread.lead)+'</h2></div></div>'+
     (available?'<div class="message-tools" aria-label="Pastas de mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button type="button" class="cta" aria-pressed="'+(folder===key)+'" data-folder="'+key+'">'+title+'</button>'
@@ -323,7 +323,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
   };
   return page;
 }
-function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div>'}
+function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div><p class="notice">Consulta de retornos. Reagendamento e contato são feitos pelo LCRM, até existir integração operacional homologada.</p>'}
 function approvals(feedback=''){
   const body=state.approvals.map(a=>{
     const action={contact:'Contato',proposal:'Proposta'}[a.action_type]||a.action_type;
@@ -331,8 +331,13 @@ function approvals(feedback=''){
       ?'<div class="action-row"><button class="cta" data-decision="approved">Aprovar</button><button class="cta" data-decision="rejected">Rejeitar</button></div>':'—';
     return '<tr data-approval="'+esc(a.id)+'"><td><b>'+esc(a.lead)+'</b></td><td>'+esc(action)+'</td><td>'+tag(a.status)+'</td><td>'+actions+'</td></tr>';
   }).join('');
-  el('content').innerHTML='<p id="approvalFeedback" role="status">'+esc(feedback)+'</p>'+
+  const review=state.leads.filter(lead=>!['lost','archived','won'].includes(lead.status)&&
+    (lead.needs_human_review||lead.status==='human_review'));
+  const reviewHtml=review.length?'<section class="panel form-panel"><h2>Casos para revisão</h2><p>Leads sinalizados para análise humana.</p>'+
+    review.slice(0,15).map(lead=>'<div class="row"><b>'+esc(lead.name)+'</b><button class="cta" type="button" data-review-lead="'+esc(lead.id)+'">Ver oportunidade</button></div>').join('')+'</section>':'';
+  el('content').innerHTML=reviewHtml+'<p id="approvalFeedback" role="status">'+esc(feedback)+'</p>'+
     (body?'<div class="table"><table><thead><tr><th>Lead</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>':'<p>Nenhuma aprovação encontrada.</p>');
+  el('content').querySelectorAll('[data-review-lead]').forEach(button=>button.onclick=()=>{view('leads');const lead=el('content').querySelector('[data-lead="'+button.dataset.reviewLead+'"]');lead?.click()});
   el('content').querySelectorAll('[data-decision]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-approval]'),status=button.dataset.decision;
     if(!window.confirm(status==='approved'?'Confirmar aprovação?':'Confirmar rejeição?'))return;
