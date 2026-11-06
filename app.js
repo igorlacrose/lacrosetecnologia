@@ -93,6 +93,8 @@ async function persistAgentSnapshot(){
 
 
   persistInFlight=true;
+  const requestSession=agentSessionId;
+  const reportOcaStatus=state.oca && state.completed;
 
 
   try{
@@ -135,9 +137,16 @@ async function persistAgentSnapshot(){
 
 
     lastPersistBody=body;
+    if(reportOcaStatus && requestSession===agentSessionId){
+      setOcaStatus('Pedido recebido para análise pela Lacrose Tecnologia.');
+    }
 
 
   }catch(error){
+
+    if(reportOcaStatus && requestSession===agentSessionId){
+      setOcaStatus('Não foi possível confirmar o envio. Envie uma nova mensagem para tentar novamente ou fale pelo WhatsApp no rodapé do site.');
+    }
 
     console.warn(
       'Agente Lacrose: não foi possível sincronizar o diagnóstico agora.',
@@ -280,6 +289,18 @@ const INTENT_LABELS={
 };
 
 
+const OCA_SITE='Site integrado com sistema personalizado';
+const OCA_SITE_OPENING='Sites simples a partir de R$ 1.000,00. Qual é o seu negócio e o que você quer que o site faça ou integre?';
+const OCA_SITE_CONTACT='Qual telefone ou e-mail a Lacrose pode usar para retornar com a análise?';
+
+function setOcaStatus(message){
+  const status=document.getElementById('ocaStatus');
+  if(status){
+    status.hidden=!message;
+    status.textContent=message;
+  }
+}
+
 const FIELD_QUESTIONS={
 
   problem:
@@ -309,6 +330,8 @@ const FIELD_QUESTIONS={
 
 
 const state={
+
+  oca:false,
 
   lead:{
 
@@ -1207,6 +1230,10 @@ function nextMissing(){
    ========================================================= */
 
 function solutionFor(){
+
+  if(state.oca){
+    return OCA_SITE;
+  }
 
   const l=
     state.lead;
@@ -2386,6 +2413,21 @@ function askNext(){
 
   updatePreview();
 
+  if(state.oca){
+    if(!state.lead.problem || !state.lead.contact){
+      state.awaiting=state.lead.problem?'contact':'problem';
+      agentSay(state.lead.problem?OCA_SITE_CONTACT:OCA_SITE_OPENING,300);
+      return;
+    }
+
+    state.awaiting='';
+    state.completed=true;
+    setOcaStatus('Enviando pedido para análise comercial.');
+    agentSay('A equipe da Lacrose vai avaliar o escopo antes de definir a proposta e o valor final.',300);
+    schedulePersist();
+    return;
+  }
+
 
   const field=
     nextMissing();
@@ -2514,6 +2556,15 @@ function submitText(
   }
 
 
+  if(state.oca){
+    if(!state.lead.problem){
+      state.lead.problem=text;
+    }
+    absorbContact(text);
+    askNext();
+    return;
+  }
+
   if(
     !state.lead.problem &&
     state.awaiting!=='problem'
@@ -2569,9 +2620,11 @@ function submitText(
 
 function startIntent(
   intent,
-  label
+  label,
+  oca=false
 ){
 
+  state.oca=oca;
   state.lead.intent=
     intent;
 
@@ -2604,11 +2657,11 @@ function startIntent(
 
   agentSay(
 
-    `Perfeito. Vou tratar isso como “${INTENT_LABELS[intent]}”. ${FIELD_QUESTIONS.problem}`,
+    oca?OCA_SITE_OPENING:`Perfeito. Vou tratar isso como “${INTENT_LABELS[intent]}”. ${FIELD_QUESTIONS.problem}`,
 
     300,
 
-    ()=>renderQuickReplies(
+    oca?undefined:()=>renderQuickReplies(
       'problem'
     )
   );
@@ -2681,6 +2734,8 @@ function resetAgent(){
 
 
   state.completed=false;
+  state.oca=false;
+  setOcaStatus('');
 
 
   state.quickSelection.clear();
@@ -2803,7 +2858,8 @@ if(el.form){
         'click',
         ()=>startIntent(
           btn.dataset.start,
-          btn.querySelector('span')?.textContent
+          btn.querySelector('span')?.textContent,
+          btn.hasAttribute('data-oca')
         )
       )
     );
