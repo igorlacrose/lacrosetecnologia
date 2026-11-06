@@ -4,9 +4,11 @@ const el=id=>document.getElementById(id);
 const ADMIN_IDLE_MS=30*60*1000;
 let user=null,profile=null,factorId=null,challengeId=null,currentThread=null,idleTimer=null;
 let state={leads:[],threads:[],followups:[],approvals:[]};
+const demo={systems:3,clients:4,contracted:4790,received:290,open:2070,overdue:790,tasks:3};
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const label=s=>({new:'Novo',diagnosing:'Diagnóstico',qualified:'Qualificado',human_review:'Revisão humana',contacted:'Contato realizado',proposal:'Proposta',won:'Fechado',lost:'Perdido',archived:'Arquivado',pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado',done:'Concluído',cancelled:'Cancelado'})[s]||s;
 const tag=s=>{const t=label(s),c=['Fechado','Aprovado','Concluído'].includes(t)?'ok':['Perdido','Rejeitado'].includes(t)?'err':['Pendente','Revisão humana','Proposta'].includes(t)?'warn':'info';return '<span class="tag '+c+'">'+esc(t)+'</span>'};
+const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function msg(node,text){node.textContent=text||''}
 function showLogin(text=''){setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
@@ -18,7 +20,7 @@ el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=tr
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
 async function loadCommercial(){const [lr,cr,vr,mr,fr,ar]=await Promise.all([sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),sb.from('contacts').select('id,company_name,person_name,email,phone').limit(200),sb.from('conversations').select('id,lead_id,last_message_at,status').order('last_message_at',{ascending:false}).limit(100),sb.from('messages').select('conversation_id,role,content,created_at').order('created_at',{ascending:true}).limit(500),sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100)]);const err=lr.error||cr.error||vr.error||mr.error||fr.error||ar.error;if(err)throw err;const cm=new Map((cr.data||[]).map(c=>[c.id,c])),lm=new Map();(lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});state.leads=[...lm.values()];const mm=new Map();(mr.data||[]).forEach(m=>{if(!mm.has(m.conversation_id))mm.set(m.conversation_id,[]);mm.get(m.conversation_id).push(m)});state.threads=(vr.data||[]).map(c=>({id:c.id,lead:lm.get(c.lead_id)?.name||'Conversa sem lead',leadId:c.lead_id,last:c.last_message_at,messages:mm.get(c.id)||[]}));state.followups=(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'}));state.approvals=(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))}
-const titles={overview:['OCA · Hoje','Prioridades da Lacrose para acompanhar ao longo do dia.'],systems:['Sistemas','Módulo administrativo em implantação.'],clients:['Clientes','Módulo administrativo em implantação.'],finance:['Financeiro','Módulo demonstrativo até o banco administrativo entrar.'],usage:['Uso e Atividade','Integrações de uso serão adicionadas por sistema.'],tasks:['Demandas','Módulo administrativo em implantação.'],commercial:['Visão Comercial','Dados reais do Agente Comercial.'],leads:['Leads','Dados reais do Supabase atual.'],conversations:['Conversas','Histórico real em modo leitura nesta primeira migração.'],followups:['Follow-ups','Dados reais do Supabase atual.'],approvals:['Aprovações','Dados reais; decisões completas permanecem no painel legado por enquanto.'],settings:['Configurações','Estado das integrações e segurança.']};
+const titles={overview:['Visão Geral','Administração + operação comercial em uma única central.'],systems:['Sistemas','Módulo administrativo em implantação.'],clients:['Clientes','Módulo administrativo em implantação.'],finance:['Financeiro','Módulo demonstrativo até o banco administrativo entrar.'],usage:['Uso e Atividade','Integrações de uso serão adicionadas por sistema.'],tasks:['Demandas','Módulo administrativo em implantação.'],commercial:['Visão Comercial','Dados reais do Agente Comercial.'],leads:['Leads','Dados reais do Supabase atual.'],conversations:['Conversas','Histórico real em modo leitura nesta primeira migração.'],followups:['Follow-ups','Dados reais do Supabase atual.'],approvals:['Aprovações','Dados reais; decisões completas permanecem no painel legado por enquanto.'],settings:['Configurações','Estado das integrações e segurança.']};
 const mobileMenu=el('mobileMenu'),sidebarBackdrop=el('sidebarBackdrop');
 function setMenu(open){
   document.body.classList.toggle('menu-open',open);
@@ -30,69 +32,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view(b.datase
 function view(v){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
 function k(l,v,m){return '<article class="kpi"><span>'+l+'</span><strong>'+v+'</strong><small>'+m+'</small></article>'}
 function render(v){if(v==='overview')return overview();if(v==='commercial')return commercial();if(v==='leads')return leads();if(v==='conversations')return conversations();if(v==='followups')return followups();if(v==='approvals')return approvals();if(v==='settings')return settings();return placeholder(v)}
-function dailyBrief(data, now = Date.now()) {
-  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Bahia', dateStyle: 'short' });
-  const today = day.format(now);
-  const inactive = new Set(data.leads.filter(lead => ['lost', 'archived'].includes(lead.status)).map(lead => lead.id));
-  const actions = [];
-  const add = (item, priority, view, reason, dueAt) => {
-    if (inactive.has(item.lead_id)) return;
-    actions.push({
-      key: item.lead_id || view + ':' + item.id,
-      name: item.lead,
-      priority, view, reason, dueAt: Number.isFinite(dueAt) ? dueAt : Infinity
-    });
-  };
-  for (const item of data.followups) {
-    if (item.status !== 'pending') continue;
-    const dueAt = Date.parse(item.due_at);
-    if (dueAt < now) add(item, 0, 'followups', 'Retorno atrasado', dueAt);
-    else if (Number.isFinite(dueAt) && day.format(dueAt) === today) add(item, 2, 'followups', 'Retorno hoje', dueAt);
-  }
-  for (const item of data.approvals) {
-    if (item.status === 'pending') add(item, 1, 'approvals', 'Aprovação pendente', Date.parse(item.requested_at));
-  }
-  for (const lead of data.leads) {
-    if (lead.status !== 'won' && (lead.status === 'human_review' || lead.needs_human_review === true)) {
-      add({ lead_id: lead.id, lead: lead.name }, 3, 'leads', 'Escopo para revisar', Date.parse(lead.updated_at));
-    }
-  }
-  actions.sort((a, b) => a.priority - b.priority || a.dueAt - b.dueAt || a.key.localeCompare(b.key));
-  const grouped = new Map();
-  for (const action of actions) {
-    if (!grouped.has(action.key)) grouped.set(action.key, { ...action, reasons: new Set() });
-    grouped.get(action.key).reasons.add(action.reason);
-  }
-  return {
-    overdue: actions.filter(action => action.priority === 0).length,
-    dueToday: actions.filter(action => action.priority === 2).length,
-    approvals: actions.filter(action => action.priority === 1).length,
-    priorities: [...grouped.values()]
-  };
-}
-
-function overview() {
-  const { overdue, dueToday, approvals, priorities } = dailyBrief(state);
-  const list = priorities.slice(0, 12).map(item =>
-    '<div class="row"><span><strong>' + esc(item.name || 'Oportunidade') + '</strong><br>' +
-    esc([...item.reasons].join(' · ')) + '</span><button type="button" class="cta" data-brief-view="' +
-    item.view + '">Abrir</button></div>'
-  ).join('');
-  el('content').innerHTML = '<div class="grid">' +
-    k('Retornos atrasados', overdue, 'Prazo vencido') +
-    k('Retornos de hoje', dueToday, 'Ainda no prazo') +
-    k('Aprovações', approvals, 'Decisões pendentes') +
-    '</div><div class="layout"><section class="panel"><h2>OCA · Prioridades do dia</h2>' +
-    '<p>' + priorities.length + ' prioridades nos registros carregados.</p>' +
-    (list || '<p>Nenhuma prioridade encontrada nos registros carregados.</p>') +
-    '</section><section class="panel"><h2>Operação da Lacrose</h2>' +
-    '<p>Acompanhe as prioridades aqui e abra o CRM para operar clientes, tarefas e conversas.</p>' +
-    '<a class="cta" href="https://lcrm.lacrosetecnologia.com.br/app/">Abrir LCRM</a>' +
-    '</section></div><footer><a href="https://lacrosetecnologia.com.br/">Desenvolvido por Lacrose Tecnologia</a></footer>';
-  el('content').querySelectorAll('[data-brief-view]').forEach(button => {
-    button.addEventListener('click', () => view(button.dataset.briefView));
-  });
-}
+function overview(){const active=state.leads.filter(l=>!['won','lost','archived'].includes(l.status)).length,pending=state.approvals.filter(a=>a.status==='pending').length;el('content').innerHTML='<div class="grid">'+k('Receita contratada',money(demo.contracted),'Demonstração')+k('Em aberto',money(demo.open),'Demonstração')+k('Vencidas',money(demo.overdue),'Demonstração')+k('Leads ativos',active,'Dados reais')+k('Conversas',state.threads.length,'Dados reais')+k('Aprovações',pending,'Dados reais')+'</div><div class="layout"><div class="panel"><h2>Comercial real</h2><p>Resumo do Agente Comercial atual.</p>'+rows([['Novos',state.leads.filter(l=>l.status==='new').length],['Diagnóstico',state.leads.filter(l=>l.status==='diagnosing').length],['Propostas',state.leads.filter(l=>l.status==='proposal').length],['Follow-ups pendentes',state.followups.filter(f=>f.status==='pending').length]])+'</div><div class="panel"><h2>Próxima etapa</h2><p>Financeiro, sistemas, clientes e demandas ganharão banco próprio.</p><div class="notice"><b>Sem falsa produção:</b> esses módulos ainda não gravam dados reais.</div></div></div>'}
 function commercial(){el('content').innerHTML='<div class="grid">'+k('Leads',state.leads.length,'Reais')+k('Conversas',state.threads.length,'Reais')+k('Revisão humana',state.leads.filter(l=>l.needs_human_review).length,'Reais')+k('Follow-ups',state.followups.filter(f=>f.status==='pending').length,'Reais')+k('Aprovações',state.approvals.filter(a=>a.status==='pending').length,'Reais')+k('Fechados',state.leads.filter(l=>l.status==='won').length,'Reais')+'</div><div class="panel" style="margin-top:13px"><h2>Operação completa</h2><p>Durante a migração das ações de escrita, use o painel legado para aprovar, responder, preparar proposta e fechar oportunidade.</p><a class="cta" href="../admin-legacy/">Abrir painel comercial legado</a></div>'}
 function rows(arr){return arr.map(x=>'<div class="row"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('')}
 function leads(){const body=state.leads.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><a href="../admin-legacy/" class="cta">Operar</a></td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>'}

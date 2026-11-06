@@ -118,9 +118,6 @@
 #agente .agent-form button{align-self:stretch;background:linear-gradient(145deg,#20d0ff,#086af8);color:#fff;border-radius:8px;padding:0 15px;min-width:67px;font-size:11px;font-weight:800;box-shadow:0 0 15px rgba(13,140,255,.24)}
 #agente .agent-form button:hover{background:linear-gradient(145deg,#71e7ff,#167efe)}
 #agente .agent-privacy{padding:0 6px 3px;margin:0!important;font-size:10px!important;line-height:1.5!important;color:#7892a8!important}
-#agente #ocaStatus{font-size:12px!important;color:#cfe1ec!important}
-#agente .agent-studio-credit{padding:4px 6px;font-size:12px;line-height:1.5;background:transparent;border:0}
-#agente .agent-studio-credit a{color:#cfe1ec;text-decoration:underline}
 #agente .agent-studio-summary{padding:25px 19px 23px;display:flex;flex-direction:column;gap:15px}
 #agente .agent-studio-summary-head .agent-studio-kicker{font-size:10px}
 #agente .agent-studio-summary-head h3{font-size:clamp(22px,1.75vw,30px);letter-spacing:-.04em;line-height:1.09;font-weight:800;color:#fff;margin:18px 0 12px}
