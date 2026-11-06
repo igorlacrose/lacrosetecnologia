@@ -232,6 +232,20 @@ tbody tr:hover{background:#F8FBFC}
 .message-tools button:disabled{opacity:.55;cursor:default}
 .messages .bubble small{display:block;margin-top:4px;color:var(--muted)}
 .messages .bubble input{width:auto;margin:0 4px 0 0;vertical-align:middle}
+.form-panel{margin-bottom:16px}
+.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.entry-form label{display:grid;gap:5px}
+.entry-form input,.entry-form select,#userManagement input,#userManagement select{
+  padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--txt)
+}
+.action-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.entry-form .action-row{grid-column:1/-1}
+.action-row .danger{background:var(--err)}
+.action-row button:disabled{opacity:.55;cursor:default}
+.commercial-panel{margin-top:16px}
+.commercial-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
+.commercial-tools article{border:1px solid var(--line);border-radius:10px;padding:12px}
+.commercial-tools h3{margin:0;font-size:15px}
 
 /* TABLET */
 @media(max-width:1100px){
