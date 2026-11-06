@@ -191,11 +191,32 @@ function leads(){
 }
 const dateLabel=value=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(value)):'—';
 function conversations(){
-  el('content').innerHTML='<div class="chat"><div class="threads">'+state.threads.map(t=>
-    '<button class="thread" data-thread="'+esc(t.id)+'"><b>'+esc(t.lead)+'</b><span>'+esc(dateLabel(t.last))+'</span></button>'
-  ).join('')+'</div><div id="messagePane" class="messages"><div class="empty">'+
-    (state.threads.length?'Selecione uma conversa.':'Nenhuma conversa encontrada.')+'</div></div></div>';
-  el('content').querySelectorAll('[data-thread]').forEach(button=>button.onclick=()=>openThread(button.dataset.thread));
+  const entries=state.threads.map(t=>
+    '<button type="button" class="thread" data-thread="'+esc(t.id)+'" data-search="'+esc((t.lead+' '+t.channel).toLowerCase())+'">'+
+    '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
+    '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span></button>'
+  ).join('');
+  el('content').innerHTML='<div class="chat" id="chatWorkspace">'+
+    '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2>'+
+    '<p>'+state.threads.length+' conversas carregadas</p>'+
+    '<label><span class="sr-only">Filtrar atendimentos</span><input id="threadFilter" type="search" placeholder="Buscar atendimento..."></label></div>'+
+    '<div class="thread-scroller">'+(entries||'<div class="empty">Nenhuma conversa encontrada.</div>')+'</div></div>'+
+    '<div id="messagePane" class="messages"><div class="empty chat-placeholder"><strong>Selecione um atendimento</strong>'+
+    '<span>Consulte o histórico e gerencie as mensagens com segurança.</span></div></div></div>';
+  const root=el('chatWorkspace');
+  root.querySelectorAll('[data-thread]').forEach(button=>button.onclick=()=>openThread(button.dataset.thread));
+  const input=el('threadFilter');
+  input.oninput=()=>{
+    const term=input.value.trim().toLowerCase();
+    const norm=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    let total=0;
+    root.querySelectorAll('[data-thread]').forEach(button=>{
+      const match=norm(button.dataset.search).includes(norm(term));
+      button.hidden=!match;
+      if(match)total++;
+    });
+    root.querySelector('.thread-header p').textContent=total+' conversas encontradas';
+  };
 }
 
 const messageFolders={active:'Caixa de entrada',archived:'Arquivadas',deleted:'Lixeira'};
@@ -223,13 +244,15 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const items=result.data||[];
   const next=available&&items.length>50?items[49].id:null;
   const actions=Object.entries(messageActions[folder]);
-  page.innerHTML='<h2>'+esc(thread.lead)+'</h2>'+
+  el('chatWorkspace')?.classList.add('is-detail');
+  page.innerHTML='<div class="message-heading"><button class="message-back" type="button">‹ Voltar</button><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel||'Site')+'</span><h2>'+esc(thread.lead)+'</h2></div></div>'+
     (available?'<div class="message-tools" aria-label="Pastas de mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button type="button" class="cta" aria-pressed="'+(folder===key)+'" data-folder="'+key+'">'+title+'</button>'
     ).join('')+'</div>':'')+
     '<p role="status">'+esc(available?feedback:'O gerenciamento de mensagens aguarda a atualização do banco.')+'</p>'+
     (available&&items.length?'<div class="message-actions" aria-label="Ações das mensagens">'+
-      '<p data-selection role="status">Selecione as mensagens que deseja mover ou apagar.</p><div class="message-tools">'+
+      '<label class="select-all"><input type="checkbox" data-select-all> Selecionar todas desta página</label>'+ 
+       '<p data-selection role="status">Selecione as mensagens para arquivar ou excluir.</p><div class="message-tools">'+
       actions.map(([key,title])=>'<button class="cta" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+
       '</div><div class="message-confirm" data-confirm hidden><p data-confirm-text></p><div class="message-tools">'+
       '<button class="cta danger" type="button" data-confirm-delete>Confirmar exclusão definitiva</button>'+
@@ -238,16 +261,25 @@ async function openThread(id,folder='active',before=null,feedback=''){
     items.slice(0,50).reverse().map(item=>{
       const bubble='<span><span class="message-text">'+esc(item.content)+'</span><small>'+esc(dateLabel(item.created_at))+'</small></span>';
       const style='bubble'+(item.role==='user'?'':' out');
-      return available?'<label class="'+style+' selectable"><input type="checkbox" value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>':
+      return available?'<div class="message-item'+(item.role==='user'?'':' out')+'">'+
+        '<label class="'+style+' selectable"><input type="checkbox" data-message-select value="'+esc(item.id)+'" aria-label="Selecionar mensagem">'+bubble+'</label>'+
+        '<button type="button" class="message-quick-delete" data-single="'+esc(item.id)+'" data-target="'+(folder==='deleted'?'active':'deleted')+'">'+
+        (folder==='deleted'?'Restaurar':'Mover para a Lixeira')+'</button></div>':
         '<div class="'+style+'">'+bubble+'</div>';
     }).join('')+
     (next?'<button class="cta" type="button" data-older>Mensagens anteriores</button>':'')+
     (before?'<button class="cta" type="button" data-recent>Voltar às recentes</button>':'');
-  const selected=()=>[...page.querySelectorAll('input:checked')].map(input=>input.value);
+  const selected=()=>[...page.querySelectorAll('[data-message-select]:checked')].map(input=>input.value);
+  const selectAll=page.querySelector('[data-select-all]');
   const buttons=[...page.querySelectorAll('[data-move]')];
   const selection=page.querySelector('[data-selection]');
   const confirmation=page.querySelector('[data-confirm]');
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
+  page.querySelector('.message-back')?.addEventListener('click',()=>el('chatWorkspace')?.classList.remove('is-detail'));
+  selectAll?.addEventListener('change',()=>{
+    page.querySelectorAll('[data-message-select]').forEach(input=>input.checked=selectAll.checked);
+    page.onchange?.();
+  });
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
   if(!selection)return page;
@@ -255,10 +287,14 @@ async function openThread(id,folder='active',before=null,feedback=''){
     const count=selected().length;
     selection.textContent=count?count+' selecionada(s).':'Selecione as mensagens que deseja mover ou apagar.';
     buttons.forEach(button=>button.disabled=count===0);
+    if(selectAll){
+      selectAll.checked=count>0&&count===items.slice(0,50).length;
+      selectAll.indeterminate=count>0&&count<items.slice(0,50).length;
+    }
     confirmation.hidden=true;
   };
-  async function move(destination){
-    const ids=selected();
+  async function move(destination,chosenIds=null){
+    const ids=chosenIds||selected();
     if(!ids.length)return;
     page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
     selection.textContent='Salvando…';
@@ -269,9 +305,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
     const success=destination==='purge'?'Mensagens apagadas definitivamente.':
       destination==='deleted'?'Mensagens movidas para a Lixeira. Abra a Lixeira para restaurar ou apagar definitivamente.':
       'Mensagens movidas para '+messageFolders[destination].toLowerCase()+'.';
-    const updated=await openThread(id,folder,before,error||data!==ids.length?'Não foi possível confirmar a mudança. Confira a lista e tente novamente.':success);
+    const updated=await openThread(id,folder,before,error||Number(data)!==ids.length?
+      'Operação não confirmada'+(error?.code?' (código '+esc(error.code)+')':'')+'. Confira a lista; nenhuma exclusão deve ser presumida.':success);
     if(updated?.isConnected)updated.querySelector('[role=status]')?.scrollIntoView({block:'nearest'});
   }
+  page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
   buttons.forEach(button=>button.onclick=()=>{
     if(button.dataset.move!=='purge')return move(button.dataset.move);
     confirmation.querySelector('[data-confirm-text]').textContent='Apagar definitivamente '+selected().length+' mensagem(ns)?';
