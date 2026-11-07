@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+  <title>LKZ ISP Intelligence · Exemplo</title>
+  <link rel="stylesheet" href="frame.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <header><strong>LKZ <span>ISP</span></strong><small>Inteligência para provedores · Exemplo fictício</small></header>
+  <nav aria-label="Navegação da demonstração">
+    <button type="button" data-view="dashboard">Visão geral</button>
+    <button type="button" data-view="radar">Radar</button>
+    <button type="button" data-view="finance">Simulador de custos</button>
+    <button type="button" data-view="records">Atendimentos</button>
+  </nav>
+  <main>
+    <section id="dashboard"><h1>Visão geral</h1><p>Indicadores de um provedor fictício.</p><div class="cards">
+      <article><span>Atendimentos</span><strong id="total">—</strong></article>
+      <article><span>Finalizados</span><strong id="finalized">—</strong></article>
+      <article><span>Pendentes</span><strong id="pending">—</strong></article>
+    </div><h2>Por assunto</h2><ul id="subjects"></ul></section>
+    <section id="radar" hidden><h1>Radar de ineficiência</h1><p>Possíveis pontos de atenção nos atendimentos fictícios.</p><ul id="signals"></ul></section>
+    <section id="finance" hidden><h1>Simulador de custos</h1><p>Ajuste os valores para simular o custo de um atendimento.</p>
+      <form id="costForm" class="fields"><label>Horas <input name="hours" type="number" min="0" max="10000" step="0.1"></label>
+        <label>Valor da hora (R$) <input name="hourCost" type="number" min="0" max="1000000" step="0.01"></label>
+        <label>Deslocamento (R$) <input name="travel" type="number" min="0" max="1000000" step="0.01"></label>
+        <label>Materiais (R$) <input name="materials" type="number" min="0" max="1000000" step="0.01"></label>
+        <label>Outros custos (R$) <input name="overhead" type="number" min="0" max="1000000" step="0.01"></label>
+        <button>Calcular</button></form><p>Custo estimado <strong id="cost">—</strong></p>
+    </section>
+    <section id="records" hidden><h1>Atendimentos</h1><p>Inclua um atendimento fictício e veja os indicadores mudarem.</p>
+      <form id="recordForm" class="fields"><label>Assunto <select name="subject"><option>Sem conexão</option><option>Instalação</option><option>Lentidão</option><option>Entrega de boleto</option></select></label>
+        <label>Setor <select name="sector"><option>Call Center</option><option>Financeiro</option><option>Técnicos Jequié</option></select></label>
+        <label>Situação <select name="status"><option>Aberta</option><option>Finalizada</option></select></label>
+        <button>Adicionar atendimento</button></form><p id="recordStatus" role="status"></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+*{box-sizing:border-box}
+body{margin:0;background:#f3f7f9;color:#153044;font-family:system-ui,sans-serif}
+header{display:flex;flex-direction:column;gap:4px;padding:18px 22px;background:#071d2c;color:#fff}
+header strong{font-size:24px}header span{color:#40c4d9}header small{color:#b8cbd3}
+nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 22px;background:white;border-bottom:1px solid #d8e5eb}
+button{border:0;border-radius:8px;background:#087c95;color:white;font-weight:700;padding:10px 14px;cursor:pointer}
+button[aria-current="page"]{background:#092f42}
+main{max-width:1100px;margin:auto;padding:18px 22px}h1{margin:0;font-size:26px}h2{font-size:18px}
+p{color:#496578}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+article{display:flex;flex-direction:column;gap:8px;padding:18px;background:#fff;border:1px solid #d9e5eb;border-radius:12px}
+article strong{font-size:28px}ul{padding-left:22px;line-height:1.9}.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:grid;gap:5px}input,select{width:100%;padding:9px;border:1px solid #aabfc8;border-radius:7px;background:white}
+.fields button{align-self:end}section[hidden]{display:none}
