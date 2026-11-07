@@ -1,0 +1,13 @@
+.system-showcase{margin-top:clamp(64px,8vw,112px)}
+.system-showcase-heading{max-width:660px;margin-bottom:32px}
+.system-showcase-kicker,.system-showcase-grid article>span{color:#6ed7e8;font-size:11px;font-weight:700;letter-spacing:.14em}
+.system-showcase-heading h3{margin:14px 0;color:#fff;font-size:clamp(28px,3.7vw,46px);line-height:1.08}
+.system-showcase-heading p,.system-showcase-grid p{color:#aebfd1;line-height:1.6}
+.system-showcase-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.system-showcase-grid article{display:flex;flex-direction:column;min-width:0;padding:24px;border:1px solid #263b50;border-radius:12px;background:#0b1421}
+.system-showcase-grid h4{margin:22px 0 10px;color:#fff;font-size:25px}
+.system-showcase-grid p{flex:1;margin:0 0 25px;font-size:14px}
+.system-showcase-grid a{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:16px;border-top:1px solid #294356;color:#8de4f1;font-size:13px;font-weight:700;text-decoration:none}
+.system-showcase-grid a:hover,.system-showcase-grid a:focus-visible{color:#fff}
+@media(max-width:1000px){.system-showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.system-showcase-grid{grid-template-columns:1fr}.system-showcase-grid article{padding:20px}}
