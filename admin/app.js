@@ -1,11 +1,10 @@
 'use strict';
 const sb=window.supabase.createClient('https://icrtewhazpfauuroswri.supabase.co','sb_publishable_6PdAW2f-dpXhsaZXI0lyBg_PcGtuWgs',{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 const el=id=>document.getElementById(id);
-const ADMIN_IDLE_MS=30*60*1000;
-const idleOptions=[5,15,30,60,120];
+const ADMIN_IDLE_MS=24*60*60*1000; // tolerância máxima em memória, sem persistir refresh token
 const accessGroups={master:'MASTER',admin:'Administrador',commercial:'Comercial',viewer:'Consulta'};
 let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
-let idleMs=ADMIN_IDLE_MS;
+let lastInteractionAt=0,endingForIdle=false;
 let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
 let clientFocus=null,clientMode='detail',clientDraft=null;
@@ -20,17 +19,52 @@ function msg(node,text){node.textContent=text||''}
 function showLogin(text=''){setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
 async function enforceMfa(p,u){const {data:aal,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;if(aal?.currentLevel==='aal2')return enter(p,u);const {data:factors,error:fe}=await sb.auth.mfa.listFactors();if(fe)throw fe;let factor=factors?.totp?.[0];if(!factor){const {data:en,error:ee}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'LKZ ADM'});if(ee)throw ee;factor=en;el('enroll').hidden=false;el('qr').src=en.totp?.qr_code||'';el('secret').textContent=en.totp?.secret||'';el('mfaIntro').textContent='Configure o autenticador e confirme o código.'}else{el('enroll').hidden=true;el('mfaIntro').textContent='Digite o código atual do autenticador.'}const {data:ch,error:ce}=await sb.auth.mfa.challenge({factorId:factor.id});if(ce)throw ce;profile=p;user=u;factorId=factor.id;challengeId=ch.id;el('auth').hidden=true;el('mfaScreen').hidden=false;el('code').value='';setTimeout(()=>el('code').focus(),40)}
-function idlePreference(){return 'lkz-adm-idle-minutes:'+user.id}
-async function enter(p,u){
-  profile=p;user=u;idleMs=ADMIN_IDLE_MS;
-  try{
-    const minutes=Number(localStorage.getItem(idlePreference()));
-    if(idleOptions.includes(minutes))idleMs=minutes*60*1000;
-  }catch{}
-  el('auth').hidden=true;el('mfaScreen').hidden=true;el('app').hidden=false;el('userName').textContent=p.full_name||u.email;el('userRole').textContent=p.role;resetIdle();await loadCommercial();view('overview')
+async function expireIdleSession(){
+  if(endingForIdle||!user)return;
+  endingForIdle=true;
+  clearTimeout(idleTimer);
+  try{await sb.auth.signOut()}catch(error){console.warn('Não foi possível concluir o logout no servidor.',error?.code||'REDE')}
+  user=null;profile=null;
+  showLogin('Sessão encerrada após 24 horas sem atividade.');
+  endingForIdle=false;
 }
-function resetIdle(){clearTimeout(idleTimer);if(!user)return;idleTimer=setTimeout(async()=>{await sb.auth.signOut();user=null;profile=null;showLogin('Sessão encerrada por inatividade.')},idleMs)}
-['click','keydown','pointerdown'].forEach(e=>document.addEventListener(e,()=>{if(user)resetIdle()},{passive:true}));
+function verifyIdle(){
+  if(!user)return;
+  clearTimeout(idleTimer);
+  const elapsed=Date.now()-lastInteractionAt;
+  if(elapsed>=ADMIN_IDLE_MS||elapsed<0){void expireIdleSession();return}
+  idleTimer=setTimeout(verifyIdle,Math.min(60000,ADMIN_IDLE_MS-elapsed));
+}
+function resetIdle(){
+  if(!user)return;
+  verifyIdle();
+}
+function recordActivity(event){
+  if(!user||endingForIdle)return;
+  if(Date.now()-lastInteractionAt>=ADMIN_IDLE_MS){
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void expireIdleSession();return;
+  }
+  lastInteractionAt=Date.now();
+  resetIdle();
+}
+document.addEventListener('pointerdown',recordActivity,true);
+document.addEventListener('keydown',recordActivity,true);
+window.addEventListener('focus',verifyIdle);
+document.addEventListener('pageshow',verifyIdle);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')verifyIdle();
+});
+async function enter(p,u){
+  profile=p;user=u;lastInteractionAt=Date.now();
+  el('auth').hidden=true;el('mfaScreen').hidden=true;el('app').hidden=false;
+  el('userName').textContent=p.full_name||u.email;
+  el('userRole').textContent=p.role;
+  resetIdle();
+  await loadCommercial();
+  view('overview');
+}
 el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=true;msg(el('authMsg'),'');try{const {data,error}=await sb.auth.signInWithPassword({email:el('email').value.trim(),password:el('password').value});if(error)throw error;const p=await authorize(data.user);if(!p){await sb.auth.signOut();throw new Error('Conta sem permissão administrativa.')}await enforceMfa(p,data.user)}catch(err){console.error(err);msg(el('authMsg'),err.message||'Falha no login.')}finally{el('loginBtn').disabled=false}};
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
@@ -638,22 +672,14 @@ function tasks(){
   el('content').querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>view(button.dataset.taskView));
 }
 function settings(){
-  el('content').innerHTML='<section class="panel form-panel"><h2>Sessão</h2><form id="idleForm" class="entry-form">'+
-    '<label>Encerrar após inatividade <select name="minutes">'+idleOptions.map(value=>
-      '<option value="'+value+'"'+(value===idleMs/60000?' selected':'')+'>'+value+' minutos</option>'
-    ).join('')+'</select></label><div class="action-row"><button class="cta">Salvar</button><span role="status"></span></div></form></section>'+
-    (profile?.role==='master'?'<section id="userManagement" class="panel"><h2>Usuários e grupos de acesso</h2><p role="status">Carregando usuários…</p></section>':'');
-  const form=el('idleForm');
-  form.onsubmit=event=>{
-    event.preventDefault();
-    const value=Number(new FormData(form).get('minutes'));
-    if(!idleOptions.includes(value))return;
-    idleMs=value*60*1000;
-    resetIdle();
-    let status='Tempo de inatividade salvo neste navegador.';
-    try{localStorage.setItem(idlePreference(),String(value))}catch{status='Tempo de inatividade atualizado nesta sessão.'}
-    msg(form.querySelector('[role=status]'),status);
-  };
+  el('content').innerHTML='<section class="panel form-panel"><h2>Sessão administrativa</h2>'+
+    '<p>O painel verifica inatividade por até 24 horas enquanto esta guia estiver aberta. '+
+    'Ao fechar ou recarregar a página, o login e o MFA serão solicitados novamente.</p>'+
+    '<p>Por segurança, nenhuma credencial de renovação é guardada no navegador. '+
+    'Persistência segura após fechar a guia exige um backend com cookie HttpOnly; ainda não foi implementada.</p>'+
+    '<p>Use o bloqueio de tela do sistema operacional ao se afastar.</p></section>'+
+    (profile?.role==='master'?'<section id="userManagement" class="panel">'+
+      '<h2>Usuários e grupos de acesso</h2><p role="status">Carregando usuários…</p></section>':'');
   const target=el('userManagement');
   if(target)loadUsers(target);
 }
