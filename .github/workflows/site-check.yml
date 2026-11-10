@@ -31,5 +31,8 @@ jobs:
       - name: Validar sintaxe do LKZ ADM
         run: node --check admin/app.js
 
+      - name: Testar MFA e limite de inatividade
+        run: node --test scripts/test_admin_idle_mfa.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py

@@ -1,14 +1,13 @@
 'use strict';
 const sb=window.supabase.createClient('https://icrtewhazpfauuroswri.supabase.co','sb_publishable_6PdAW2f-dpXhsaZXI0lyBg_PcGtuWgs',{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 const el=id=>document.getElementById(id);
-const ADMIN_IDLE_MS=30*60*1000;
-const idleOptions=[5,15,30,60,120];
+const ADMIN_IDLE_MS=24*60*60*1000; // tolerância máxima em memória, sem persistir refresh token
 const accessGroups={master:'MASTER',admin:'Administrador',commercial:'Comercial',viewer:'Consulta'};
 let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
-let idleMs=ADMIN_IDLE_MS;
+let lastInteractionAt=0,endingForIdle=false;
 let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
-let clientFocus=null,clientMode='detail';
+let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
@@ -20,17 +19,55 @@ function msg(node,text){node.textContent=text||''}
 function showLogin(text=''){setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
 async function enforceMfa(p,u){const {data:aal,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;if(aal?.currentLevel==='aal2')return enter(p,u);const {data:factors,error:fe}=await sb.auth.mfa.listFactors();if(fe)throw fe;let factor=factors?.totp?.[0];if(!factor){const {data:en,error:ee}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'LKZ ADM'});if(ee)throw ee;factor=en;el('enroll').hidden=false;el('qr').src=en.totp?.qr_code||'';el('secret').textContent=en.totp?.secret||'';el('mfaIntro').textContent='Configure o autenticador e confirme o código.'}else{el('enroll').hidden=true;el('mfaIntro').textContent='Digite o código atual do autenticador.'}const {data:ch,error:ce}=await sb.auth.mfa.challenge({factorId:factor.id});if(ce)throw ce;profile=p;user=u;factorId=factor.id;challengeId=ch.id;el('auth').hidden=true;el('mfaScreen').hidden=false;el('code').value='';setTimeout(()=>el('code').focus(),40)}
-function idlePreference(){return 'lkz-adm-idle-minutes:'+user.id}
-async function enter(p,u){
-  profile=p;user=u;idleMs=ADMIN_IDLE_MS;
-  try{
-    const minutes=Number(localStorage.getItem(idlePreference()));
-    if(idleOptions.includes(minutes))idleMs=minutes*60*1000;
-  }catch{}
-  el('auth').hidden=true;el('mfaScreen').hidden=true;el('app').hidden=false;el('userName').textContent=p.full_name||u.email;el('userRole').textContent=p.role;resetIdle();await loadCommercial();view('overview')
+async function expireIdleSession(){
+  if(endingForIdle||!user)return;
+  endingForIdle=true;
+  clearTimeout(idleTimer);
+  try{await sb.auth.signOut()}catch(error){console.warn('Não foi possível concluir o logout no servidor.',error?.code||'REDE')}
+  user=null;profile=null;
+  showLogin('Sessão encerrada após 24 horas sem atividade.');
+  endingForIdle=false;
 }
-function resetIdle(){clearTimeout(idleTimer);if(!user)return;idleTimer=setTimeout(async()=>{await sb.auth.signOut();user=null;profile=null;showLogin('Sessão encerrada por inatividade.')},idleMs)}
-['click','keydown','pointerdown'].forEach(e=>document.addEventListener(e,()=>{if(user)resetIdle()},{passive:true}));
+function verifyIdle(){
+  if(!user||el('app').hidden)return;
+  clearTimeout(idleTimer);
+  const elapsed=Date.now()-lastInteractionAt;
+  if(elapsed>=ADMIN_IDLE_MS||elapsed<0){void expireIdleSession();return}
+  idleTimer=setTimeout(verifyIdle,Math.min(60000,ADMIN_IDLE_MS-elapsed));
+}
+function resetIdle(){
+  if(!user)return;
+  verifyIdle();
+}
+function recordActivity(event){
+  if(!user||el('app').hidden)return;
+  if(endingForIdle){
+    event.preventDefault();event.stopImmediatePropagation();return;
+  }
+  if(Date.now()-lastInteractionAt>=ADMIN_IDLE_MS){
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void expireIdleSession();return;
+  }
+  lastInteractionAt=Date.now();
+  resetIdle();
+}
+document.addEventListener('pointerdown',recordActivity,true);
+document.addEventListener('keydown',recordActivity,true);
+window.addEventListener('focus',verifyIdle);
+document.addEventListener('pageshow',verifyIdle);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')verifyIdle();
+});
+async function enter(p,u){
+  profile=p;user=u;lastInteractionAt=Date.now();
+  el('auth').hidden=true;el('mfaScreen').hidden=true;el('app').hidden=false;
+  el('userName').textContent=p.full_name||u.email;
+  el('userRole').textContent=p.role;
+  resetIdle();
+  await loadCommercial();
+  view('overview');
+}
 el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=true;msg(el('authMsg'),'');try{const {data,error}=await sb.auth.signInWithPassword({email:el('email').value.trim(),password:el('password').value});if(error)throw error;const p=await authorize(data.user);if(!p){await sb.auth.signOut();throw new Error('Conta sem permissão administrativa.')}await enforceMfa(p,data.user)}catch(err){console.error(err);msg(el('authMsg'),err.message||'Falha no login.')}finally{el('loginBtn').disabled=false}};
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
@@ -305,6 +342,10 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const messages=data||[];
   const next=messages.length>50?messages[49].id:null;
   const visible=messages.slice(0,50).reverse();
+  const leadForContact=state.leads.find(l=>l.id===thread.lead_id);
+  const contactControl=leadForContact?.contact_id
+    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir contato</button>'
+    :'<button type="button" class="cta secondary" data-message-contact="new">Salvar contato</button>';
   const controls=thread.folder==='deleted'
     ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
@@ -329,7 +370,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       '<button class="message-back" type="button">‹ Voltar aos atendimentos</button>'+
       '<div class="message-heading-main"><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel)+'</span>'+
         '<h2>'+esc(thread.lead)+'</h2><small>Oportunidade vinculada: '+(thread.lead_id?'Sim':'Não')+'</small></div>'+
-        '<div class="conversation-actions">'+controls+'</div></div>'+
+        '<div class="conversation-actions">'+contactControl+controls+'</div></div>'+
     '</div>'+
     '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button class="cta" type="button" data-folder="'+key+'" aria-pressed="'+(folder===key)+'">'+
@@ -348,6 +389,44 @@ async function openThread(id,folder='active',before=null,feedback=''){
     '</div>';
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
+  page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
+    let lead=state.leads.find(l=>l.id===thread.lead_id);
+    if(!lead&&thread.lead_id){
+      const {data,error}=await sb.from('leads').select('*').eq('id',thread.lead_id).maybeSingle();
+      if(error||!data){
+        const notice=page.querySelector('[data-notice]');
+        if(notice)notice.textContent='Não foi possível localizar a oportunidade vinculada.';
+        return;
+      }
+      lead=data;
+      state.leads=[data,...state.leads.filter(l=>l.id!==data.id)];
+    }
+    const linkedId=lead?.contact_id;
+    if(linkedId){
+      let contact=state.contacts.find(c=>c.id===linkedId);
+      if(!contact){
+        const {data,error}=await sb.from('contacts').select('*').eq('id',linkedId).maybeSingle();
+        if(error||!data){
+          const notice=page.querySelector('[data-notice]');
+          if(notice)notice.textContent='Não foi possível abrir o contato vinculado.';
+          return;
+        }
+        contact=data;
+        state.contacts=[data,...state.contacts.filter(c=>c.id!==data.id)];
+      }
+      clientFocus=contact.id;clientMode='detail';clientDraft=null;
+    }else{
+      const details=lead?.structured_data&&typeof lead.structured_data==='object'?lead.structured_data:{};
+      clientDraft={
+        conversation_id:id,lead_id:lead?.id||null,
+        segment:lead?.category||details.segment||'',
+        email:typeof details.contact_email==='string'?details.contact_email:'',
+        phone:typeof details.contact_phone==='string'?details.contact_phone:''
+      };
+      clientMode='new';
+    }
+    view('clients');
+  });
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
@@ -464,14 +543,14 @@ function clients(feedback=''){
   const editMode=clientMode==='edit'&&selected;
   const newMode=clientMode==='new';
   if(newMode||editMode){
-    const c=editMode?selected:{};
+    const c=editMode?selected:(newMode?clientDraft||{}:{});
     const field=(title,key,type='text',max=120,required='')=>
       '<label>'+title+'<input name="'+key+'" type="'+type+'" maxlength="'+max+'" '+required+
       ' value="'+esc(c[key]||'')+'"></label>';
     detail='<section class="panel client-profile"><div class="client-panel-head">'+
       '<div><small class="client-eyebrow">'+(newMode?'NOVO CADASTRO':'EDITAR CLIENTE')+'</small>'+
       '<h2>'+(newMode?'Cadastrar cliente':esc(nameOf(c)))+'</h2>'+
-      '<p>Informações comerciais verificáveis, sem campos inventados.</p></div>'+
+      '<p>'+(newMode&&clientDraft?.lead_id?'Confirme os dados antes de vincular este contato ao atendimento.':'Informações comerciais verificáveis, sem campos inventados.')+'</p></div>'+
       '<button type="button" class="cta secondary" data-client-cancel>Cancelar</button></div>'+
       '<form id="professionalClientForm" class="entry-form client-form">'+
       field('Empresa','company_name')+field('Contato responsável','person_name')+
@@ -526,12 +605,12 @@ function clients(feedback=''){
     el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
   el('content').querySelector('[data-new-client]').onclick=()=>{
-    clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    clientDraft=null;clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   };
   el('content').querySelector('[data-client-edit]')?.addEventListener('click',()=>{
     clientMode='edit';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
-  el('content').querySelector('[data-client-cancel]')?.addEventListener('click',()=>{clientMode='detail';clients()});
+  el('content').querySelector('[data-client-cancel]')?.addEventListener('click',()=>{clientDraft=null;clientMode='detail';clients()});
   el('content').querySelectorAll('[data-client-lead]').forEach(b=>b.onclick=()=>{
     el('search').value='';
     view('leads');
@@ -565,9 +644,16 @@ function clients(feedback=''){
     status.textContent='Salvando cadastro...';
     let result;
     try{
-      result=newMode
-        ?await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload})
-        :await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+      if(newMode && clientDraft?.lead_id && clientDraft?.conversation_id){
+        result=await sb.rpc('lkz_adm_create_client_from_conversation',{
+          p_id:requestId,p_conversation:clientDraft.conversation_id,
+          p_expected_lead:clientDraft.lead_id,...payload
+        });
+      }else if(newMode){
+        result=await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload});
+      }else{
+        result=await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+      }
     }catch{result={error:{code:'REDE'}}}
     if(!form.isConnected||!user)return;
     if(result.error||!result.data?.id){
@@ -578,7 +664,11 @@ function clients(feedback=''){
     }
     const updated=result.data;
     state.contacts=[updated,...state.contacts.filter(c=>c.id!==updated.id)];
-    clientFocus=updated.id;clientMode='detail';
+    if(newMode&&clientDraft?.lead_id){
+      const linkedLead=state.leads.find(l=>l.id===clientDraft.lead_id);
+      if(linkedLead)linkedLead.contact_id=updated.id;
+    }
+    clientDraft=null;clientFocus=updated.id;clientMode='detail';
     try{await loadCommercial()}catch{ /* O registro retornado pela RPC permanece disponível. */ }
     clients(newMode?'Cliente cadastrado com sucesso.':'Cadastro atualizado com sucesso.');
   };
@@ -595,22 +685,14 @@ function tasks(){
   el('content').querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>view(button.dataset.taskView));
 }
 function settings(){
-  el('content').innerHTML='<section class="panel form-panel"><h2>Sessão</h2><form id="idleForm" class="entry-form">'+
-    '<label>Encerrar após inatividade <select name="minutes">'+idleOptions.map(value=>
-      '<option value="'+value+'"'+(value===idleMs/60000?' selected':'')+'>'+value+' minutos</option>'
-    ).join('')+'</select></label><div class="action-row"><button class="cta">Salvar</button><span role="status"></span></div></form></section>'+
-    (profile?.role==='master'?'<section id="userManagement" class="panel"><h2>Usuários e grupos de acesso</h2><p role="status">Carregando usuários…</p></section>':'');
-  const form=el('idleForm');
-  form.onsubmit=event=>{
-    event.preventDefault();
-    const value=Number(new FormData(form).get('minutes'));
-    if(!idleOptions.includes(value))return;
-    idleMs=value*60*1000;
-    resetIdle();
-    let status='Tempo de inatividade salvo neste navegador.';
-    try{localStorage.setItem(idlePreference(),String(value))}catch{status='Tempo de inatividade atualizado nesta sessão.'}
-    msg(form.querySelector('[role=status]'),status);
-  };
+  el('content').innerHTML='<section class="panel form-panel"><h2>Sessão administrativa</h2>'+
+    '<p>O painel verifica inatividade por até 24 horas enquanto esta guia estiver aberta. '+
+    'Ao fechar ou recarregar a página, o login e o MFA serão solicitados novamente.</p>'+
+    '<p>Por segurança, nenhuma credencial de renovação é guardada no navegador. '+
+    'Persistência segura após fechar a guia exige um backend com cookie HttpOnly; ainda não foi implementada.</p>'+
+    '<p>Use o bloqueio de tela do sistema operacional ao se afastar.</p></section>'+
+    (profile?.role==='master'?'<section id="userManagement" class="panel">'+
+      '<h2>Usuários e grupos de acesso</h2><p role="status">Carregando usuários…</p></section>':'');
   const target=el('userManagement');
   if(target)loadUsers(target);
 }

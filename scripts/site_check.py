@@ -171,8 +171,11 @@ def main() -> int:
         fail("Painel deve manter sessão administrativa somente em memória", errors)
     if "storage:window.sessionStorage" in admin_js or "persistSession:true" in admin_js:
         fail("Painel não deve persistir sessão administrativa no sessionStorage", errors)
-    if "ADMIN_IDLE_MS=30*60*1000" not in admin_js:
-        fail("Painel deve encerrar sessão após inatividade", errors)
+    if "ADMIN_IDLE_MS=24*60*60*1000" not in admin_js:
+        fail("Painel deve encerrar a sessão após 24 horas de inatividade", errors)
+    for required_idle in ("recordActivity", "expireIdleSession", "visibilitychange", "pageshow"):
+        if required_idle not in admin_js:
+            fail(f"Painel sem proteção de sessão ociosa: {required_idle}", errors)
     for required_mfa in [
         'id="mfaScreen"',
         "auth.mfa.enroll",
