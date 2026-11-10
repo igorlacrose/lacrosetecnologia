@@ -29,7 +29,7 @@ async function expireIdleSession(){
   endingForIdle=false;
 }
 function verifyIdle(){
-  if(!user)return;
+  if(!user||el('app').hidden)return;
   clearTimeout(idleTimer);
   const elapsed=Date.now()-lastInteractionAt;
   if(elapsed>=ADMIN_IDLE_MS||elapsed<0){void expireIdleSession();return}
@@ -40,7 +40,7 @@ function resetIdle(){
   verifyIdle();
 }
 function recordActivity(event){
-  if(!user)return;
+  if(!user||el('app').hidden)return;
   if(endingForIdle){
     event.preventDefault();event.stopImmediatePropagation();return;
   }
