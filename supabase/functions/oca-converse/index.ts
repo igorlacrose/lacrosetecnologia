@@ -72,6 +72,15 @@ Deno.serve(async(req: Request)=>{
   });
   if(limited.error||typeof limited.data!=="boolean")return json(origin,503,{ok:false,error:"rate_limit_unavailable"});
   if(limited.data===false)return json(origin,429,{ok:false,error:"rate_limited"});
+  // Limite agregado: um atacante pode forjar X-Forwarded-For e burlar quota por IP.
+  // Origin é apenas defesa de navegador, não autenticação de endpoint público.
+  const globalKey=await sha256("oca-v2|global|"+origin);
+  const globalLimit=await db.rpc("check_agent_rate_limit",{
+    p_key_hash:globalKey,p_limit:120,p_window_seconds:60
+  });
+  if(globalLimit.error||typeof globalLimit.data!=="boolean")
+    return json(origin,503,{ok:false,error:"rate_limit_unavailable"});
+  if(globalLimit.data===false)return json(origin,429,{ok:false,error:"rate_limited"});
 
   if(body.action==="start") {
     if(Object.keys(body).some(k=>k!=="action"))return json(origin,400,{ok:false,error:"unexpected_fields"});
