@@ -84,15 +84,22 @@ function applyTurn(serverState,input){
  }else if(/\b(antes|antecipad|adiantad)\b/.test(t)&&/\b(pagar|pagamento|paguem|receber|cobrar|pix)\b/.test(t)){
    state.business.advancePayment=true;
  }
- const c=extractContact(text);if(c.email)state.contact.email=c.email;if(c.phone)state.contact.phone=c.phone;
+ const c=extractContact(text);
+ if(c.email||c.phone){
+   if(state.contact.consent===false)state.contact.consent=null;
+   if(c.email)state.contact.email=c.email;
+   if(c.phone)state.contact.phone=c.phone;
+ }
  if(prev==='consent'){if(yes(text))state.contact.consent=true;else if(no(text))state.contact.consent=false;}
  if(prev==='contact'&&/\b(prefiro nao|nao quero informar|sem contato)\b/.test(t))state.contact.consent=false;
+ if(state.contact.consent===false){state.contact.email=null;state.contact.phone=null;}
  const bare=/^(sim|nao|isso|claro|ok|certo|pode|autorizo|perfeito)[.!]?$/.test(t);
  if(!state.business.problem&&!bare&&!/\?\s*$/.test(text)&&
     (prev==='problem'||/\b(quero|preciso|gostaria|busco|tenho dificuldade|problema)\b/.test(t))){
    state.business.problem=text.slice(0,600);
  }
- state.history.push({role:'user',text});
+ // Não duplicar contato pessoal na transcrição da sessão.
+ state.history.push({role:'user',text:(c.email||c.phone)?'[Contato fornecido]':text});
  let reply,pending;
  if(!state.business.segment){pending='segment';reply='Qual é o tipo de negócio ou atividade da sua empresa?';}
  else if(!state.business.problem){pending='problem';reply='Qual resultado você quer alcançar ou qual problema precisa resolver? Pode explicar do seu jeito.';}
