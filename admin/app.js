@@ -390,7 +390,17 @@ async function openThread(id,folder='active',before=null,feedback=''){
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
   page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
-    const lead=state.leads.find(l=>l.id===thread.lead_id);
+    let lead=state.leads.find(l=>l.id===thread.lead_id);
+    if(!lead&&thread.lead_id){
+      const {data,error}=await sb.from('leads').select('*').eq('id',thread.lead_id).maybeSingle();
+      if(error||!data){
+        const notice=page.querySelector('[data-notice]');
+        if(notice)notice.textContent='Não foi possível localizar a oportunidade vinculada.';
+        return;
+      }
+      lead=data;
+      state.leads=[data,...state.leads.filter(l=>l.id!==data.id)];
+    }
     const linkedId=lead?.contact_id;
     if(linkedId){
       let contact=state.contacts.find(c=>c.id===linkedId);
