@@ -44,3 +44,13 @@ Modelo de IA propõe dados/ações; backend valida tudo. IA não executa consult
 
 ## Não incluído ainda
 - IA em produção, cobrança real, assinaturas automáticas, provisionamento de software, módulos LibertyOS/BarbarOS e integrações de WhatsApp.
+
+## Checkpoint OCA v2 — 2026-11-10
+- Motor conversacional determinístico implementado em supabase/functions/_shared/oca-qualification.mjs.
+- Interpretador inicial: segmento, tamanho da equipe, necessidades, pagamento antecipado, contato e consentimento.
+- Nove testes de comportamento executados em ambiente JavaScript isolado; 9 passaram. Ainda falta executar o runner Node oficial.
+- API de conversa estruturada em supabase/functions/oca-converse/index.ts: tokens aleatórios, hash de sessão, estados recuperados no servidor, validação do payload, quotas por IP e global, CAS por revisão, resposta idempotente para último requestId.
+- Banco: oca-v2/schema-draft.sql é somente PROPOSTA; não aplicada e não está registrada como migration oficial.
+- Limitação: o modelo ainda não utiliza IA generativa e não está conectado ao frontend em produção nem ao painel; todo fluxo financeiro é bloqueado.
+- Segurança pendente: revisar cabeçalhos de IP confiáveis do proxy, controle de abuso (Turnstile quando necessário), regras de retenção de dados, proteção de credenciais, testes com acesso anônimo/indevido, autorização de APIs, concorrência e idempotência.
+- Nenhuma implantação, alteração de dados, função ativa ou recurso pago foi realizada nesta etapa.
