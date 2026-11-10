@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
@@ -139,6 +140,12 @@ def main() -> int:
                 fail(f"Link target=_blank sem noopener em {rel}: {raw!r}", errors)
 
     index = (ROOT / "index.html").read_text(encoding="utf-8")
+    agent_js = (ROOT / "app.js").read_text(encoding="utf-8")
+    site_price = re.compile(r"sites\s+simples\s+a\s+partir\s+de|R\$\s*350(?:[,.]00)?\b", re.I)
+    for rel, text in [("index.html", index), ("app.js", agent_js)]:
+        if site_price.search(unescape(text)):
+            fail(f"{rel} ainda divulga o antigo preço inicial de sites personalizados", errors)
+
     for required_text in [
         'rel="canonical" href="https://lacrosetecnologia.com.br/"',
         'name="twitter:card"',

@@ -290,7 +290,7 @@ const INTENT_LABELS={
 
 
 const OCA_SITE='Site integrado com sistema personalizado';
-const OCA_SITE_OPENING='Sites simples a partir de R$ 350,00. Qual é o seu negócio e o que você quer que o site faça ou integre?';
+const OCA_SITE_OPENING='Qual é o seu negócio e o que você quer que o site ou projeto faça ou integre? O orçamento depende do escopo que definirmos juntos.';
 const OCA_SITE_CONTACT='Qual telefone ou e-mail a Lacrose pode usar para retornar com a análise?';
 
 function setOcaStatus(message){
@@ -2423,7 +2423,7 @@ function askNext(){
     state.awaiting='';
     state.completed=true;
     setOcaStatus('Enviando pedido para análise comercial.');
-    agentSay('A equipe da Lacrose vai avaliar o escopo antes de definir a proposta e o valor final.',300);
+    agentSay('A equipe da Lacrose Tecnologia vai conversar com você para alinhar os requisitos e aprovar o orçamento antes de enviá-lo.',300);
     schedulePersist();
     return;
   }
