@@ -224,6 +224,8 @@
       feedback('Leitura concluída. Indicadores referentes aos registros carregados.');
       render();
     } catch(error) {
+      state.contacts=[];state.leads=[];state.conversations=[];
+      state.approvals=[];state.followups=[];state.selected=null;
       feedback('Falha na consulta: verifique a sessão, MFA e permissões. Não houve alteração de dados.',true);
       content.replaceChildren(empty('Dados indisponíveis nesta sessão.'));
     } finally {byId('refresh').disabled=false;}
