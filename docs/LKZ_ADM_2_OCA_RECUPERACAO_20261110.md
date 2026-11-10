@@ -15,7 +15,7 @@ Referência: 2026-11-10. Status: auditoria inicial, sem homologação.
 3. A função possui limites de requisições e payload; verificação de Origin/CORS não é autenticação.
 4. admin/styles.css e admin/operacao.css têm regras sobrepostas. Parte do menu anterior desapareceu, embora ainda haja funções.
 5. As políticas RLS para contatos, leads, conversas e mensagens exigem perfil autorizado + MFA AAL2 para leitura. Avaliar todas as RPCs e suas permissões antes de novas operações.
-6. O Security Advisor sinaliza proteção contra senhas vazadas desativada. Corrigir via configuração apropriada de Auth.
+6. O Security Advisor sinaliza proteção contra senhas vazadas desativada. **Decisão do responsável em 10/11/2026: adiar ativação, por restrição de orçamento; manter a configuração atual e não contratar nem habilitar serviços pagos agora.** Registrar o risco residual, preservar MFA obrigatório para administração, autorização em banco/backend, RLS, senhas fortes e medidas antiabuso disponíveis, e reavaliar após geração de receita. A postergação não permite ignorar vulnerabilidades críticas nem liberar operações financeiras sem homologação.
 7. Não executar acessos comerciais com service role no navegador.
 
 ## Arquitetura alvo
