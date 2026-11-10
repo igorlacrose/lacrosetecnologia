@@ -290,7 +290,7 @@ const INTENT_LABELS={
 
 
 const OCA_SITE='Site integrado com sistema personalizado';
-const OCA_SITE_OPENING='Sites simples a partir de R$ 350,00. Qual é o seu negócio e o que você quer que o site faça ou integre?';
+const OCA_SITE_OPENING='Qual é o seu negócio e o que você quer que o site faça ou integre? Vou entender a necessidade antes de indicar uma solução e suas condições comerciais.';
 const OCA_SITE_CONTACT='Qual telefone ou e-mail a Lacrose pode usar para retornar com a análise?';
 
 function setOcaStatus(message){
