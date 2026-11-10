@@ -8,7 +8,7 @@ let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
 let idleMs=ADMIN_IDLE_MS;
 let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
-let clientFocus=null,clientMode='detail';
+let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
@@ -305,6 +305,10 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const messages=data||[];
   const next=messages.length>50?messages[49].id:null;
   const visible=messages.slice(0,50).reverse();
+  const leadForContact=state.leads.find(l=>l.id===thread.lead_id);
+  const contactControl=leadForContact?.contact_id
+    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir contato</button>'
+    :'<button type="button" class="cta secondary" data-message-contact="new">Salvar contato</button>';
   const controls=thread.folder==='deleted'
     ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
@@ -329,7 +333,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       '<button class="message-back" type="button">‹ Voltar aos atendimentos</button>'+
       '<div class="message-heading-main"><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel)+'</span>'+
         '<h2>'+esc(thread.lead)+'</h2><small>Oportunidade vinculada: '+(thread.lead_id?'Sim':'Não')+'</small></div>'+
-        '<div class="conversation-actions">'+controls+'</div></div>'+
+        '<div class="conversation-actions">'+contactControl+controls+'</div></div>'+
     '</div>'+
     '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button class="cta" type="button" data-folder="'+key+'" aria-pressed="'+(folder===key)+'">'+
@@ -348,6 +352,34 @@ async function openThread(id,folder='active',before=null,feedback=''){
     '</div>';
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
+  page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
+    const lead=state.leads.find(l=>l.id===thread.lead_id);
+    const linkedId=lead?.contact_id;
+    if(linkedId){
+      let contact=state.contacts.find(c=>c.id===linkedId);
+      if(!contact){
+        const {data,error}=await sb.from('contacts').select('*').eq('id',linkedId).maybeSingle();
+        if(error||!data){
+          const notice=page.querySelector('[data-notice]');
+          if(notice)notice.textContent='Não foi possível abrir o contato vinculado.';
+          return;
+        }
+        contact=data;
+        state.contacts=[data,...state.contacts.filter(c=>c.id!==data.id)];
+      }
+      clientFocus=contact.id;clientMode='detail';clientDraft=null;
+    }else{
+      const details=lead?.structured_data&&typeof lead.structured_data==='object'?lead.structured_data:{};
+      clientDraft={
+        conversation_id:id,lead_id:lead?.id||null,
+        segment:lead?.category||details.segment||'',
+        email:typeof details.contact_email==='string'?details.contact_email:'',
+        phone:typeof details.contact_phone==='string'?details.contact_phone:''
+      };
+      clientMode='new';
+    }
+    view('clients');
+  });
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
@@ -464,14 +496,14 @@ function clients(feedback=''){
   const editMode=clientMode==='edit'&&selected;
   const newMode=clientMode==='new';
   if(newMode||editMode){
-    const c=editMode?selected:{};
+    const c=editMode?selected:(newMode?clientDraft||{}:{});
     const field=(title,key,type='text',max=120,required='')=>
       '<label>'+title+'<input name="'+key+'" type="'+type+'" maxlength="'+max+'" '+required+
       ' value="'+esc(c[key]||'')+'"></label>';
     detail='<section class="panel client-profile"><div class="client-panel-head">'+
       '<div><small class="client-eyebrow">'+(newMode?'NOVO CADASTRO':'EDITAR CLIENTE')+'</small>'+
       '<h2>'+(newMode?'Cadastrar cliente':esc(nameOf(c)))+'</h2>'+
-      '<p>Informações comerciais verificáveis, sem campos inventados.</p></div>'+
+      '<p>'+(newMode&&clientDraft?.lead_id?'Confirme os dados antes de vincular este contato ao atendimento.':'Informações comerciais verificáveis, sem campos inventados.')+'</p></div>'+
       '<button type="button" class="cta secondary" data-client-cancel>Cancelar</button></div>'+
       '<form id="professionalClientForm" class="entry-form client-form">'+
       field('Empresa','company_name')+field('Contato responsável','person_name')+
@@ -526,12 +558,12 @@ function clients(feedback=''){
     el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
   el('content').querySelector('[data-new-client]').onclick=()=>{
-    clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    clientDraft=null;clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   };
   el('content').querySelector('[data-client-edit]')?.addEventListener('click',()=>{
     clientMode='edit';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
-  el('content').querySelector('[data-client-cancel]')?.addEventListener('click',()=>{clientMode='detail';clients()});
+  el('content').querySelector('[data-client-cancel]')?.addEventListener('click',()=>{clientDraft=null;clientMode='detail';clients()});
   el('content').querySelectorAll('[data-client-lead]').forEach(b=>b.onclick=()=>{
     el('search').value='';
     view('leads');
@@ -565,9 +597,16 @@ function clients(feedback=''){
     status.textContent='Salvando cadastro...';
     let result;
     try{
-      result=newMode
-        ?await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload})
-        :await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+      if(newMode && clientDraft?.lead_id && clientDraft?.conversation_id){
+        result=await sb.rpc('lkz_adm_create_client_from_conversation',{
+          p_id:requestId,p_conversation:clientDraft.conversation_id,
+          p_expected_lead:clientDraft.lead_id,...payload
+        });
+      }else if(newMode){
+        result=await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload});
+      }else{
+        result=await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+      }
     }catch{result={error:{code:'REDE'}}}
     if(!form.isConnected||!user)return;
     if(result.error||!result.data?.id){
@@ -578,7 +617,11 @@ function clients(feedback=''){
     }
     const updated=result.data;
     state.contacts=[updated,...state.contacts.filter(c=>c.id!==updated.id)];
-    clientFocus=updated.id;clientMode='detail';
+    if(newMode&&clientDraft?.lead_id){
+      const linkedLead=state.leads.find(l=>l.id===clientDraft.lead_id);
+      if(linkedLead)linkedLead.contact_id=updated.id;
+    }
+    clientDraft=null;clientFocus=updated.id;clientMode='detail';
     try{await loadCommercial()}catch{ /* O registro retornado pela RPC permanece disponível. */ }
     clients(newMode?'Cliente cadastrado com sucesso.':'Cadastro atualizado com sucesso.');
   };
