@@ -40,7 +40,10 @@ function resetIdle(){
   verifyIdle();
 }
 function recordActivity(event){
-  if(!user||endingForIdle)return;
+  if(!user)return;
+  if(endingForIdle){
+    event.preventDefault();event.stopImmediatePropagation();return;
+  }
   if(Date.now()-lastInteractionAt>=ADMIN_IDLE_MS){
     event.preventDefault();
     event.stopImmediatePropagation();
