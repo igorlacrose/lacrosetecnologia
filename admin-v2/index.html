@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="same-origin">
+  <meta name="theme-color" content="#071725">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src https://icrtewhazpfauuroswri.supabase.co wss://icrtewhazpfauuroswri.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+  <title>LKZ ADM 2.0 | Homologação</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <section id="loginScreen" class="auth-screen">
+    <form id="loginForm" class="auth-card">
+      <p class="eyebrow">LACROSE TECNOLOGIA</p>
+      <h1>LKZ <span>ADM</span></h1>
+      <p class="subtext">Central administrativa 2.0 — ambiente de avaliação</p>
+      <label>E-mail<input id="email" type="email" autocomplete="username" required maxlength="255"></label>
+      <label>Senha<input id="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit" id="loginBtn">Entrar</button>
+      <p id="authFeedback" class="feedback" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section id="mfaScreen" class="auth-screen" hidden>
+    <form id="mfaForm" class="auth-card">
+      <p class="eyebrow">VERIFICAÇÃO ADMINISTRATIVA</p>
+      <h1>Autenticação em duas etapas</h1>
+      <p class="subtext">Informe o código do seu autenticador.</p>
+      <div id="enroll" class="enroll" hidden>
+        <p>Configure seu aplicativo autenticador.</p>
+        <img id="qr" alt="QR Code para cadastrar o autenticador">
+        <p class="small">Chave manual (não compartilhe):</p>
+        <code id="secret"></code>
+      </div>
+      <label>Código de 6 dígitos<input id="mfaCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
+      <button class="primary" id="mfaBtn" type="submit">Validar código</button>
+      <button id="cancelMfa" type="button" class="text-button">Cancelar e sair</button>
+      <p id="mfaFeedback" class="feedback" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <div id="shell" class="shell" hidden>
+    <aside class="sidebar" id="sidebar" aria-label="Menu do sistema">
+      <div class="brand">
+        <span class="brand-eyebrow">LACROSE TECNOLOGIA</span>
+        <strong>LKZ <em>ADM</em></strong>
+        <small>Central administrativa</small>
+      </div>
+      <div class="menu-title">VISÃO OPERACIONAL</div>
+      <nav aria-label="Navegação">
+        <button type="button" data-screen="overview" class="active">Painel geral</button>
+        <button type="button" data-screen="oca">OCA e oportunidades</button>
+        <button type="button" data-screen="clients">Clientes</button>
+        <button type="button" data-screen="conversations">Atendimentos</button>
+        <button type="button" data-screen="approvals">Aprovações</button>
+      </nav>
+      <div class="menu-title">ADMINISTRAÇÃO</div>
+      <nav aria-label="Conta">
+        <button type="button" data-screen="account">Minha conta e segurança</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <span id="profileLabel">Usuário autenticado</span>
+        <small>Preview isolado, sem alterações de dados</small>
+        <button type="button" id="signout" class="outline">Sair com segurança</button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="heading">
+          <button type="button" id="toggleMenu" class="menu-toggle" aria-label="Abrir menu" aria-expanded="false">☰</button>
+          <div><p class="eyebrow">CENTRAL DE OPERAÇÕES / HOMOLOGAÇÃO</p><h1 id="screenTitle">Painel geral</h1><p id="screenSubtitle" class="subtext">Indicadores de dados existentes.</p></div>
+        </div>
+        <div class="top-actions">
+          <input id="search" type="search" placeholder="Filtrar esta seção" aria-label="Filtrar esta seção" maxlength="120">
+          <button id="refresh" type="button" class="outline">Atualizar dados</button>
+        </div>
+      </header>
+      <div class="preview-notice"><strong>Ambiente de avaliação.</strong> Dados lidos do Supabase com MFA e RLS; operações financeiras e provisionamento ainda não habilitados.</div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <main id="content" tabindex="-1"></main>
+      <footer class="footer"><span>LKZ ADM 2.0 · by Lacrose Tecnologia</span><span id="lastSync">Nenhuma leitura realizada</span></footer>
+    </div>
+    <button id="backdrop" type="button" class="backdrop" aria-label="Fechar menu"></button>
+  </div>
+</body>
+</html>
