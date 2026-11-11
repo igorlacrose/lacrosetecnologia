@@ -108,11 +108,14 @@
       project=has(tokens,'project'),price=has(tokens,'price'),
       human=has(tokens,'human'),location=has(tokens,'location');
     const product=productNames(text);
+    const duration=/\b(quanto|qual|quais)\b.{0,20}\b(tempo|prazo|demora|dias|semanas|meses|entrega|leva)\b/.test(t)||
+      /\b(quanto tempo|prazo de entrega|demora quanto)\b/.test(t);
     const qStart=/^(?:oi |ola |bom dia |boa tarde |boa noite )?(?:quais? |que |como |o que |me |onde |quanto |voces )/.test(t);
     const asking=question||qStart||text.trim().endsWith('?');
     const startsProject=/^(?:eu )?(?:quero|preciso|necessito|busco|queria|gostaria)(?: de| um| uma| que)?\b/.test(t)
       && project && !/\b(saber|conhecer|informacao|me fala|me explique)\b/.test(t);
     if(startsProject)return {intent:'project_request',confidence:0.95,products:product,topic:topic(text)};
+    if(duration)return {intent:'duration_question',confidence:0.90,products:product};
     if(product.length && price)return {intent:'product_price',confidence:0.92,products:product};
     if(product.length && has(tokens,'availability') && asking)
       return {intent:'product_status',confidence:0.88,products:product};
