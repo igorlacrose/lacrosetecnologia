@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { createPreviewDatabase, fixture, withIdentity } from '../preview-db.mjs';
 import { createOcaIntake } from '../oca-intake.mjs';
 import { createStagingAuth } from '../staging-auth.mjs';
-import { openStagingDatabase } from '../staging-db.mjs';
+import { assertIntegrationRole, assertWorkspaceRole, openStagingDatabase } from '../staging-db.mjs';
 import { reconcileBoundSandboxPayment } from '../commercial-reconcile.mjs';
 
 test('staging refuses institutional endpoints and requires verified AAL2 claims', async () => {
@@ -45,6 +45,32 @@ test('staging refuses institutional endpoints and requires verified AAL2 claims'
     body: JSON.stringify({ factorId: factor, code: '123456' }),
   }));
   assert.deepEqual(await mfa.json(), { token: 'valid.aal.two' });
+});
+
+test('startup rejects database roles when PostgreSQL would skip row-level security', async () => {
+  const workspace = { name: 'lkz_vnext_runtime', can_auth: true, billing_roles: '0', owned_schemas: '0' };
+  const integration = { permitted: true, other_roles: '0', owned_schemas: '0' };
+  function database(role, schemas, enforced, setRole = false) {
+    let roleSelected = false;
+    return { transaction: operation => operation({
+      async exec(sql) {
+        assert.equal(sql, 'set local role authenticated');
+        roleSelected = true;
+      },
+      async query(sql, args) {
+        if (!sql.includes('pg_catalog.row_security_active')) return { rows: [role] };
+        assert.equal(roleSelected, setRole);
+        assert.deepEqual(args, [schemas]);
+        return { rows: [{ enforced }] };
+      },
+    }) };
+  }
+  const workspaceSchemas = ['lkz_vnext', 'lkz_vnext_billing'];
+  await assert.rejects(assertWorkspaceRole(database(workspace, workspaceSchemas, false, true)), /row-level security/);
+  await assertWorkspaceRole(database(workspace, workspaceSchemas, true, true));
+  await assert.rejects(assertIntegrationRole(database(integration, ['lkz_vnext_billing'], false), 'lkz_vnext_asaas_ingest'),
+    /row-level security/);
+  await assertIntegrationRole(database(integration, workspaceSchemas, true), 'lkz_vnext_asaas_issue');
 });
 
 test('signed OCA delivery is tenant-pinned, idempotent, audited and fail-closed', async (t) => {

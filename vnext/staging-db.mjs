@@ -46,6 +46,17 @@ export function openStagingDatabase(connectionString) {
   };
 }
 
+async function assertRowSecurity(tx, schemas) {
+  const { rows: [status] } = await tx.query(`
+    select count(distinct n.nspname) = cardinality($1::text[])
+      and coalesce(bool_and(pg_catalog.row_security_active(c.oid)), false) as enforced
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = any($1::text[]) and c.relkind in ('r','p')
+  `, [schemas]);
+  if (status?.enforced !== true) throw new Error('VNext requires active row-level security');
+}
+
 export async function assertWorkspaceRole(db) {
   await db.transaction(async tx => {
     const { rows: [role] } = await tx.query(`
@@ -65,6 +76,7 @@ export async function assertWorkspaceRole(db) {
       throw new Error('Invalid VNext runtime database role');
     }
     await tx.exec('set local role authenticated');
+    await assertRowSecurity(tx, ['lkz_vnext', 'lkz_vnext_billing']);
   });
 }
 
@@ -84,6 +96,9 @@ export async function assertIntegrationRole(db, expected) {
     if (!role?.permitted || role.privileged || Number(role.other_roles) || Number(role.owned_schemas)) {
       throw new Error('Invalid VNext integration database role');
     }
+    const schemas = expected === 'lkz_vnext_asaas_issue'
+      ? ['lkz_vnext', 'lkz_vnext_billing'] : ['lkz_vnext_billing'];
+    await assertRowSecurity(tx, schemas);
   });
 }
 
