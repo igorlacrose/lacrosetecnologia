@@ -32,7 +32,7 @@ jobs:
         run: node --check admin/app.js
 
       - name: Testar MFA e limite de inatividade
-        run: node --test scripts/test_admin_idle_mfa.mjs
+        run: node --test scripts/test_admin_idle_mfa.mjs scripts/test_admin_live_refresh.mjs
 
       - name: Validar sintaxe e respostas do assistente OCA
         run: |
