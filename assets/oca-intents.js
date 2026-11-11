@@ -64,8 +64,11 @@
     software:['sistema','sistemas','software','aplicativo','aplicativos','erp','pdv','plataforma']
   };
   const catalog=Object.fromEntries(Object.entries(GROUPS).map(([k,words])=>[k,words.map(normalize)]));
-  function has(tokens,group){
-    return tokens.some(token=>catalog[group].some(w=>approx(token,w)));
+  function has(tokens,group,strict=false){
+    return tokens.some(token=>catalog[group].some(w=>{
+      if(strict)return token===w || (Math.max(token.length,w.length)>=5 && distance(token,w,1)<=1);
+      return approx(token,w);
+    }));
   }
   function productNames(text){
     const t=tokenize(text);
@@ -83,14 +86,14 @@
     // Somente buscar assunto anterior quando a mensagem atual não traz outro.
     const current=tokenize(text),previous=tokenize(lead.problem||'');
     function resolve(tokens){
-      if(has(tokens,'email') && (has(tokens,'automation')||has(tokens,'inquiry')||has(tokens,'request')||tokens.length<=5))return 'email';
-      if(has(tokens,'appointment'))return 'agenda';
-      if(has(tokens,'inventory'))return 'estoque';
-      if(has(tokens,'website'))return 'site';
-      if(has(tokens,'network'))return 'infra';
-      if(has(tokens,'crm'))return 'crm';
-      if(has(tokens,'automation'))return 'automacao';
-      if(has(tokens,'software'))return 'sistema';
+      if(has(tokens,'email',true) && (has(tokens,'automation',true)||has(tokens,'inquiry')||has(tokens,'request')||tokens.length<=5))return 'email';
+      if(has(tokens,'appointment',true))return 'agenda';
+      if(has(tokens,'inventory',true))return 'estoque';
+      if(has(tokens,'website',true))return 'site';
+      if(has(tokens,'network',true))return 'infra';
+      if(has(tokens,'crm',true))return 'crm';
+      if(has(tokens,'automation',true))return 'automacao';
+      if(has(tokens,'software',true))return 'sistema';
       return null;
     }
     return resolve(current)||resolve(previous)||'geral';
