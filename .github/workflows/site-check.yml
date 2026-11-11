@@ -34,5 +34,11 @@ jobs:
       - name: Testar MFA e limite de inatividade
         run: node --test scripts/test_admin_idle_mfa.mjs
 
+      - name: Validar sintaxe e respostas do assistente OCA
+        run: |
+          node --check app.js
+          node --check assets/oca-advisor.js
+          node --test scripts/test_oca_advisor.cjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py

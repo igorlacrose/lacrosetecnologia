@@ -289,6 +289,7 @@ const INTENT_LABELS={
 };
 
 
+const ADVISOR=window.LacroseOcaAdvisor;
 const OCA_SITE='Site integrado com sistema personalizado';
 const OCA_SITE_OPENING='Qual é o seu negócio e o que você quer que o site ou projeto faça ou integre? O orçamento depende do escopo que definirmos juntos.';
 const OCA_SITE_CONTACT='Qual telefone ou e-mail a Lacrose pode usar para retornar com a análise?';
@@ -332,6 +333,8 @@ const FIELD_QUESTIONS={
 const state={
 
   oca:false,
+  contactDeclined:false,
+  faqContext:null,
 
   lead:{
 
@@ -645,6 +648,8 @@ function detectSegment(text){
   const t=
     lower(text);
 
+  // Clínica de estética não é sinônimo de clínica de saúde genérica.
+  if(/cl[ií]nica(?:\s+de)?\s+est[eé]tica/.test(t))return 'Beleza / Estética';
 
   const map=[
 
@@ -684,7 +689,7 @@ function detectSegment(text){
     ],
 
     [
-      /sal[aã]o|est[eé]tica|studio|beleza/,
+      /barbearia|barbeiro|sal[aã]o|est[eé]tica|studio|beleza/,
       'Beleza / Estética'
     ],
 
@@ -1150,37 +1155,27 @@ function setAwaited(
       clean(text);
 
   }else if(field==='contact'){
-
-    l.contact=
-      clean(text);
+    if(ADVISOR?.isContactDecline(text)){
+      state.contactDeclined=true;
+      l.contact='';
+    }else{
+      l.contact=clean(text);
+      state.contactDeclined=false;
+    }
   }
 
-
+  if(/\b(na verdade|corrigindo|correcao|nao e)\b/.test(lower(text))){
+    const corrected=detectSegment(text);
+    if(corrected)l.segment=corrected;
+  }
   absorbKnown(text);
 }
 
 
 
 function requiredFields(){
-
-  return[
-
-    'problem',
-
-    'segment',
-
-    'scale',
-
-    'current',
-
-    'impact',
-
-    'urgency',
-
-    'location',
-
-    'contact'
-  ];
+  // Não obrigar o visitante a responder oito perguntas genéricas.
+  return ['problem','segment','current','contact'];
 }
 
 
@@ -1204,19 +1199,9 @@ function nextMissing(){
   }
 
 
-  for(
-    const field
-    of requiredFields()
-  ){
-
-    if(
-      !clean(
-        l[field]
-      )
-    ){
-
-      return field;
-    }
+  for(const field of requiredFields()){
+    if(field==='contact' && state.contactDeclined)continue;
+    if(!clean(l[field]))return field;
   }
 
 
@@ -1830,59 +1815,8 @@ function quickConfig(field){
 
 
   if(field==='current'){
-
-    return{
-
-      mode:'multi',
-
-      hint:
-        'Marque uma ou mais opções e toque em continuar.',
-
-      options:[
-
-        {
-          label:'Planilhas',
-          value:'Planilhas'
-        },
-
-        {
-          label:'WhatsApp',
-          value:'WhatsApp'
-        },
-
-        {
-          label:'Sistema pronto',
-          value:'Sistema de mercado'
-        },
-
-        {
-          label:'Sistema próprio',
-          value:'Sistema próprio'
-        },
-
-        {
-          label:'Processo manual',
-          value:'Processo manual'
-        },
-
-        {
-          label:'Rede / equipamentos locais',
-          value:'Rede ou equipamentos locais'
-        },
-
-        {
-          label:'Nada estruturado',
-          value:'Nada estruturado'
-        },
-
-        {
-          label:'Não sei',
-          value:'Solução atual não identificada'
-        }
-      ]
-    };
+    return ADVISOR?.quickOptions('current',state.lead)||null;
   }
-
 
   if(field==='impact'){
 
@@ -2440,7 +2374,7 @@ function askNext(){
 
 
     agentSay(
-      FIELD_QUESTIONS[field],
+      ADVISOR?.questionFor(field,state.lead)||FIELD_QUESTIONS[field],
       300,
       ()=>renderQuickReplies(field)
     );
@@ -2474,10 +2408,10 @@ function askNext(){
 
 
   agentSay(
-
-    `Fechei o diagnóstico inicial. Classifiquei esta oportunidade como “${l.status}”. A solução provável é: ${l.solution} A próxima etapa é a revisão humana da Lacrose para continuidade do atendimento.`,
-
-    420
+    state.contactDeclined
+      ?'Entendi sua necessidade inicial. Você pode continuar perguntando sobre nossos serviços por aqui. Sem um contato autorizado, não faremos retorno por telefone ou e-mail.'
+      :'Obrigado! Registrei seu pedido para avaliação da Lacrose Tecnologia. Um responsável poderá alinhar os detalhes e confirmar o escopo antes de apresentar qualquer proposta.',
+    360
   );
 }
 
@@ -2518,6 +2452,23 @@ function submitText(
     'Visitante'
   );
 
+  // Atender perguntas comerciais sem consumir campos do diagnóstico.
+  const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext);
+  if(directAnswer){
+    // Informações de contato fornecidas junto de uma dúvida comercial também
+    // devem compor o lead, sem preencher problema/segmento indevidamente.
+    const hadContact=Boolean(state.lead.contact);
+    absorbContact(text);
+    if(state.lead.contact!=='' && (!hadContact||state.lead.contact!==contactBefore)){
+      state.contactDeclined=false;
+      updatePreview();
+    }
+    state.faqContext=directAnswer.context;
+    const continueAfterContact=state.awaiting==='contact' && Boolean(state.lead.contact);
+    agentSay(directAnswer.text,260,continueAfterContact?()=>askNext():undefined);
+    return;
+  }
+  state.faqContext=null;
 
   /*
    * Depois que o diagnóstico terminou, ainda aceitamos telefone,
@@ -2728,7 +2679,8 @@ function resetAgent(){
 
   state.awaiting=
     'problem';
-
+  state.contactDeclined=false;
+  state.faqContext=null;
 
   state.messages=[];
 
@@ -2760,7 +2712,7 @@ function resetAgent(){
 
 
     el.input.placeholder=
-      'Ou simplesmente conte o problema da sua empresa...';
+      'Pergunte sobre nossos serviços ou descreva o que precisa...';
   }
 
 
@@ -2772,7 +2724,7 @@ function resetAgent(){
 
     'agent',
 
-    'Olá! Eu sou o Agente Lacrose. Conte o problema da sua empresa e eu vou fazer apenas as perguntas necessárias para montar um diagnóstico comercial inicial. Você pode tocar em uma opção abaixo ou simplesmente escrever.',
+    'Olá! Sou o assistente da Lacrose Tecnologia. Posso explicar nossos serviços, conversar sobre seu projeto e informar os valores de lançamento previstos de LibertyOS e BarbarOS. O que você gostaria de saber ou resolver?',
 
     'Agente Lacrose'
   );
@@ -2937,7 +2889,7 @@ if(el.form){
 
         setTimeout(
           ()=>submitText(
-            'Tenho uma clínica com 12 computadores e estou tendo problemas com controle de acesso e arquivos.'
+            'Tenho uma clínica de estética e quero automatizar e-mails para criar tarefas.'
           ),
           120
         );
