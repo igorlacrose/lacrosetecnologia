@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
-import { createAsaasSandboxWebhook, fetchAsaasSandboxPayment } from '../asaas-sandbox.mjs';
+import { createAsaasSandboxWebhook, fetchAsaasSandboxPayment, reconcileNextAsaasSandboxEvent } from '../asaas-sandbox.mjs';
 
 const sql = (file) => readFile(new URL('../db/' + file, import.meta.url), 'utf8');
 
@@ -153,4 +153,44 @@ test('an accepted Sandbox event survives closing and reopening the database', as
     if (db && !db.closed) await db.close();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('Sandbox worker retries unavailable payments and stores only observed status', async (t) => {
+  const db = new PGlite();
+  t.after(() => db.close());
+  await db.exec('create role anon; create role authenticated');
+  await db.exec(await sql('002-asaas-inbox.sql'));
+  await db.exec(await sql('004-asaas-reconcile.sql'));
+  const table = 'lkz_vnext_billing.asaas_sandbox_events';
+  const token = randomUUID();
+  const handle = createAsaasSandboxWebhook({ token, db });
+  await db.exec('set role lkz_vnext_asaas_ingest');
+  const response = await handle(new Request('https://webhook.example.test/', {
+    method: 'POST',
+    headers: { 'asaas-access-token': token, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'evt_worker', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_worker' } }),
+  }));
+  assert.equal(response.status, 200);
+  await assert.rejects(db.query(`update ${table} set attempts = 5`), { code: '42501' });
+
+  await db.exec('set role lkz_vnext_asaas_reconcile');
+  await assert.rejects(db.query(`update ${table} set payment_id = 'pay_other'`), { code: '42501' });
+  const apiKey = randomUUID();
+  const unavailable = async () => new Response(null, { status: 503 });
+  assert.equal(await reconcileNextAsaasSandboxEvent({ db, apiKey, request: unavailable }), 'retry');
+  assert.equal(await reconcileNextAsaasSandboxEvent({ db, apiKey, request: unavailable }), 'idle');
+  await db.query(`update ${table} set next_attempt_at = now()`);
+  const reconciled = await reconcileNextAsaasSandboxEvent({
+    db, apiKey, request: async () => Response.json({ id: 'pay_worker', status: 'REFUNDED', customer: 'discard' }),
+  });
+  assert.equal(reconciled, 'observed');
+  assert.deepEqual((await db.query(`select observed_status, attempts from ${table}`)).rows,
+    [{ observed_status: 'REFUNDED', attempts: 2 }]);
+
+  await db.exec('reset role');
+  await db.query(`insert into ${table} (event_id, event_type, payment_id, attempts)
+    values ('evt_exhaust', 'PAYMENT_RECEIVED', 'pay_worker', 4)`);
+  await db.exec('set role lkz_vnext_asaas_reconcile');
+  assert.equal(await reconcileNextAsaasSandboxEvent({ db, apiKey, request: unavailable }), 'failed');
+  assert.equal(await reconcileNextAsaasSandboxEvent({ db, apiKey, request: unavailable }), 'idle');
 });

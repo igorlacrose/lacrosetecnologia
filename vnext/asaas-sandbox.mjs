@@ -82,3 +82,54 @@ export async function fetchAsaasSandboxPayment(paymentId, apiKey, request = fetc
   if (payment?.id !== paymentId) throw new Error('Unexpected Sandbox payment reference');
   return payment;
 }
+
+export async function reconcileNextAsaasSandboxEvent({ db, apiKey, request }) {
+  if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('Missing Sandbox credentials');
+  // Mark exhausted claims left behind by interrupted workers.
+  await db.query(`
+    update lkz_vnext_billing.asaas_sandbox_events
+    set failed_at = now(), lease_token = null, lease_until = null
+    where processed_at is null and failed_at is null and attempts >= 5 and lease_until <= now()
+  `);
+
+  const { rows: [event] } = await db.query(`
+    with candidate as (
+      select event_id from lkz_vnext_billing.asaas_sandbox_events
+      where processed_at is null and failed_at is null and attempts < 5
+        and next_attempt_at <= now() and (lease_until is null or lease_until <= now())
+      order by next_attempt_at, event_id
+      limit 1 for update skip locked
+    )
+    update lkz_vnext_billing.asaas_sandbox_events inbox
+    set attempts = attempts + 1, lease_token = gen_random_uuid(),
+        lease_until = now() + interval '60 seconds'
+    from candidate where inbox.event_id = candidate.event_id
+    returning inbox.event_id, inbox.payment_id, inbox.lease_token
+  `);
+  if (!event) return 'idle';
+
+  let status = null;
+  try {
+    const payment = await fetchAsaasSandboxPayment(event.payment_id, apiKey, request);
+    if (typeof payment.status === 'string' && /^[A-Z_]{1,40}$/.test(payment.status)) {
+      status = payment.status;
+    }
+  } catch {
+    // Persist a retry without retaining provider responses or credentials.
+  }
+
+  const { rows: [result] } = await db.query(`
+    update lkz_vnext_billing.asaas_sandbox_events
+    set observed_status = $3::text,
+        processed_at = case when $3::text is not null then now() end,
+        failed_at = case when $3::text is null and attempts >= 5 then now() end,
+        next_attempt_at = now() + interval '30 seconds' * power(2, attempts - 1),
+        lease_token = null, lease_until = null
+    where event_id = $1 and lease_token = $2 and lease_until > now()
+    returning processed_at, failed_at
+  `, [event.event_id, event.lease_token, status]);
+
+  if (!result) return 'lease_lost';
+  if (result.processed_at) return 'observed';
+  return result.failed_at ? 'failed' : 'retry';
+}
