@@ -157,3 +157,16 @@ test('pergunta comercial isolada não altera o diagnóstico',()=>{
  assert.ok(faq>0 && earlyExit>faq && diagnostic>earlyExit,
    'FAQ deve responder antes de consumir campo de problema');
 });
+
+test('pedidos reais de sistemas e sites não podem virar apresentação dos serviços',()=>{
+ const examples=[
+   'Preciso de um site que apresente meus serviços',
+   'Quero um sistema que organize as atividades da minha empresa',
+   'Busco uma automação que classifique os serviços internos',
+   'Tenho uma loja que oferece serviços e preciso de CRM'
+ ];
+ for(const text of examples){
+   assert.equal(advisor.reply(text,{problem:''}),null,
+     text+' não deve ser tratado como pergunta sobre a Lacrose');
+ }
+});
