@@ -1,10 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createPreviewDatabase, fixture } from '../preview-db.mjs';
 import { createPreviewServer } from '../preview.mjs';
 import { serveWorkspace } from '../workspace.mjs';
+import { createAsaasSandboxWebhook } from '../asaas-sandbox.mjs';
+import { createOcaIntake } from '../oca-intake.mjs';
+import { createOcaStagingSender } from '../oca-staging-sender.mjs';
 
 test('CRM, OCA and commercial drafts work through the workspace API with tenant isolation', async (t) => {
   const db = await createPreviewDatabase();
@@ -94,4 +97,55 @@ test('loopback server serves the interface and rejects foreign origins on writes
   assert.equal((await fetch(url, { ...input, headers: { ...input.headers, origin: 'https://foreign.example.test' } })).status, 403);
   assert.equal((await fetch(url, { ...input, headers: { ...input.headers, origin } })).status, 201);
   assert.equal((await (await fetch(url)).json()).length, 1);
+});
+
+test('the staging HTTP routes deliver signed OCA events and persist authenticated Sandbox webhooks', async (t) => {
+  const db = await createPreviewDatabase();
+  const secret = randomBytes(32).toString('hex');
+  const webhookToken = randomUUID();
+  const oca = createOcaIntake({ db, tenant: fixture.tenant, actor: fixture.viewer, secret });
+  const asaasWebhook = createAsaasSandboxWebhook({
+    token: webhookToken,
+    db: { query: (sql, args) => db.transaction(async tx => {
+      await tx.exec('set local role lkz_vnext_asaas_ingest');
+      return tx.query(sql, args);
+    }) },
+  });
+  const server = createPreviewServer(db, { oca, asaasWebhook });
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    await db.close();
+  });
+  await db.query("update lkz_vnext.memberships set role='operator' where user_id=$1", [fixture.viewer]);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const send = createOcaStagingSender({
+    secret, request: (url, options) => fetch(origin + new URL(url).pathname, options),
+  });
+  const event = { eventId: randomUUID(), conversationId: randomUUID(), consent: true,
+    name: 'Fixture', email: 'oca@example.test', note: 'Resumo fictício' };
+  assert.equal(await send({ ...event, consent: false }), 'invalid');
+  assert.equal(await send(event), 'accepted');
+  assert.equal(await send(event), 'duplicate');
+  assert.equal(await send({ ...event, note: 'Resumo divergente' }), 'conflict');
+
+  const interactions = await fetch(origin + '/api/interactions?tenant=' + fixture.tenant);
+  assert.equal(interactions.status, 200);
+  assert.deepEqual((await interactions.json()).map(row => row.oca_event_id), [event.eventId]);
+  const audit = await (await fetch(origin + '/api/audit?tenant=' + fixture.tenant)).json();
+  assert.equal(audit.filter(row => row.entity === 'interactions' && row.actor_id === fixture.viewer).length, 1);
+
+  const webhook = token => fetch(origin + '/integrations/asaas-sandbox', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'asaas-access-token': token },
+    body: JSON.stringify({ id: 'evt_fixture_http', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_fixture_http' } }),
+  });
+  assert.equal((await webhook(randomUUID())).status, 401);
+  assert.equal((await webhook(webhookToken)).status, 200);
+  assert.equal((await webhook(webhookToken)).status, 200);
+  const { rows } = await db.query(`
+    select payment_id from lkz_vnext_billing.asaas_sandbox_events where event_id='evt_fixture_http'
+  `);
+  assert.deepEqual(rows, [{ payment_id: 'pay_fixture_http' }]);
 });
