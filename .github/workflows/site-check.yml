@@ -56,6 +56,8 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm audit --audit-level=high
+          node --check meta-inbound.mjs
+          node --check meta-inbound-listener.mjs
           node --check appointment-reminders.mjs
           node --check appointment-sender.mjs
           node --check meta-whatsapp.mjs
