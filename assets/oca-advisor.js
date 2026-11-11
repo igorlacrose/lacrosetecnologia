@@ -112,6 +112,11 @@
       /\b(quanto custa|quanto fica|preco|valor|mensalidade|mensal|assinatura|planos?|quanto cobram|quanto pag)/.test(t);
     const asksStatus=intent?.intent==='product_status' ||
       /\b(esta pronto|ja funciona|disponivel|posso contratar|posso assinar|ja vende|ja saiu|liberado|ja posso usar)\b/.test(t);
+    if(intent?.intent==='duration_question'){
+      return products.length
+        ?'Esse produto ainda está em desenvolvimento e não há prazo de liberação confirmado. A contratação só será oferecida quando estiver homologado.'
+        :'O prazo depende do escopo, das integrações e da disponibilidade técnica. Só conseguimos confirmar uma estimativa após avaliar os requisitos.';
+    }
     if(intent?.intent==='company_services'){
       return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
     }
@@ -216,7 +221,8 @@
     }
     const textReply=reply(text,lead);
     if(!textReply)return null;
-    const askingPrice=/\b(quanto custa|quanto fica|preco|valor|mensalidade|mensal|assinatura|planos?|quanto cobram|quanto pag)/.test(t);
+    const askingPrice=SEMANTIC?.classify(text)?.intent==='product_price' ||
+      /\b(quanto custa|quanto fica|preco|valor|mensalidade|mensal|assinatura|planos?|quanto cobram|quanto pag)/.test(t);
     const context=ids.length?{kind:askingPrice?'product_price':'product_info',products:ids}:null;
     return {text:textReply,context};
   }
