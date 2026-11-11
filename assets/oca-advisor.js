@@ -10,6 +10,7 @@
 })(typeof window==='object'?window:globalThis,function(){
   'use strict';
 
+  const SEMANTIC=(typeof window==='object'?window.LacroseOcaIntent:globalThis.LacroseOcaIntent)||null;
   const RELEASE_MONTHLY_BRL=129;
   const PRODUCTS={
     libertyos:{name:'LibertyOS',vertical:'salões de beleza e clínicas de estética'},
@@ -21,6 +22,7 @@
   }
   const has=(s,re)=>re.test(norm(s));
   function productNames(text){
+    if(SEMANTIC)return SEMANTIC.productNames(text);
     const t=norm(text),names=[];
     if(/\bliberty[\s-]?os\b/.test(t))names.push('libertyos');
     if(/\bbarbar[\s-]?os\b/.test(t))names.push('barbaros');
@@ -30,6 +32,9 @@
     return has(text,/^(?:prefiro nao|nao quero|nao vou|sem contato|nao desejo|dispenso)(?:\s+(?:informar|passar|fornecer|compartilhar))?(?:\s+(?:meu|minha|meus|contato|dados|telefone|email|whatsapp|numero))*[.!]?\s*$/);
   }
   function subject(text,lead={}){
+    // Prioridade para o assunto explícito, mesmo com abreviações e erros.
+    const matched=SEMANTIC?.topic(text,lead);
+    if(matched && matched!=='geral')return matched;
     // O pedido inicial é mais relevante que o segmento. Não interpretar uma
     // clínica de estética como pedido de prontuário quando ela pede e-mails.
     const t=norm([lead.problem||'',text||''].join(' '));
@@ -101,9 +106,21 @@
     return list?{mode:'multi',hint:'Marque o que se aplica ou explique com suas palavras.',options:list.map(([label,value])=>({label,value}))}:null;
   }
   function reply(text,lead={}){
+    const intent=SEMANTIC?.classify(text);
     const t=norm(text),products=productNames(text),price=
+      (intent?.intent==='product_price'||intent?.intent==='custom_price')||
       /\b(quanto custa|quanto fica|preco|valor|mensalidade|mensal|assinatura|planos?|quanto cobram|quanto pag)/.test(t);
-    const asksStatus=/\b(esta pronto|ja funciona|disponivel|posso contratar|posso assinar|ja vende|ja saiu|liberado|ja posso usar)\b/.test(t);
+    const asksStatus=intent?.intent==='product_status' ||
+      /\b(esta pronto|ja funciona|disponivel|posso contratar|posso assinar|ja vende|ja saiu|liberado|ja posso usar)\b/.test(t);
+    if(intent?.intent==='company_services'){
+      return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
+    }
+    if(intent?.intent==='company_location'){
+      return 'Atendemos projetos remotamente em todo o Brasil e, conforme disponibilidade, presencialmente em Jequié, Bahia. A forma de atendimento depende do serviço e do escopo.';
+    }
+    if(intent?.intent==='human_handoff'){
+      return 'Claro. Podemos encaminhar sua solicitação para atendimento humano. Descreva brevemente o que precisa e, se quiser retorno, informe seu nome e um WhatsApp ou e-mail. Não é necessário compartilhar senhas nem dados sensíveis.';
+    }
     if(products.length && price){
       const names=products.map(p=>PRODUCTS[p].name).join(' e ');
       return 'A mensalidade de lançamento planejada para '+names+' é de R$ '+RELEASE_MONTHLY_BRL+',00 por estabelecimento. Os sistemas ainda estão em desenvolvimento; esse valor é uma referência comercial sujeita à confirmação antes da contratação. Não há ativação ou cobrança automática disponível neste momento.';
@@ -131,7 +148,7 @@
       /\b(?:o que|como|em que)\b.{0,50}\b(?:lacrose|voces)\b.{0,35}\b(?:faz|fazem|trabalha|trabalham|oferece|oferecem|atua|atuam)\b/.test(t) ||
       /\b(?:fale|fala|conte|conta|explique|me fale|me fala|me conte|me conta|gostaria de saber|quero conhecer|saber mais)\b.{0,45}\b(?:lacrose|empresa|sobre voces)\b/.test(t) ||
       /\b(?:em que trabalham|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t);
-    if(asksServices){
+    if(asksServices && intent?.intent!=='project_request'){
       return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
     }
     if(/\b(atendem onde|onde (?:voces )?atendem|onde fica|qual cidade|atende em|atendimento presencial|atendem fora|atendem no brasil|atuam onde)\b/.test(t)){
@@ -176,7 +193,7 @@
     }
     // Se for uma pergunta sobre a empresa que ainda não está catalogada,
     // pedir esclarecimento, nunca tratá-la como um "problema do cliente".
-    if(t.endsWith('?') && /\b(lacrose|voces|seus servicos|sua empresa|essa empresa)\b/.test(t)){
+    if(t.endsWith('?') && (intent?.intent==='company_question' || /\b(lacrose|voces|seus servicos|sua empresa|essa empresa)\b/.test(t))){
       return 'Posso explicar nossos serviços de desenvolvimento de sites e sistemas, automação empresarial com IA, redes e segurança de TI. Qual dessas áreas você gostaria de conhecer melhor? Se sua dúvida for outra, pode perguntar com suas palavras.';
     }
     return null;
