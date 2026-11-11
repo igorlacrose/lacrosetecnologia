@@ -38,7 +38,10 @@
     const larger=Math.max(a.length,b.length),smaller=Math.min(a.length,b.length);
     if(larger<5||smaller<4)return false;
     const tolerance=larger>=8?2:1;
-    return Math.abs(a.length-b.length)<=tolerance && distance(a,b,tolerance)<=tolerance;
+    // Duas correções só com tamanho próximo e prefixo coerente.
+    // Ex.: "serviços" NÃO deve se parecer com "servidores".
+    if(Math.abs(a.length-b.length)>1 || (tolerance===2 && a.slice(0,3)!==b.slice(0,3)))return false;
+    return distance(a,b,tolerance)<=tolerance;
   }
   // Cada assunto usa famílias de palavras e sinônimos, nunca uma frase única.
   const GROUPS={
