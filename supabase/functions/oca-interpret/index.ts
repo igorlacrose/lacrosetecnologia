@@ -91,9 +91,11 @@ Deno.serve(async(req:Request)=>{
   const url=Deno.env.get("SUPABASE_URL");
   const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const pepper=Deno.env.get("OCA_RATE_SECRET");
+  const turnstileSecret=Deno.env.get("TURNSTILE_SECRET_KEY");
   const budget=Number(Deno.env.get("OCA_AI_MONTHLY_BUDGET_MICRO_USD")||0);
-  if(!enabled||!apiKey||!url||!serviceKey||!pepper||
-     pepper.length<32||!Number.isSafeInteger(budget)||budget<2000||budget>2_000_000)
+  if(!enabled||!apiKey||!url||!serviceKey||!pepper||!turnstileSecret||
+     pepper.length<32||turnstileSecret.length<20||
+     !Number.isSafeInteger(budget)||budget<2000||budget>2_000_000)
     return json(origin,503,{ok:false,error:"ai_unavailable"});
 
   let body:Record<string,unknown>;
@@ -102,8 +104,11 @@ Deno.serve(async(req:Request)=>{
   const question=body?.question;
   const sessionId=body?.sessionId;
   const lastTopic=body?.lastTopic;
+  const turnstileToken=body?.turnstileToken;
   if(typeof question!=="string"||question.length<8||question.length>320||
      typeof sessionId!=="string"||!/^[A-Za-z0-9_-]{16,128}$/.test(sessionId)||
+     typeof turnstileToken!=="string"||turnstileToken.length<20||
+     turnstileToken.length>2048||!/^[A-Za-z0-9_.-]+$/.test(turnstileToken)||
      (lastTopic!==undefined && (typeof lastTopic!=="string"||!IDS.includes(lastTopic as typeof IDS[number]))))
     return json(origin,400,{ok:false,error:"invalid_question"});
   if(containsSensitiveData(question))
@@ -132,11 +137,38 @@ Deno.serve(async(req:Request)=>{
     if(data===false)return json(origin,429,{ok:false,error:"rate_limited"});
   }
 
+  // Turnstile server-side é obrigatório: Origin/CORS não autenticam visitante.
+  // Validar action e hostname além do campo success, antes de consumir saldo.
+  const verifyController=new AbortController();
+  const verifyDeadline=setTimeout(()=>verifyController.abort(),6000);
+  try{
+    const form=new URLSearchParams({secret:turnstileSecret,response:turnstileToken});
+    const verification=await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",{
+        method:"POST",signal:verifyController.signal,
+        headers:{"Content-Type":"application/x-www-form-urlencoded"},
+        body:form.toString()
+      });
+    if(!verification.ok)return json(origin,503,{ok:false,error:"challenge_unavailable"});
+    const result=await verification.json();
+    const hostname=String(result?.hostname||"");
+    const challengeAt=Date.parse(String(result?.challenge_ts||""));
+    if(result?.success!==true||result?.action!=="oca_interpret"||
+       !["lacrosetecnologia.com.br","www.lacrosetecnologia.com.br"].includes(hostname)||
+       !Number.isFinite(challengeAt)||challengeAt>Date.now()+60000||
+       Date.now()-challengeAt>300000){
+      return json(origin,403,{ok:false,error:"challenge_invalid"});
+    }
+  }catch{
+    return json(origin,503,{ok:false,error:"challenge_unavailable"});
+  }finally{clearTimeout(verifyDeadline);}
+
   // Reserva conservadora de US$ 0,002 por consulta. Não restituir se a
   // OpenAI falhar: priorizar proteção de caixa sobre capacidade extra.
   // SQL limita a US$ 2,00 por mês, mesmo sob concorrência entre invocações.
   const {data:reserved,error:reserveError}=await sb.rpc("oca_ai_reserve_monthly",{
-    p_micro_usd:2000,p_limit_micro_usd:budget
+    p_micro_usd:2000,p_limit_micro_usd:budget,
+    p_token_hash:await sha(pepper+":turnstile:"+turnstileToken)
   });
   if(reserveError||reserved!==true)
     return json(origin,503,{ok:false,error:"monthly_budget_unavailable"});
