@@ -45,7 +45,7 @@
       return 'site';
     if(/\b(wifi|wi-fi|rede|servidor|firewall|mikrotik|backup|vpn|internet caindo|infraestrutura)\b/.test(t))
       return 'infra';
-    if(/\b(automac|automat|repetitiv|integrac|integra|processo|tarefa|relatorio|documentos)\b/.test(t))
+    if(/\b(automac\w*|automat\w*|repetitiv\w*|integrac\w*|integra\w*|processos?|tarefas?|relatorios?|documentos?)\b/.test(t))
       return 'automacao';
     if(/\b(sistema|software|app|aplicativo|erp|pdv|plataforma)\b/.test(t))
       return 'sistema';
