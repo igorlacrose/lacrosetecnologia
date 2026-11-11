@@ -226,10 +226,16 @@ async function apply(db,source,event,hashValue,key,pepper,clock){
     if(permitted){
       const now=clock();
       const when=new Date(event.startsAt).getTime();
+      // The admin may preconfigure offsets, but cannot enable paid dispatch.
+      const {rows:[preferences]}=await tx.query(
+        'select offsets_minutes from lkz_vnext.whatsapp_reminder_policies where tenant_id=$1',
+        [tenant]
+      );
+      const offsets=preferences?.offsets_minutes??[1440,120];
       const tasks=[
         ['confirmation',new Date(now)],
-        ['reminder_24h',new Date(when-86400000)],
-        ['reminder_2h',new Date(when-7200000)]
+        ...(offsets.includes(1440)?[['reminder_24h',new Date(when-86400000)]]:[]),
+        ...(offsets.includes(120)?[['reminder_2h',new Date(when-7200000)]]:[])
       ].filter(([kind,due])=>kind==='confirmation'||due.getTime()>now+60000);
       for(const [kind,due] of tasks){
         await tx.query(
