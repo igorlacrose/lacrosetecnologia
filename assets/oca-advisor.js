@@ -27,7 +27,7 @@
     return names;
   }
   function isContactDecline(text){
-    return has(text,/^(prefiro nao|nao quero|nao vou|sem contato|nao desejo|dispenso)(?:\s+(?:informar|passar|meus dados|contato|telefone|email))?[.!]?\s*$/);
+    return has(text,/^(?:prefiro nao|nao quero|nao vou|sem contato|nao desejo|dispenso)(?:\s+(?:informar|passar|fornecer|compartilhar))?(?:\s+(?:meu|minha|meus|contato|dados|telefone|email|whatsapp|numero))*[.!]?\s*$/);
   }
   function subject(text,lead={}){
     // O pedido inicial é mais relevante que o segmento. Não interpretar uma
