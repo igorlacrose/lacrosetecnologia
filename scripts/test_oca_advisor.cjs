@@ -100,3 +100,16 @@ test('responde sobre infraestrutura, software e IA sem alegar implantação pron
  assert.match(answer('Vocês trabalham com inteligência artificial?'),/automação empresarial com IA/);
  assert.match(answer('Vocês oferecem manutenção e suporte?'),/definidos no contrato/);
 });
+
+test('reconhece palavras completas de automação e não faz pergunta genérica',()=>{
+ for(const text of ['Quero automatizar a emissão de notas fiscais','Preciso de automação de cobranças','Quero integrar aplicações','Reduzir tarefas repetitivas']){
+   const topic=advisor.subject(text,{problem:''});
+   assert.equal(topic,'automacao',text);
+   assert.match(advisor.questionFor('current',{problem:text}),/Qual tarefa deve disparar/);
+ }
+});
+test('FAQ não deve descartar contatos explícitos no formulário',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../app.js'),'utf8');
+ assert.match(source,/if\(directAnswer\)\{\s*\/\/[\s\S]*?absorbContact\(text\);/);
+ assert.match(source,/continueAfterContact\?../);
+});
