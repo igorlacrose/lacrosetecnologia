@@ -91,3 +91,8 @@ O módulo compartilhado de confirmação e lembretes 24h/2h recebe eventos **ass
 ## Webhook Meta para interrupção dos lembretes
 
 O receptor dedicado valida `X-Hub-Signature-256`, relaciona WABA/número à empresa e registra com idempotência solicitações explícitas de opt-out. Ele desativa consentimento e cancela os lembretes futuros dos dois produtos, sem armazenar texto ou telefone em claro. Ainda não está ligado a uma WABA real ou hospedado externamente. Consulte [META_INBOUND_OPT_OUT.md](./META_INBOUND_OPT_OUT.md) para configuração segura, migração, testes e bloqueios de produção.
+
+
+## Preferências do WhatsApp por empresa
+
+No módulo WhatsApp, administradores com MFA podem preparar lembretes de 24h e/ou 2h e registrar um limite mensal desejado. A política permanece desativada mesmo após o salvamento; o limite **não é aplicado a mensagens reais até existir worker homologado**. Consultar [REMINDER_PREFERENCES.md](./REMINDER_PREFERENCES.md).
