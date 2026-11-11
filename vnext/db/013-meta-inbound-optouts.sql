@@ -1,5 +1,10 @@
 begin;
 
+-- The inbound reader must match WABA + phone, but still cannot read
+-- encrypted business tokens or modify the connection.
+grant select (meta_waba_id,meta_phone_number_id)
+  on lkz_vnext.whatsapp_connections to lkz_vnext_reminder_bridge;
+
 -- Meta inbound events can withdraw reminder consent, but cannot activate
 -- notifications, alter billing or send a message.
 create table lkz_vnext.whatsapp_meta_optout_events (
