@@ -96,3 +96,8 @@ O receptor dedicado valida `X-Hub-Signature-256`, relaciona WABA/número à empr
 ## Preferências do WhatsApp por empresa
 
 No módulo WhatsApp, administradores com MFA podem preparar lembretes de 24h e/ou 2h e registrar um limite mensal desejado. A política permanece desativada mesmo após o salvamento; o limite **não é aplicado a mensagens reais até existir worker homologado**. Consultar [REMINDER_PREFERENCES.md](./REMINDER_PREFERENCES.md).
+
+
+## Ensaio de tarefas WhatsApp em homologação
+
+O simulador transacional de fila avalia tarefas de lembretes vencendo no intervalo, respeita consentimento, revisões de agendamento, opt-out, política e situação da conta Meta, **sem enviar mensagens ou usar créditos**. Registra decisões sem dados do cliente e invalida tarefas antigas. Para execução isolada com papel restrito: `node rehearse-reminders.mjs --dry-run <tenant-uuid>`. Veja [REMINDER_REHEARSAL.md](./REMINDER_REHEARSAL.md) para testes, efeitos de expiração, limites e homologação.
