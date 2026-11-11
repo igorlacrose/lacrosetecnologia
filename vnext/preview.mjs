@@ -10,8 +10,10 @@ const assets = new Map([
   ['/app.mjs', ['app.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db, { auth, oca, asaasWebhook, lacroseTenant = fixture.tenant } = {}) {
-  return createServer(async (incoming, outgoing) => {
+export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant } = {}) {
+  if (webhookOnly && !asaasWebhook) throw new Error('A webhook handler is required');
+  const limits = webhookOnly ? { requestTimeout: 15_000, headersTimeout: 10_000 } : {};
+  return createServer(limits, async (incoming, outgoing) => {
     try {
       const port = outgoing.socket.localPort;
       const origin = 'http://127.0.0.1:' + port;
@@ -25,6 +27,16 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, lacroseTenant
         'x-content-type-options': 'nosniff',
         'content-security-policy': "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
       };
+      if (webhookOnly) {
+        if (incoming.url !== '/integrations/asaas-sandbox') {
+          outgoing.writeHead(404, headers).end();
+          return;
+        }
+        if (incoming.method !== 'POST') {
+          outgoing.writeHead(405, { ...headers, allow: 'POST' }).end();
+          return;
+        }
+      }
       if (incoming.method === 'GET' && assets.has(url.pathname)) {
         const [file, type] = assets.get(url.pathname);
         const content = await readFile(new URL('./web/' + file, import.meta.url));

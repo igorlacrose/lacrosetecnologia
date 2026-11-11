@@ -1,16 +1,16 @@
 import { createPreviewServer } from './preview.mjs';
 import { createStagingAuth } from './staging-auth.mjs';
-import { assertIntegrationRole, assertWorkspaceRole, openStagingDatabase } from './staging-db.mjs';
+import { assertWorkspaceRole, openStagingDatabase } from './staging-db.mjs';
 import { createOcaIntake } from './oca-intake.mjs';
-import { createAsaasSandboxWebhook } from './asaas-sandbox.mjs';
+import { openStagingAsaasWebhook } from './staging-asaas-webhook.mjs';
 
 try {
   const auth = createStagingAuth({
     url: process.env.VNEXT_AUTH_URL, publishableKey: process.env.VNEXT_AUTH_PUBLISHABLE_KEY,
   });
   const db = openStagingDatabase(process.env.VNEXT_RUNTIME_DATABASE_URL);
-  let ingestDb;
-  const close = () => Promise.all([db.close(), ingestDb?.close()]);
+  let ingest;
+  const close = () => Promise.all([db.close(), ingest?.close()]);
   try {
     await assertWorkspaceRole(db);
     const lacroseTenant = process.env.VNEXT_LACROSE_TENANT ?? null;
@@ -20,15 +20,10 @@ try {
     }) : undefined;
     const webhookToken = process.env.VNEXT_ASAAS_WEBHOOK_TOKEN;
     const ingestUrl = process.env.VNEXT_ASAAS_INGEST_DATABASE_URL;
-    let asaasWebhook;
     if (webhookToken || ingestUrl) {
-      ingestDb = openStagingDatabase(ingestUrl);
-      await assertIntegrationRole(ingestDb, 'lkz_vnext_asaas_ingest');
-      asaasWebhook = createAsaasSandboxWebhook({
-        token: webhookToken, db: { query: (sql, values) => ingestDb.transaction(tx => tx.query(sql, values)) },
-      });
+      ingest = await openStagingAsaasWebhook({ connection: ingestUrl, token: webhookToken });
     }
-    const server = createPreviewServer(db, { auth, oca, asaasWebhook, lacroseTenant });
+    const server = createPreviewServer(db, { auth, oca, asaasWebhook: ingest?.handler, lacroseTenant });
     server.listen(4176, '127.0.0.1', () => console.log('LKZ ADM VNext | http://127.0.0.1:4176'));
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close(() => void close()));
     server.once('error', () => {

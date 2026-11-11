@@ -149,3 +149,28 @@ test('the staging HTTP routes deliver signed OCA events and persist authenticate
   `);
   assert.deepEqual(rows, [{ payment_id: 'pay_fixture_http' }]);
 });
+
+test('the dedicated Sandbox listener exposes only the authenticated webhook route', async (t) => {
+  const token = randomUUID();
+  const events = [];
+  const handler = createAsaasSandboxWebhook({ token, db: { query: async (_sql, args) => events.push(args) } });
+  const server = createPreviewServer(undefined, { webhookOnly: true, asaasWebhook: handler });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const endpoint = origin + '/integrations/asaas-sandbox';
+  for (const path of ['/', '/app.mjs', '/auth/status', '/api/tenants', '/integrations/oca']) {
+    assert.equal((await fetch(origin + path)).status, 404);
+  }
+  assert.equal((await fetch(endpoint)).status, 405);
+  const request = {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'evt_listener', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_listener' } }),
+  };
+  assert.equal((await fetch(endpoint, request)).status, 401);
+  const authenticated = { ...request, headers: { ...request.headers, 'asaas-access-token': token } };
+  assert.equal((await fetch(endpoint + '?unexpected=1', authenticated)).status, 404);
+  assert.equal((await fetch(endpoint, authenticated)).status, 200);
+  assert.deepEqual(events, [['evt_listener', 'PAYMENT_RECEIVED', 'pay_listener']]);
+});
