@@ -11,7 +11,7 @@ const assets = new Map([
   ['/whatsapp-signup.mjs', ['whatsapp-signup.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant, metaProvider = null } = {}) {
+export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant, metaProvider = null, appointmentWebhook = null } = {}) {
   if (webhookOnly && !asaasWebhook) throw new Error('A webhook handler is required');
   const limits = webhookOnly ? { requestTimeout: 15_000, headersTimeout: 10_000 } : {};
   return createServer(limits, async (incoming, outgoing) => {
@@ -50,7 +50,8 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
       }
       const ocaRoute = Boolean(oca && url.pathname === '/integrations/oca');
       const asaasRoute = Boolean(asaasWebhook && url.pathname === '/integrations/asaas-sandbox');
-      const integrationRoute = ocaRoute || asaasRoute;
+      const appointmentRoute = Boolean(appointmentWebhook && url.pathname === '/integrations/appointments');
+      const integrationRoute = ocaRoute || asaasRoute || appointmentRoute;
       if ((!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/auth/') && !integrationRoute)
         || incoming.headers['sec-fetch-site'] === 'cross-site'
         || (incoming.method !== 'GET' && !integrationRoute && incoming.headers.origin !== origin)) {
@@ -59,7 +60,7 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
       }
       const chunks = [];
       let bytes = 0;
-      const limit = asaasRoute ? 64 * 1024 : ocaBodyLimit;
+      const limit = asaasRoute ? 64 * 1024 : appointmentRoute ? 4096 : ocaBodyLimit;
       for await (const chunk of incoming) {
         bytes += chunk.length;
         if (bytes > limit) {
@@ -77,6 +78,11 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
         requestHeaders['x-oca-signature'] = incoming.headers['x-oca-signature'] ?? '';
       }
       if (asaasRoute) requestHeaders['asaas-access-token'] = incoming.headers['asaas-access-token'] ?? '';
+      if (appointmentRoute) {
+        requestHeaders['x-lkz-source-id'] = incoming.headers['x-lkz-source-id'] ?? '';
+        requestHeaders['x-lkz-timestamp'] = incoming.headers['x-lkz-timestamp'] ?? '';
+        requestHeaders['x-lkz-signature'] = incoming.headers['x-lkz-signature'] ?? '';
+      }
       const request = new Request(url, {
         method: incoming.method,
         headers: requestHeaders,
@@ -85,6 +91,7 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
       let response;
       if (ocaRoute) response = await oca(request);
       else if (asaasRoute) response = await asaasWebhook(request);
+      else if (appointmentRoute) response = await appointmentWebhook(request);
       else if (url.pathname === '/auth/status' && incoming.method === 'GET') {
         response = Response.json({ requiresLogin: Boolean(auth) });
       } else if (url.pathname.startsWith('/auth/')) {

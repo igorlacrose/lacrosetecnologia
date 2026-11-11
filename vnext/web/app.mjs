@@ -130,8 +130,9 @@ async function build(section) {
 
   if (section === 'whatsapp') {
     content.className = 'records';
-    const [connections, metaConfig, reminders] = await Promise.all([
+    const [connections, metaConfig, reminders, reminderCounts] = await Promise.all([
       api('whatsapp'), api('whatsapp/config'), api('whatsapp/reminders'),
+      api('whatsapp/reminders/summary'),
     ]);
     const instructions = element('p',
       'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
@@ -195,7 +196,11 @@ async function build(section) {
     if (!connections.length) content.append(element('p', 'Nenhum número conectado para esta empresa.'));
     content.append(card('Lembretes de agendamento', element('p',
       'Estado: ' + (reminders.enabled ? 'política cadastrada (não homologada)' : 'desativados') +
-      ' · 24h e 2h antes do horário. A liberação depende de agenda, consentimento, ' +
+      ' · 24h e 2h antes do horário. Agendamentos: ' + Number(reminderCounts.appointments) +
+      ' · Pendentes (sem disparo): ' + Number(reminderCounts.pending) +
+      ' · Cancelados: ' + Number(reminderCounts.cancelled) +
+      '. Os eventos são recebidos apenas de agendas com assinatura HMAC. ' +
+      'NENHUMA mensagem será enviada antes da homologação da conta, consentimento, ' +
       'template aprovado e cobrança própria validada.')));
     return content;
   }

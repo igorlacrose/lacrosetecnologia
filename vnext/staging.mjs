@@ -1,6 +1,7 @@
 import { createPreviewServer } from './preview.mjs';
 import { createStagingAuth } from './staging-auth.mjs';
-import { assertWorkspaceRole, assertMetaRole, openStagingDatabase } from './staging-db.mjs';
+import { assertWorkspaceRole, assertMetaRole, assertReminderRole, openStagingDatabase } from './staging-db.mjs';
+import { createAppointmentWebhook } from './appointment-reminders.mjs';
 import { createMetaWhatsappProvider } from './meta-whatsapp.mjs';
 import { createOcaIntake } from './oca-intake.mjs';
 import { openStagingAsaasWebhook } from './staging-asaas-webhook.mjs';
@@ -10,8 +11,8 @@ try {
     url: process.env.VNEXT_AUTH_URL, publishableKey: process.env.VNEXT_AUTH_PUBLISHABLE_KEY,
   });
   const db = openStagingDatabase(process.env.VNEXT_RUNTIME_DATABASE_URL);
-  let ingest, metaDb;
-  const close = () => Promise.all([db.close(), ingest?.close(), metaDb?.close()]);
+  let ingest, metaDb, reminderDb;
+  const close = () => Promise.all([db.close(), ingest?.close(), metaDb?.close(), reminderDb?.close()]);
   try {
     await assertWorkspaceRole(db);
     const lacroseTenant = process.env.VNEXT_LACROSE_TENANT ?? null;
@@ -42,8 +43,26 @@ try {
         version: process.env.VNEXT_META_GRAPH_VERSION,
       });
     }
+    // Appointment adapters use a distinct PostgreSQL login, HMAC secrets and
+    // tenant-pinned sources. They cannot access Meta tokens or Asaas billing.
+    const reminderNames=['VNEXT_REMINDER_DATABASE_URL','VNEXT_REMINDER_SOURCES_JSON',
+      'VNEXT_REMINDER_ENCRYPTION_KEY','VNEXT_REMINDER_HASH_PEPPER'];
+    const reminderEnabled=reminderNames.some(name=>process.env[name]);
+    let appointmentWebhook;
+    if(reminderEnabled){
+      if(!reminderNames.every(name=>process.env[name]))
+        throw new Error('Incomplete appointment webhook configuration');
+      reminderDb=openStagingDatabase(process.env.VNEXT_REMINDER_DATABASE_URL);
+      await assertReminderRole(reminderDb);
+      appointmentWebhook=createAppointmentWebhook({
+        db:reminderDb,
+        sources:JSON.parse(process.env.VNEXT_REMINDER_SOURCES_JSON),
+        encryptionKey:process.env.VNEXT_REMINDER_ENCRYPTION_KEY,
+        hashPepper:process.env.VNEXT_REMINDER_HASH_PEPPER
+      });
+    }
     const server = createPreviewServer(db, {
-      auth, oca, asaasWebhook: ingest?.handler, lacroseTenant, metaProvider,
+      auth, oca, asaasWebhook: ingest?.handler, lacroseTenant, metaProvider, appointmentWebhook,
     });
     server.listen(4176, '127.0.0.1', () => console.log('LKZ ADM VNext | http://127.0.0.1:4176'));
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close(() => void close()));
