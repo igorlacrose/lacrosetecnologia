@@ -6,6 +6,8 @@ const accessGroups={master:'MASTER',admin:'Administrador',commercial:'Comercial'
 let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
 let lastInteractionAt=0,endingForIdle=false;
 let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
+const CONVERSATION_POLL_MS=20000;
+let currentView='overview',conversationPollTimer=null,conversationPollBusy=false;
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
 let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
@@ -16,7 +18,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const label=s=>({new:'Novo',diagnosing:'Diagnóstico',qualified:'Qualificado',human_review:'Revisão humana',contacted:'Contato realizado',proposal:'Proposta',won:'Fechado',lost:'Perdido',archived:'Arquivado',pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado',done:'Concluído',cancelled:'Cancelado'})[s]||s;
 const tag=s=>{const t=label(s),c=['Fechado','Aprovado','Concluído'].includes(t)?'ok':['Perdido','Rejeitado'].includes(t)?'err':['Pendente','Revisão humana','Proposta'].includes(t)?'warn':'info';return '<span class="tag '+c+'">'+esc(t)+'</span>'};
 function msg(node,text){node.textContent=text||''}
-function showLogin(text=''){setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
+function showLogin(text=''){stopConversationPolling();setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
 async function enforceMfa(p,u){const {data:aal,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;if(aal?.currentLevel==='aal2')return enter(p,u);const {data:factors,error:fe}=await sb.auth.mfa.listFactors();if(fe)throw fe;let factor=factors?.totp?.[0];if(!factor){const {data:en,error:ee}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'LKZ ADM'});if(ee)throw ee;factor=en;el('enroll').hidden=false;el('qr').src=en.totp?.qr_code||'';el('secret').textContent=en.totp?.secret||'';el('mfaIntro').textContent='Configure o autenticador e confirme o código.'}else{el('enroll').hidden=true;el('mfaIntro').textContent='Digite o código atual do autenticador.'}const {data:ch,error:ce}=await sb.auth.mfa.challenge({factorId:factor.id});if(ce)throw ce;profile=p;user=u;factorId=factor.id;challengeId=ch.id;el('auth').hidden=true;el('mfaScreen').hidden=false;el('code').value='';setTimeout(()=>el('code').focus(),40)}
 async function expireIdleSession(){
@@ -54,10 +56,10 @@ function recordActivity(event){
 }
 document.addEventListener('pointerdown',recordActivity,true);
 document.addEventListener('keydown',recordActivity,true);
-window.addEventListener('focus',verifyIdle);
+window.addEventListener('focus',()=>{verifyIdle();void refreshLiveConversations()});
 document.addEventListener('pageshow',verifyIdle);
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible')verifyIdle();
+  if(document.visibilityState==='visible'){verifyIdle();void refreshLiveConversations()}
 });
 async function enter(p,u){
   profile=p;user=u;lastInteractionAt=Date.now();
@@ -67,6 +69,7 @@ async function enter(p,u){
   resetIdle();
   await loadCommercial();
   view('overview');
+  startConversationPolling();
 }
 el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=true;msg(el('authMsg'),'');try{const {data,error}=await sb.auth.signInWithPassword({email:el('email').value.trim(),password:el('password').value});if(error)throw error;const p=await authorize(data.user);if(!p){await sb.auth.signOut();throw new Error('Conta sem permissão administrativa.')}await enforceMfa(p,data.user)}catch(err){console.error(err);msg(el('authMsg'),err.message||'Falha no login.')}finally{el('loginBtn').disabled=false}};
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
@@ -96,6 +99,63 @@ async function loadCommercial(){
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
   };
 }
+
+/* Sincronização de atendimentos com consultas somente leitura.
+   A publicação Realtime não está habilitada no banco; não presumir eventos push. */
+function threadStampKey(items){
+  return JSON.stringify(items.map(item=>[item.id,item.last]));
+}
+function conversationRefreshBlocked(){
+  const root=el('chatWorkspace'),pane=el('messagePane');
+  return !root?.isConnected ||
+    document.activeElement===el('threadFilter') ||
+    !!pane?.querySelector('[data-message-select]:checked') ||
+    !!pane?.querySelector('[aria-busy="true"]') ||
+    !!pane?.querySelector('[data-single]:disabled') ||
+    (pane?.querySelector('[data-notice]')?.textContent||'').startsWith('Processando ');
+}
+async function refreshLiveConversations(){
+  if(!user||endingForIdle||el('app').hidden||currentView!=='conversations'||
+     document.visibilityState!=='visible'||conversationPollBusy||conversationRefreshBlocked())return;
+  conversationPollBusy=true;
+  try{
+    const {data,error}=await sb.from('conversations')
+      .select('id,last_message_at,started_at')
+      .order('last_message_at',{ascending:false}).limit(100);
+    if(error||!user||currentView!=='conversations'||conversationRefreshBlocked())return;
+    const remoteKey=JSON.stringify((data||[]).map(item=>[item.id,item.last_message_at||item.started_at]));
+    if(remoteKey===threadStampKey(state.threads))return;
+
+    const selected=conversationFocus,folder=conversationFolder;
+    const messageFolder=el('messagePane')?.querySelector('[data-folder][aria-pressed="true"]')?.dataset.folder||'active';
+    const search=el('threadFilter')?.value||'';
+    await loadCommercial();
+    if(!user||currentView!=='conversations'||conversationRefreshBlocked())return;
+    conversations(folder);
+    if(search){
+      const filter=el('threadFilter');
+      filter.value=search;
+      filter.dispatchEvent(new Event('input'));
+    }
+    if(selected&&state.threads.some(item=>item.id===selected&&item.folder===folder)){
+      await openThread(selected,messageFolder);
+    }
+  }catch(error){
+    // Não expor dados de atendimento em logs; nova tentativa no próximo ciclo.
+    console.warn('lkz_adm_conversation_sync_failed',error?.code||'NETWORK');
+  }finally{
+    conversationPollBusy=false;
+  }
+}
+function startConversationPolling(){
+  stopConversationPolling();
+  conversationPollTimer=setInterval(()=>{void refreshLiveConversations()},CONVERSATION_POLL_MS);
+}
+function stopConversationPolling(){
+  if(conversationPollTimer!==null)clearInterval(conversationPollTimer);
+  conversationPollTimer=null;
+}
+
 const titles={
   overview:['Painel geral','Indicadores e prioridades dos registros comerciais carregados.'],
   systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
@@ -118,7 +178,7 @@ function setMenu(open){
 mobileMenu?.addEventListener('click',()=>setMenu(!document.body.classList.contains('menu-open')));
 sidebarBackdrop?.addEventListener('click',()=>setMenu(false));
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view(b.dataset.view);setMenu(false)});
-function view(v){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
+function view(v){currentView=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
 function k(l,v,m){return '<article class="kpi"><span>'+l+'</span><strong>'+v+'</strong><small>'+m+'</small></article>'}
 function render(v){return {overview,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
 function dailyBrief(data, now = Date.now()) {
