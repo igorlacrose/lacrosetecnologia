@@ -202,6 +202,57 @@ async function build(section) {
       '. Os eventos são recebidos apenas de agendas com assinatura HMAC. ' +
       'NENHUMA mensagem será enviada antes da homologação da conta, consentimento, ' +
       'template aprovado e cobrança própria validada.')));
+    // Operator settings are drafts; neither this form nor the API can enable
+    // message delivery, verify customer billing or select a Meta credit line.
+    const settings = element('form');
+    const offsetLabel = element('label', 'Quando lembrar');
+    const offsetSelect = element('select');
+    options(offsetSelect, {
+      both: '24 horas e 2 horas antes',
+      day: 'Somente 24 horas antes',
+      two_hours: 'Somente 2 horas antes',
+    });
+    const savedOffsets = new Set(reminders.offsets_minutes);
+    offsetSelect.value = savedOffsets.has(1440) && savedOffsets.has(120) ? 'both'
+      : savedOffsets.has(1440) ? 'day' : 'two_hours';
+    offsetLabel.append(offsetSelect);
+    const capLabel = element('label', 'Limite mensal desejado de mensagens');
+    const cap = element('input');
+    cap.type = 'number';
+    cap.min = '0';
+    cap.max = '10000';
+    cap.step = '1';
+    cap.required = true;
+    cap.value = String(reminders.monthly_message_limit);
+    capLabel.append(cap);
+    const save = element('button', 'Salvar preferências');
+    save.type = 'submit';
+    settings.append(offsetLabel, capLabel,
+      element('p', 'Configuração preparatória: os envios permanecem DESATIVADOS ' +
+        'até a homologação da integração Meta, cobrança própria, consentimento e templates.'),
+      save);
+    settings.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (save.disabled) return;
+      save.disabled = true;
+      const token = generation;
+      try {
+        const configured = offsetSelect.value === 'both' ? [1440, 120]
+          : offsetSelect.value === 'day' ? [1440] : [120];
+        const limit = Number(cap.value);
+        if (!Number.isInteger(limit) || limit < 0 || limit > 10000)
+          throw new Error('Escolha um limite mensal entre 0 e 10.000.');
+        await api('whatsapp/reminders', {
+          offsets_minutes: configured, monthly_message_limit: limit,
+        });
+        if (token === generation) await render('Preferências salvas. O envio continua bloqueado.');
+      } catch (error) {
+        if (token === generation) message(error.message, true);
+      } finally {
+        save.disabled = false;
+      }
+    });
+    content.append(card('Configurar lembretes e limite mensal', settings));
     return content;
   }
 
