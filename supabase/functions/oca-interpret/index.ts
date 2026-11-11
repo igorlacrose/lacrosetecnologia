@@ -108,7 +108,7 @@ Deno.serve(async(req:Request)=>{
   if(typeof question!=="string"||question.length<8||question.length>320||
      typeof sessionId!=="string"||!/^[A-Za-z0-9_-]{16,128}$/.test(sessionId)||
      typeof turnstileToken!=="string"||turnstileToken.length<20||
-     turnstileToken.length>2048||!/^[A-Za-z0-9_.-]+$/.test(turnstileToken)||
+     turnstileToken.length>2048||
      (lastTopic!==undefined && (typeof lastTopic!=="string"||!IDS.includes(lastTopic as typeof IDS[number]))))
     return json(origin,400,{ok:false,error:"invalid_question"});
   if(containsSensitiveData(question))
