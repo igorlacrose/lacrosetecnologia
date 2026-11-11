@@ -79,7 +79,7 @@ test('scripts estão em ordem, sitekey não contém segredo, CSP protege o widge
   assert.ok(page.indexOf('assets/oca-turnstile.js')<page.indexOf('app.js?v='));
   assert.match(page,/script-src[^"]*https:\/\/challenges\.cloudflare\.com/);
   assert.match(page,/frame-src https:\/\/challenges\.cloudflare\.com/);
-  assert.doesNotMatch(page+/apiSecret|turnstileSecret|TURNSTILE_SECRET_KEY/i);
+  assert.doesNotMatch(page,/(?:apiSecret|turnstileSecret|TURNSTILE_SECRET_KEY)/i);
   assert.match(app,/!OCA_TURNSTILE\?\.available\(\)/);
   assert.match(app,/const challenge=await OCA_TURNSTILE\?\.acquire\(\)/);
   assert.match(app,/turnstileToken:challenge/);
