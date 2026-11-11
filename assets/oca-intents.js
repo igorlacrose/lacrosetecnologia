@@ -41,7 +41,9 @@
     const tolerance=larger>=8?2:1;
     // Duas correções só com tamanho próximo e prefixo coerente.
     // Ex.: "serviços" NÃO deve se parecer com "servidores".
-    if(Math.abs(a.length-b.length)>1 || (tolerance===2 && a.slice(0,3)!==b.slice(0,3)))return false;
+    if(Math.abs(a.length-b.length)>1 || (tolerance===2 && a.slice(0,4)!==b.slice(0,4)))return false;
+    // Duas trocas sem final parecido confundiam "serviços" e "servidor".
+    if(tolerance===2 && a[a.length-1]!==b[b.length-1])return false;
     return distance(a,b,tolerance)<=tolerance;
   }
   // Cada assunto usa famílias de palavras e sinônimos, nunca uma frase única.
@@ -119,12 +121,16 @@
     const geographicallyLocated=location ||
       (/\b(atende|atendem)\b/.test(t) && /\b(na|no|em|brasil|bahia|jequie|fora|outros estados)\b/.test(t));
     if(company && geographicallyLocated && asking)return {intent:'company_location',confidence:0.84,products:product};
+    const nouns=['servico','servicos','solucao','solucoes','atividade','atividades','trabalho','trabalhos','atuacao'];
+    const hasServiceNoun=tokens.some(token=>nouns.some(w=>approx(token,w)));
     const serviceQuestionStart=/^(?:quais?|qual|que)\b.{0,45}\b(?:servicos?|solucoes?|atividades?|trabalhos?)\b/.test(t);
-    const infoRequest=request && question && company && !project;
-    if((service && (company||serviceQuestionStart) && asking) ||
-       (company && infoRequest) ||
-       (company && question && !project && (/\b(empresa|trabalha|faz|fazem|oferece|atuacao)\b/.test(t))) ||
-       (company && !project && /\b(sobre|conhecer|saber|falar|fale|fala|conta|conte|mais)\b/.test(t))){
+    const specificArea=has(tokens,'network',true)||has(tokens,'website',true)||
+      has(tokens,'software',true)||/\b(suporte|manutencao|seguranca|horarios?|telefone|contato|pagamento)\b/.test(t);
+    const broadWork=company && question && service && !specificArea;
+    const infoRequest=request && question && company && !project && !specificArea;
+    if((hasServiceNoun && (company||serviceQuestionStart) && asking && !specificArea) ||
+       broadWork || infoRequest ||
+       (company && !project && !specificArea && /\b(sobre|conhecer|saber|falar|fale|fala|conta|conte|mais)\b/.test(t))){
       return {intent:'company_services',confidence:0.88,products:product};
     }
     if(asking && price && product.length===0)return {intent:'custom_price',confidence:0.75,products:[]};
