@@ -13,6 +13,7 @@ const app=read('app.js');
 const api=read('supabase/functions/oca-interpret/index.ts');
 const sql=read('supabase/sql/oca_ai_monthly_budget.sql');
 const rollback=read('supabase/sql/oca_ai_monthly_budget_rollback.sql');
+const supabaseConfig=read('supabase/config.toml');
 
 function widgetHarness({sitekey='0x4AAAAAAATEST_PUBLIC_KEY',onExecute=true}={}){
   const events=[];
@@ -124,4 +125,12 @@ test('modelo não autoriza preço, venda, ou alteração comercial',()=>{
   assert.match(api,/type:"json_schema"/);
   assert.match(api,/max_output_tokens:120/);
   assert.doesNotMatch(api,/executeSale|activateProduct|sendInvoice|writePrice/i);
+});
+
+test('função anônima exige configuração JWT específica e não expõe outras funções',()=>{
+  assert.match(supabaseConfig,/\[functions\.oca-interpret\]\s+verify_jwt\s*=\s*false/);
+  const functionSections=supabaseConfig.match(/\[functions\.[^\]]+\]/g)||[];
+  assert.deepEqual(functionSections,['[functions.oca-interpret]']);
+  assert.match(api,/result\?\.success!==true/);
+  assert.match(api,/p_limit_micro_usd:budget/);
 });
