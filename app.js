@@ -2490,9 +2490,10 @@ async function submitText(
 
   // Atender perguntas comerciais sem consumir campos do diagnóstico.
   const approvedMatch=OCA_KNOWLEDGE?.match(text);
-  const directAnswer=approvedMatch
-    ?{text:approvedMatch.answer,context:{kind:'approved',id:approvedMatch.id}}
-    :ADVISOR?.answerTurn(text,state.lead,state.faqContext);
+  const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext) ||
+    (approvedMatch
+      ?{text:approvedMatch.answer,context:{kind:'approved',id:approvedMatch.id}}
+      :null);
   if(directAnswer){
     // Informações de contato fornecidas junto de uma dúvida comercial também
     // devem compor o lead, sem preencher problema/segmento indevidamente.
