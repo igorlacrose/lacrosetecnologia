@@ -299,8 +299,8 @@ function mayAskOcaAi(text,meta,wasCompleted){
   if(wasCompleted||state.oca||meta.fromQuick||state.awaiting!=='problem'||
      ocaInterpretPending||OCA_KNOWLEDGE?.isSpecificRequest(text))return false;
   // Não usar IA para diagnósticos extensos nem para dados pessoais.
-  if(text.length>320||/@|https?:\\/\\/|(?:\\d[\\s.\\-()]*){7,}/i.test(text))return false;
-  return /\\?|^(?:voc[eê]s|a lacrose|essa empresa|qual|quais|como|onde|por que|ser[aá] que|tem como)\\b/i.test(text);
+  if(text.length>320||/@|https?:\/\/|(?:\d[\s.\-()]*){7,}/i.test(text))return false;
+  return /\?|^(?:voc[eê]s|a lacrose|essa empresa|qual|quais|como|onde|por que|ser[aá] que|tem como)\b/i.test(text);
 }
 async function classifyOcaQuestion(text){
   const controller=new AbortController();
