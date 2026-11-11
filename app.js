@@ -647,6 +647,8 @@ function detectSegment(text){
   const t=
     lower(text);
 
+  // Clínica de estética não é sinônimo de clínica de saúde genérica.
+  if(/cl[ií]nica(?:\s+de)?\s+est[eé]tica/.test(t))return 'Beleza / Estética';
 
   const map=[
 
