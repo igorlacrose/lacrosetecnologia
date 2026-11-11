@@ -120,7 +120,7 @@
       }
       return 'Para projetos personalizados, a proposta depende do escopo e das integrações. No caso do LibertyOS e BarbarOS, posso informar a mensalidade de lançamento planejada se você perguntar por um deles.';
     }
-    if(/\b(falar com humano|falar com pessoa|falar com atendente|falar com consultor|falar com o responsavel|quero atendimento humano|falar com voce|falar com igor)\b/.test(t)){
+    if(/\b(falar com (?:um |uma |o |a )?(?:humano|pessoa|atendente|consultor|responsavel|voce|igor)|quero atendimento humano)\b/.test(t)){
       return 'Claro. Podemos encaminhar sua solicitação para atendimento humano. Descreva brevemente o que precisa e, se quiser retorno, informe seu nome e um WhatsApp ou e-mail. Não é necessário compartilhar senhas nem dados sensíveis.';
     }
     if(/\b(quais servicos|o que voces fazem|o que a lacrose faz|em que trabalham|que tipo de servico|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t)){
