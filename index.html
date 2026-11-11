@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#05070e">
   <meta name="color-scheme" content="dark">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-q/vI8Z7LIirkTiyz20OGdUCYrM6jQb4mlvziELoKgQY='; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://icrtewhazpfauuroswri.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-q/vI8Z7LIirkTiyz20OGdUCYrM6jQb4mlvziELoKgQY=' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://icrtewhazpfauuroswri.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
   <link rel="canonical" href="https://lacrosetecnologia.com.br/">
   <meta property="og:image" content="https://lacrosetecnologia.com.br/assets/brand/lacrose-tecnologia-dark.png">
   <title>Lacrose Tecnologia — Engenharia de possibilidades</title>
@@ -28,7 +28,9 @@
   <script defer src="assets/experience.js"></script>
   <script defer src="assets/oca-intents.js?v=20261110-intencoes-1"></script>
   <script defer src="assets/oca-advisor.js?v=20261110-intencoes-1"></script>
-  <script defer src="app.js?v=20261110-contexto-1"></script>
+  <script defer src="assets/oca-knowledge.js?v=20261111-knowledge-1"></script>
+  <script defer src="assets/oca-turnstile.js?v=20261111-security-1"></script>
+  <script defer src="app.js?v=20261111-turnstile-1"></script>
   <script defer src="assets/agent-studio.js"></script>
   <script type="application/ld+json">
   {
@@ -274,6 +276,13 @@
               Enviar <span>↗</span>
 </button>
 </form>
+<!-- Inserir sitekey PÚBLICA do widget Cloudflare somente após homologação. -->
+<div id="ocaAiTurnstile" data-sitekey="" role="group"
+     aria-label="Verificação de segurança do atendimento por inteligência artificial" hidden></div>
+<p class="agent-privacy">
+            Perguntas comerciais gerais poderão ser classificadas por um serviço externo de IA,
+            com validação de segurança. Evite compartilhar dados pessoais nessa consulta.
+          </p>
 <p class="agent-privacy">
             Para sua segurança, evite compartilhar senhas, dados bancários
             ou informações sensíveis durante o diagnóstico.
