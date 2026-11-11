@@ -7,7 +7,12 @@ returns text language plpgsql security definer set search_path=''
 as $body$
 declare v_actor uuid := auth.uid(); v_state text;
 begin
-  if v_actor is null or not lkz_vnext.has_access(target_tenant,array['admin'])
+  -- SECURITY DEFINER bypasses RLS: check actor membership explicitly.
+  if v_actor is null
+     or not exists (
+       select 1 from lkz_vnext.memberships
+       where tenant_id=target_tenant and user_id=v_actor and active=true and role='admin'
+     )
      or (select auth.jwt()->>'aal') is distinct from 'aal2' then
     raise exception 'Administrator with MFA is required' using errcode='42501';
   end if;
