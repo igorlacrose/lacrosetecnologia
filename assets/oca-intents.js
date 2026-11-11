@@ -52,7 +52,7 @@
     services:['servico','servicos','atividade','atividades','trabalho','trabalham','trabalha','fazem','faz','oferecem','oferece','prestam','prestam','solucao','solucoes','atuacao','atuam','atua','fazm'],
     inquiry:['qual','quais','que','como','oque','saber','conhecer','conheco','explica','explicar','explique','fale','falar','fala','conta','conte','lista','listar','apresenta','mostra','mostre','informar'],
     request:['preciso','quero','busco','necessito','gostaria','desejo','procurando','queria'],
-    project:['site','sites','sistema','sistemas','aplicativo','aplicativos','automacao','automatizar','crm','plataforma','programa','software'],
+    project:['site','sites','sistema','sistemas','aplicativo','aplicativos','automacao','automatizar','automatiza','automatizando','integrar','integracao','crm','plataforma','programa','software'],
     human:['humano','humana','pessoa','atendente','consultor','consultora','responsavel','igor'],
     price:['preco','precos','valor','valores','custa','custo','quanto','mensalidade','mensal','assinatura','investimento'],
     availability:['pronto','pronta','disponivel','disponibilidade','assinar','contratar','ativo','liberado','funcionando'],
