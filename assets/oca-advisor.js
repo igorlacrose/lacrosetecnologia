@@ -129,7 +129,7 @@
       /\b(?:quais?|que|tipos?|listar|conhecer|saber)\b.{0,75}\b(?:servicos?|solucoes?|atividades?|areas? de atuacao)\b/.test(t) ||
       /\b(?:servicos?|solucoes?|atividades?)\b.{0,75}\b(?:lacrose|voces|oferecem?|prestam?|fazem)\b/.test(t) ||
       /\b(?:o que|como|em que)\b.{0,50}\b(?:lacrose|voces)\b.{0,35}\b(?:faz|fazem|trabalha|trabalham|oferece|oferecem|atua|atuam)\b/.test(t) ||
-      /\b(?:fale|conte|explique|me fala|me conte)\b.{0,40}\b(?:lacrose|empresa|sobre voces)\b/.test(t) ||
+      /\b(?:fale|fala|conte|conta|explique|me fale|me fala|me conte|me conta|gostaria de saber|quero conhecer|saber mais)\b.{0,45}\b(?:lacrose|empresa|sobre voces)\b/.test(t) ||
       /\b(?:em que trabalham|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t);
     if(asksServices){
       return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
