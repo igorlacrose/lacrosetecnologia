@@ -77,3 +77,19 @@ test('código publicado usa conhecimento, reduz campos e mantém persistência e
  assert.match(app,/schedulePersist\(\)/);
  assert.doesNotMatch(html+app,/Sites simples a partir de R\$ 350/);
 });
+
+test('conserva contexto quando pergunta preço dos dois sistemas',()=>{
+ const first=advisor.answerTurn('Qual é a mensalidade do LibertyOS?',lead(''),null);
+ assert.match(first.text,/R\$ 129,00/);
+ const second=advisor.answerTurn('E o BarbarOS?',lead(''),first.context);
+ assert.match(second.text,/R\$ 129,00/);
+ assert.match(second.text,/BarbarOS/);
+ const third=advisor.answerTurn('Já está pronto?',lead(''),second.context);
+ assert.match(third.text,/em desenvolvimento/);
+});
+test('não reaproveita preço após mudar de assunto',()=>{
+ const first=advisor.answerTurn('Quanto custa o LibertyOS?',lead(''),null);
+ const other=advisor.answerTurn('Onde vocês atendem?',lead(''),first.context);
+ assert.match(other.text,/Jequié/);
+ assert.equal(other.context,null);
+});
