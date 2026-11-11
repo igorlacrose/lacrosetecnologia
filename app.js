@@ -334,6 +334,7 @@ const state={
 
   oca:false,
   contactDeclined:false,
+  faqContext:null,
 
   lead:{
 
@@ -2452,11 +2453,13 @@ function submitText(
   );
 
   // Atender perguntas comerciais sem consumir campos do diagnóstico.
-  const directAnswer=ADVISOR?.reply(text,state.lead);
+  const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext);
   if(directAnswer){
-    agentSay(directAnswer,260);
+    state.faqContext=directAnswer.context;
+    agentSay(directAnswer.text,260);
     return;
   }
+  state.faqContext=null;
 
   /*
    * Depois que o diagnóstico terminou, ainda aceitamos telefone,
@@ -2668,6 +2671,7 @@ function resetAgent(){
   state.awaiting=
     'problem';
   state.contactDeclined=false;
+  state.faqContext=null;
 
   state.messages=[];
 
