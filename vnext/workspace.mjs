@@ -73,6 +73,12 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
           return json({ enabled: Boolean(metaProvider), directBillingOnly: true,
             ...(metaProvider?.publicConfig ?? {}) });
         }
+        if (request.method === 'GET' && id === 'reminders' &&
+          action === 'summary' && parts.length === 3) {
+          const { rows: [summary] } = await tx.query(
+            'select * from lkz_vnext.whatsapp_reminder_summary($1)',[tenant]);
+          return json(summary);
+        }
         if (request.method === 'GET' && id === 'reminders' && parts.length === 2) {
           const { rows } = await tx.query(
             'select enabled,offsets_minutes,monthly_message_limit ' +
