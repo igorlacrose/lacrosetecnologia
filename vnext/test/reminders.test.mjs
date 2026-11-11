@@ -185,3 +185,29 @@ test('signed sender reaches the local staging route without exposed data',async 
     sourceId:sourceA,secret:secretA
   }),/Secure endpoint/);
 });
+
+
+test('rate limit blocks booking floods but never blocks valid consent withdrawal',async t=>{
+  const db=await createPreviewDatabase();t.after(()=>db.close());
+  const {send}=setup(db);
+  const placeholders=[],args=[];
+  for(let i=0;i<60;i++){
+    const n=args.length;
+    placeholders.push('($'+(n+1)+',$'+(n+2)+',$'+(n+3)+',$'+(n+4)+',$'+(n+5)+')');
+    args.push(fixture.tenant,'barbaros',randomUUID(),'f'.repeat(64),'booked');
+  }
+  await db.query(
+    'insert into lkz_vnext.whatsapp_appointment_events '+
+    '(tenant_id,product,event_id,event_digest,event_type) values '+
+    placeholders.join(','),args
+  );
+  const [limited,blocked]=await send(sources[0],booking());
+  assert.equal(limited,429);
+  assert.equal(blocked.code,'rate_limited');
+  const [allowed,withdrawn]=await send(sources[0],{
+    eventId:randomUUID(),type:'opted_out',recipient:phone,source:'booking_platform'
+  });
+  assert.equal(allowed,200);
+  assert.equal(withdrawn.code,'opt_out_applied');
+  assert.equal(await count(db,'whatsapp_opt_outs'),1);
+});
