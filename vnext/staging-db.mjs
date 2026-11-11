@@ -156,3 +156,30 @@ export async function assertMetaRole(db) {
     await assertRowSecurity(tx, ['lkz_vnext']);
   });
 }
+
+
+export async function assertReminderRole(db) {
+  await db.transaction(async tx => {
+    const { rows: [role] } = await tx.query(
+      "select current_user as name, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolinherit, " +
+      "pg_has_role(current_user,'lkz_vnext_reminder_bridge','MEMBER') as allowed, " +
+      "pg_has_role(current_user,'lkz_vnext_reminder_bridge','USAGE') as inherited, " +
+      "(select count(*) from pg_roles r where r.rolname in " +
+      "('authenticated','lkz_vnext_meta_bridge','lkz_vnext_asaas_ingest'," +
+      "'lkz_vnext_asaas_issue','lkz_vnext_asaas_reconcile','pg_read_all_data'," +
+      "'pg_write_all_data','pg_execute_server_program','pg_read_server_files'," +
+      "'pg_write_server_files') and pg_has_role(current_user,r.oid,'MEMBER')) as others, " +
+      "(select count(*) from pg_namespace n where n.nspname in ('lkz_vnext','lkz_vnext_billing') " +
+      "and pg_has_role(current_user,n.nspowner,'MEMBER')) as owned_schemas " +
+      "from pg_roles where rolname=current_user"
+    );
+    if (role?.name !== 'lkz_vnext_reminder_runtime' || role.rolsuper || role.rolbypassrls
+      || role.rolcreaterole || role.rolcreatedb || role.rolinherit
+      || !role.allowed || role.inherited || Number(role.others)
+      || Number(role.owned_schemas)) {
+      throw new Error('Reminder service requires a dedicated least-privilege database identity');
+    }
+    await tx.exec('set local role lkz_vnext_reminder_bridge');
+    await assertRowSecurity(tx, ['lkz_vnext']);
+  });
+}
