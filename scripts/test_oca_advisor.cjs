@@ -93,3 +93,10 @@ test('não reaproveita preço após mudar de assunto',()=>{
  assert.match(other.text,/Jequié/);
  assert.equal(other.context,null);
 });
+
+test('responde sobre infraestrutura, software e IA sem alegar implantação pronta',()=>{
+ assert.match(answer('Vocês configuram MikroTik e pfSense?'),/redes, infraestrutura e segurança/);
+ assert.match(answer('Vocês desenvolvem sistemas sob medida?'),/Desenvolvemos sistemas/);
+ assert.match(answer('Vocês trabalham com inteligência artificial?'),/automação empresarial com IA/);
+ assert.match(answer('Vocês oferecem manutenção e suporte?'),/definidos no contrato/);
+});
