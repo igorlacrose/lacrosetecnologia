@@ -100,3 +100,23 @@ test('sem preço externo, segurança e sem catálogo inventado',()=>{
   assert.ok(html.indexOf('assets/oca-intents.js')<html.indexOf('assets/oca-advisor.js'));
   assert.ok(html.indexOf('assets/oca-advisor.js')<html.indexOf('app.js?v='));
 });
+
+test('perguntas de suporte específico não recebem catálogo genérico',()=>{
+ const q='Vocês oferecem manutenção e suporte?';
+ assert.notEqual(matcher.classify(q).intent,'company_services');
+ assert.match(advisor.reply(q,{}),/definidos no contrato/);
+});
+test('prazo não vira preço mesmo com quanto abreviado',()=>{
+ for(const q of ['Quanto tempo leva para fazer um site?','qto tempo pra criar um site?']){
+   assert.equal(matcher.classify(q).intent,'duration_question');
+   assert.match(advisor.reply(q,{}),/prazo depende do escopo/);
+   assert.doesNotMatch(advisor.reply(q,{}),/R\$\s*\d+/);
+ }
+});
+test('preço por pergunta abreviada mantém o assunto na mensagem seguinte',()=>{
+ const first=advisor.answerTurn('qto custa libertios?',{},null);
+ assert.equal(first.context.kind,'product_price');
+ const second=advisor.answerTurn('E o BarbarOS?',{},first.context);
+ assert.match(second.text,/R\$ 129,00/);
+ assert.match(second.text,/BarbarOS/);
+});
