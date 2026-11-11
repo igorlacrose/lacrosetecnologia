@@ -2455,8 +2455,17 @@ function submitText(
   // Atender perguntas comerciais sem consumir campos do diagnóstico.
   const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext);
   if(directAnswer){
+    // Informações de contato fornecidas junto de uma dúvida comercial também
+    // devem compor o lead, sem preencher problema/segmento indevidamente.
+    const hadContact=Boolean(state.lead.contact);
+    absorbContact(text);
+    if(state.lead.contact!=='' && (!hadContact||state.lead.contact!==contactBefore)){
+      state.contactDeclined=false;
+      updatePreview();
+    }
     state.faqContext=directAnswer.context;
-    agentSay(directAnswer.text,260);
+    const continueAfterContact=state.awaiting==='contact' && Boolean(state.lead.contact);
+    agentSay(directAnswer.text,260,continueAfterContact?()=>askNext():undefined);
     return;
   }
   state.faqContext=null;
