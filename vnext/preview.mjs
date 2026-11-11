@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createPreviewDatabase, fixture } from './preview-db.mjs';
 import { serveWorkspace } from './workspace.mjs';
+import { ocaBodyLimit } from './oca-envelope.mjs';
 
 const assets = new Map([
   ['/', ['index.html', 'text/html']],
@@ -9,7 +10,7 @@ const assets = new Map([
   ['/app.mjs', ['app.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db, { auth, oca, lacroseTenant = fixture.tenant } = {}) {
+export function createPreviewServer(db, { auth, oca, asaasWebhook, lacroseTenant = fixture.tenant } = {}) {
   return createServer(async (incoming, outgoing) => {
     try {
       const port = outgoing.socket.localPort;
@@ -31,32 +32,42 @@ export function createPreviewServer(db, { auth, oca, lacroseTenant = fixture.ten
         return;
       }
       const ocaRoute = Boolean(oca && url.pathname === '/integrations/oca');
-      if ((!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/auth/') && !ocaRoute)
+      const asaasRoute = Boolean(asaasWebhook && url.pathname === '/integrations/asaas-sandbox');
+      const integrationRoute = ocaRoute || asaasRoute;
+      if ((!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/auth/') && !integrationRoute)
         || incoming.headers['sec-fetch-site'] === 'cross-site'
-        || (incoming.method !== 'GET' && !ocaRoute && incoming.headers.origin !== origin)) {
+        || (incoming.method !== 'GET' && !integrationRoute && incoming.headers.origin !== origin)) {
         outgoing.writeHead(403, headers).end();
         return;
       }
       const chunks = [];
       let bytes = 0;
+      const limit = asaasRoute ? 64 * 1024 : ocaBodyLimit;
       for await (const chunk of incoming) {
         bytes += chunk.length;
-        if (bytes > 8192) {
+        if (bytes > limit) {
           outgoing.writeHead(413, { ...headers, connection: 'close' }).end();
           return;
         }
         chunks.push(chunk);
       }
+      const requestHeaders = {
+        'content-type': incoming.headers['content-type'] ?? '',
+        authorization: incoming.headers.authorization ?? '',
+      };
+      if (ocaRoute) {
+        requestHeaders['x-oca-timestamp'] = incoming.headers['x-oca-timestamp'] ?? '';
+        requestHeaders['x-oca-signature'] = incoming.headers['x-oca-signature'] ?? '';
+      }
+      if (asaasRoute) requestHeaders['asaas-access-token'] = incoming.headers['asaas-access-token'] ?? '';
       const request = new Request(url, {
         method: incoming.method,
-        headers: { 'content-type': incoming.headers['content-type'] ?? '',
-          authorization: incoming.headers.authorization ?? '',
-          'x-oca-timestamp': incoming.headers['x-oca-timestamp'] ?? '',
-          'x-oca-signature': incoming.headers['x-oca-signature'] ?? '' },
+        headers: requestHeaders,
         body: incoming.method === 'POST' ? Buffer.concat(chunks) : undefined,
       });
       let response;
       if (ocaRoute) response = await oca(request);
+      else if (asaasRoute) response = await asaasWebhook(request);
       else if (url.pathname === '/auth/status' && incoming.method === 'GET') {
         response = Response.json({ requiresLogin: Boolean(auth) });
       } else if (url.pathname.startsWith('/auth/')) {

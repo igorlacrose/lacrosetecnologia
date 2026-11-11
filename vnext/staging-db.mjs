@@ -53,7 +53,7 @@ export async function assertWorkspaceRole(db) {
         pg_has_role(current_user, 'authenticated', 'MEMBER') as can_auth,
         pg_has_role(current_user, 'authenticated', 'USAGE') as inherits_auth,
         (select count(*) from pg_roles elevated where
-          elevated.rolname in ('lkz_vnext_asaas_ingest','lkz_vnext_asaas_reconcile')
+          elevated.rolname in ('lkz_vnext_asaas_ingest','lkz_vnext_asaas_reconcile','lkz_vnext_asaas_issue')
           and pg_has_role(current_user,elevated.oid,'MEMBER')) as billing_roles,
         (select count(*) from pg_namespace n join pg_roles r on r.oid=n.nspowner
           where n.nspname in ('lkz_vnext', 'lkz_vnext_billing')
@@ -65,6 +65,25 @@ export async function assertWorkspaceRole(db) {
       throw new Error('Invalid VNext runtime database role');
     }
     await tx.exec('set local role authenticated');
+  });
+}
+
+export async function assertIntegrationRole(db, expected) {
+  await db.transaction(async tx => {
+    const { rows: [role] } = await tx.query(`
+      select rolsuper or rolbypassrls or rolcreaterole or rolcreatedb as privileged,
+        pg_has_role(current_user, $1::name, 'USAGE') as permitted,
+        (select count(*) from pg_roles r where r.rolname <> $1
+          and r.rolname in ('authenticated','lkz_vnext_asaas_ingest','lkz_vnext_asaas_reconcile','lkz_vnext_asaas_issue',
+            'pg_read_all_data','pg_write_all_data','pg_execute_server_program','pg_read_server_files','pg_write_server_files')
+          and pg_has_role(current_user,r.oid,'MEMBER')) as other_roles,
+        (select count(*) from pg_namespace n where n.nspname in ('lkz_vnext','lkz_vnext_billing')
+          and pg_has_role(current_user,n.nspowner,'MEMBER')) as owned_schemas
+      from pg_roles where rolname = current_user
+    `, [expected]);
+    if (!role?.permitted || role.privileged || Number(role.other_roles) || Number(role.owned_schemas)) {
+      throw new Error('Invalid VNext integration database role');
+    }
   });
 }
 

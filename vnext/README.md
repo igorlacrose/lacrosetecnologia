@@ -43,8 +43,35 @@ A rota POST /integrations/oca é opcional. Configure VNEXT_OCA_ACTOR como um ope
 
 ### Sandbox e licenças
 
-O worker de observação da primeira entrega continua disponível. Para conciliar comercialmente um evento já recebido, registre previamente em homologação o vínculo de cobrança fictícia em payment_bindings, com a assinatura em rascunho, cliente, referência externa e valor esperado. Use um login isolado com o papel lkz_vnext_asaas_reconcile em VNEXT_ASAAS_RECONCILE_DATABASE_URL, configure ASAAS_SANDBOX_API_KEY e execute node reconcile-asaas-staging.mjs <event_id>. O comando consulta a API Sandbox, valida o vínculo e grava a transição local com idempotência. Emissão de cliente, cobrança, assinatura e execução automática do reconciliador dependem de completar a integração Sandbox. As solicitações de licença ficam em estado bloqueado e não dão acesso ao produto.
+O worker de observação da primeira entrega continua disponível. Os vínculos de cobranças fictícias criados na terceira entrega continuam elegíveis à conciliação. As solicitações de licença ficam em estado bloqueado e não dão acesso ao produto.
+
+### Quarta entrega — emissão e conciliação isoladas
+
+**OCA.** O processo de homologação do OCA pode entregar um evento consentido com `node oca-staging-sender.mjs`, recebendo o envelope JSON por stdin. O destino é o receptor VNext no mesmo host, em loopback na porta 4176. Forneça a mesma chave de homologação aos dois processos pelo gerenciador de segredos. Grave os IDs estáveis no lado emissor antes da primeira tentativa e reutilize o mesmo envelope em caso de `retry_same_event`. Em `conflict`, investigue a origem da divergência. Valide uma entrada de atendimento e auditoria por evento. O endpoint público do site continua separado.
+
+**Asaas.** Aplique a migração 008 em banco de homologação e use três logins de menor privilégio. Cada login deve herdar exclusivamente o papel de sua função.
+
+| Função | Variável da conexão | Papel |
+|---|---|---|
+| Recepção HTTP | `VNEXT_ASAAS_INGEST_DATABASE_URL` | `lkz_vnext_asaas_ingest` |
+| Emissão | `VNEXT_ASAAS_ISSUE_DATABASE_URL` | `lkz_vnext_asaas_issue` |
+| Conciliação | `VNEXT_ASAAS_RECONCILE_DATABASE_URL` | `lkz_vnext_asaas_reconcile` |
+
+1. Configure `VNEXT_ASAAS_TENANT` com o UUID do tenant fictício. Crie no painel um cliente com endereço de teste em `example.test` e rascunhos vinculados a planos de cobrança única, mensal ou anual. Forneça `ASAAS_SANDBOX_API_KEY` e, para o cadastro do cliente, `VNEXT_ASAAS_FIXTURE_TAX_ID` com um documento fictício aceito pelo Sandbox. O cliente externo recebe um nome genérico e fica com notificações desativadas.
+2. Emita o cadastro e use o UUID de cada rascunho nos comandos seguintes. Substitua a data ilustrativa por uma data válida no Sandbox. Valores e recorrência vêm do plano local. Os métodos aceitos neste ensaio são `PIX`, `BOLETO` e `UNDEFINED`.
+
+   ```sh
+   node issue-asaas-staging.mjs customers <client-uuid>
+   node issue-asaas-staging.mjs payments <one-time-draft-uuid> 2030-01-15 PIX
+   node issue-asaas-staging.mjs subscriptions <recurring-draft-uuid> 2030-01-15 BOLETO
+   ```
+
+3. A emissão reserva uma referência por cliente ou rascunho em PostgreSQL antes de chamar o gateway. Se o comando retornar `needs_reconciliation`, repita os mesmos argumentos para consultar a referência existente. Essa repetição nunca executa um segundo POST. Se o Sandbox não encontrar um resultado único, confira a conta e a referência antes de decidir como tratar a reserva. Preserve a trilha em `lkz_vnext_billing.sandbox_issuance`.
+4. Para receber eventos, configure também `VNEXT_ASAAS_WEBHOOK_TOKEN` com um token próprio e inicie `npm run staging`. A rota de loopback `POST /integrations/asaas-sandbox` confirma o recebimento depois de gravar o envelope mínimo. Para entrega externa, ela depende de uma entrada HTTPS de homologação previamente autorizada, com publicação exclusiva dessa rota. Configure eventos de pagamento no Sandbox. A assinatura gera cobranças distintas ao longo do ciclo.
+5. Execute `node reconcile-asaas-staging.mjs <event_id>` para cada evento de teste. O comando consulta o gateway e atualiza o estado comercial de cada cobrança e seu histórico. Em pagamentos recorrentes, ele confere a assinatura externa, o cliente, o valor e a referência quando presente. Repita o evento e confirme `already_processed`. Compare recebimento, divergência e estorno no histórico. Nenhum estado financeiro libera licenças. O agendamento da conciliação e os eventos próprios de ciclo de vida da assinatura ainda dependem de implementação.
+
+**Auth real.** Com duas contas fictícias em tenants diferentes, confira o login com TOTP, a negação com token AAL1, a negação após a expiração do token AAL2 e a negação com o mesmo token após desativar seu vínculo no PostgreSQL. Confira que o token de um tenant recebe HTTP 403 ao consultar o outro. Registre somente status e horários, sem copiar tokens, códigos ou dados pessoais.
 
 ### Backup e rollback
 
-Pare a aplicação antes do backup, confirme que o banco é de homologação e preserve o snapshot com controle de acesso. Para PostgreSQL standalone, use o backup homologado da instalação. Um backup frio exige desligamento limpo e restauração em outro diretório, com a mesma versão e arquitetura. Valide a restauração em instância isolada antes de alterar a origem. Em rollback, pare o runtime, volte o checkout para 6d151cf e restaure o backup correspondente em outra base. O migrador rejeita um banco com histórico à frente do checkout. Preserve o banco avançado até validar os registros da recuperação.
+Pare a aplicação antes do backup, confirme que o banco é de homologação e preserve o snapshot com controle de acesso. Para PostgreSQL standalone, use o backup homologado da instalação. Um backup frio exige desligamento limpo e restauração em outro diretório, com a mesma versão e arquitetura. Valide a restauração em instância isolada antes de alterar a origem. Para reverter a quarta entrega, pare a emissão e a recepção, volte o checkout para `b432df59` e restaure o snapshot anterior à migração 008 em outra base. O migrador rejeita um banco com histórico à frente do checkout. Preserve o banco avançado e concilie as referências pendentes antes de reativar emissão. Uma restauração local não apaga registros já criados no Sandbox.

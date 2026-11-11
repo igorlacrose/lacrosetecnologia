@@ -20,7 +20,8 @@ test('staging refuses institutional endpoints and requires verified AAL2 claims'
     publishableKey: 'sb_publishable_' + randomUUID(),
     clientFactory: () => ({ auth: { getClaims: async token => ({
       data: { claims: { ...standard, aal: token === 'valid.aal.two' ? 'aal2' : 'aal1',
-        ...(token === 'invalid.jwt.issuer' ? { iss: 'https://invalid.example.test' } : {}) } },
+        ...(token === 'invalid.jwt.issuer' ? { iss: 'https://invalid.example.test' } : {}),
+        ...(token === 'expired.jwt.token' ? { aal: 'aal2', exp: Math.floor(Date.now() / 1000) - 1 } : {}) } },
     }) } }),
     request: async (endpoint, options) => {
       if (endpoint.endsWith('/token?grant_type=password')) return Response.json({ access_token: 'valid.aal.one' });
@@ -33,6 +34,7 @@ test('staging refuses institutional endpoints and requires verified AAL2 claims'
   });
   assert.equal(await auth.verify('valid.aal.one'), null);
   assert.equal(await auth.verify('invalid.jwt.issuer', false), null);
+  assert.equal(await auth.verify('expired.jwt.token'), null);
   assert.deepEqual(await auth.verify('valid.aal.two'), { sub: fixture.admin, aal: 'aal2' });
   const login = await auth.handle(new Request(url + '/auth/login', {
     method: 'POST', body: JSON.stringify({ email: 'fixture@example.test', password: randomUUID() }),
