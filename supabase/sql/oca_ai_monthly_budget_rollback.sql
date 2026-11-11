@@ -1,5 +1,5 @@
--- Rollback da API financeira do OCA: manter a tabela de métricas para auditoria.
--- Não apagar dados operacionais / reservas antigas.
+-- Rollback da função de reservas do OCA (não apaga evidências financeiras).
+-- A tabela de orçamento e o hash de challenges são mantidos para auditoria.
 BEGIN;
-DROP FUNCTION IF EXISTS public.oca_ai_reserve_monthly(integer,integer);
+DROP FUNCTION IF EXISTS public.oca_ai_reserve_monthly(integer,integer,text);
 COMMIT;
