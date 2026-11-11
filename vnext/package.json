@@ -1,6 +1,6 @@
 {
   "name": "lkz-adm-vnext",
   "private": true,
-  "scripts": { "test": "node --test" },
+  "scripts": { "test": "node --test", "preview": "node preview.mjs" },
   "devDependencies": { "@electric-sql/pglite": "0.5.16" }
 }
