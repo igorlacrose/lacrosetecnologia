@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+require('../assets/oca-intents.js');
 const advisor=require('../assets/oca-advisor.js');
 
 const lead=(problem,segment='')=>({problem,segment});
