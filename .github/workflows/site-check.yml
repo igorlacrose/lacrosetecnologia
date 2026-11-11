@@ -51,5 +51,12 @@ jobs:
           node --check assets/oca-turnstile.js
           node --test scripts/test_oca_turnstile.cjs
 
+      - name: Testar fundacao isolada do LKZ ADM VNext
+        working-directory: vnext
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+          npm test
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
