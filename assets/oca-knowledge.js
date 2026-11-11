@@ -93,9 +93,10 @@
     const raw=normalize(text);
     if(raw.length<10||raw.length>350||isSpecificRequest(text))return null;
     const bag=tokens(raw);
-    let top=null,topScore=0,runnerUp=0;
+    const scores=[];
     for(const item of ENTRIES){
       if(item.status!=='approved')continue;
+      let scoreForEntry=0;
       for(const example of item.questions){
         const normalized=normalize(example);
         if(raw===normalized)return {id:item.id,answer:item.answer,mode:'exact'};
@@ -103,10 +104,14 @@
         const overlap=bag.filter(t=>sample.includes(t)).length;
         const union=new Set([...bag,...sample]).size;
         const score=union?overlap/union:0;
-        if(score>topScore){runnerUp=topScore;topScore=score;top=item;}
-        else if(score>runnerUp)runnerUp=score;
+        if(score>scoreForEntry)scoreForEntry=score;
       }
+      scores.push({item,score:scoreForEntry});
     }
+    scores.sort((a,b)=>b.score-a.score);
+    const top=scores[0]?.item||null;
+    const topScore=scores[0]?.score||0;
+    const runnerUp=scores[1]?.score||0;
     // Quase idêntico: nunca tentar inferir semântica por baixa similaridade.
     if(top && bag.length>=3 && topScore>=0.90 && topScore-runnerUp>=0.10)
       return {id:top.id,answer:top.answer,mode:'near-exact'};
