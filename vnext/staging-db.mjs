@@ -131,3 +131,28 @@ export async function migrateStaging(db) {
     }
   });
 }
+
+export async function assertMetaRole(db) {
+  await db.transaction(async tx => {
+    const { rows: [role] } = await tx.query(
+      "select current_user as name, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolinherit, " +
+      "pg_has_role(current_user,'lkz_vnext_meta_bridge','MEMBER') as can_meta, " +
+      "pg_has_role(current_user,'lkz_vnext_meta_bridge','USAGE') as inherits_meta, " +
+      "(select count(*) from pg_roles other where other.rolname in " +
+      "('authenticated','lkz_vnext_asaas_ingest','lkz_vnext_asaas_issue','lkz_vnext_asaas_reconcile'," +
+      "'pg_read_all_data','pg_write_all_data','pg_execute_server_program','pg_read_server_files','pg_write_server_files') " +
+      "and pg_has_role(current_user,other.oid,'MEMBER')) as other_roles, " +
+      "(select count(*) from pg_namespace n where n.nspname in ('lkz_vnext','lkz_vnext_billing') " +
+      "and pg_has_role(current_user,n.nspowner,'MEMBER')) as owned_schemas " +
+      "from pg_roles where rolname=current_user"
+    );
+    if (role?.name !== 'lkz_vnext_meta_runtime' || role.rolsuper || role.rolbypassrls
+      || role.rolcreaterole || role.rolcreatedb || role.rolinherit
+      || !role.can_meta || role.inherits_meta
+      || Number(role.other_roles) || Number(role.owned_schemas)) {
+      throw new Error('Meta connector requires a dedicated least-privilege database identity');
+    }
+    await tx.exec('set local role lkz_vnext_meta_bridge');
+    await assertRowSecurity(tx, ['lkz_vnext']);
+  });
+}
