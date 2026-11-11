@@ -1,6 +1,15 @@
 {
   "name": "lkz-adm-vnext",
   "private": true,
-  "scripts": { "test": "node --test", "preview": "node preview.mjs" },
-  "devDependencies": { "@electric-sql/pglite": "0.5.16" }
+  "scripts": {
+    "test": "node --test",
+    "preview": "node preview.mjs", "staging": "node staging.mjs", "migrate:staging": "node migrate-staging.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0",
+    "pg": "8.23.1"
+  }
 }

@@ -6,7 +6,7 @@ const nav = document.querySelector('#navigation');
 const tabs = {
   overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
-  subscription_drafts: 'Assinaturas', audit: 'Auditoria',
+  subscription_drafts: 'Assinaturas', license_requests: 'Licenças', audit: 'Auditoria',
 };
 const stages = { qualification: 'Qualificação', proposal: 'Proposta', negotiation: 'Negociação', won: 'Ganha', lost: 'Perdida' };
 const channels = { oca: 'OCA', email: 'E-mail', phone: 'Telefone', internal: 'Interno' };
@@ -14,6 +14,7 @@ const intervals = { once: 'Único', monthly: 'Mensal', annual: 'Anual' };
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 let page = 'overview';
 let generation = 0;
+let accessToken;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -29,8 +30,10 @@ function message(text, error = false) {
 
 async function api(route, data) {
   const query = new URLSearchParams({ tenant: tenant.value });
-  const response = await fetch('/api/' + route + '?' + query, data === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  const headers = accessToken ? { Authorization: 'Bearer ' + accessToken } : {};
+  if (data !== undefined) headers['Content-Type'] = 'application/json';
+  const response = await fetch('/api/' + route + '?' + query, {
+    headers, ...(data === undefined ? {} : { method: 'POST', body: JSON.stringify(data) }),
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error);
@@ -51,6 +54,7 @@ const formFields = {
   products: [name, ['slug', 'Identificador (ex. produto-x)'], ['kind', 'Tipo', 'select', { service: 'Serviço', saas: 'SaaS' }]],
   plans: [name, ['product_id', 'Produto', 'select', 'products'], ['amount_brl_cents', 'Valor em centavos', 'number'], ['interval', 'Periodicidade', 'select', intervals]],
   subscription_drafts: [['client_id', 'Cliente', 'select', 'clients'], ['plan_id', 'Plano', 'select', 'plans']],
+  license_requests: [['subscription_id', 'Assinatura em rascunho', 'select', 'subscription_drafts']],
 };
 
 function form(specs, buttonLabel, submit) {
@@ -62,6 +66,7 @@ function form(specs, buttonLabel, submit) {
     if (input.tagName === 'INPUT') input.type = type;
     if (type === 'number') { input.min = '1'; input.step = '1'; }
     input.name = key;
+    if (type === 'password') input.autocomplete = 'current-password';
     input.required = true;
     input.maxLength = key === 'note' ? 2000 : key === 'question' ? 350 : key === 'email' ? 254 : 160;
     field.append(input);
@@ -75,7 +80,7 @@ function form(specs, buttonLabel, submit) {
     button.disabled = true;
     const token = generation;
     try {
-      const data = Object.fromEntries([...new FormData(wrapper)].map(([key,value]) => [key, value.trim()]));
+      const data = Object.fromEntries([...new FormData(wrapper)].map(([key,value]) => [key, key === 'password' ? value : value.trim()]));
       if (data.email) data.email = data.email.toLowerCase();
       if (data.amount_brl_cents) data.amount_brl_cents = Number(data.amount_brl_cents);
       await submit(data, token);
@@ -143,7 +148,7 @@ async function build(section) {
   const sources = [...new Set(specs.map(field => field[3]).filter(source => typeof source === 'string'))];
   const [items, ...references] = await Promise.all([api(section), ...sources.map(apiKey => api(apiKey))]);
   const choices = Object.fromEntries(sources.map((source, index) => [
-    source, Object.fromEntries(references[index].map(row => [row.id, row.name])),
+    source, Object.fromEntries(references[index].map(row => [row.id, row.name ?? ('Rascunho ' + row.id.slice(0, 8))])),
   ]));
   if (specs.length) {
     const fields = specs.map(([key, label, type, values]) => [key, label, type, choices[values] ?? values]);
@@ -204,6 +209,9 @@ async function build(section) {
           control.disabled = false;
         }
       };
+    } else if (section === 'license_requests') {
+      heading = choices.subscription_drafts[row.subscription_id] ?? 'Assinatura em rascunho';
+      details = 'Bloqueada até homologação';
     } else if (section === 'audit') {
       details = row.operation + ' · ' + new Date(row.occurred_at).toLocaleString('pt-BR');
     }
@@ -241,11 +249,56 @@ for (const [key,label] of Object.entries(tabs)) {
   nav.append(button);
 }
 tenant.onchange = () => render();
-try {
+
+async function openWorkspace() {
   const tenants = await api('tenants');
-  options(tenant, Object.fromEntries(tenants.map(row => [row.id, row.name])));
+  options(tenant, Object.fromEntries(tenants.map(row => [row.id, row.name ?? ('Rascunho ' + row.id.slice(0, 8))])));
+  nav.hidden = false;
+  tenant.parentElement.hidden = false;
   if (tenants.length) await render();
   else message('Nenhuma empresa disponível.', true);
+}
+
+async function sendAuth(path, data, token) {
+  const response = await fetch('/auth/' + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: JSON.stringify(data),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? 'Não foi possível autenticar.');
+  return result;
+}
+
+function showLogin() {
+  nav.hidden = true;
+  tenant.parentElement.hidden = true;
+  title.textContent = 'Entrar';
+  view.replaceChildren(card('Acesso à homologação', form([email, ['password', 'Senha', 'password']], 'Continuar', async (data) => {
+    const result = await sendAuth('login', data);
+    const codeForm = form([['code', 'Código do autenticador']], 'Verificar', async ({ code }) => {
+      const verified = await sendAuth('mfa', { code, factorId: result.factorId }, result.token);
+      accessToken = verified.token;
+      await openWorkspace();
+    });
+    codeForm.elements.code.inputMode = 'numeric';
+    codeForm.elements.code.autocomplete = 'one-time-code';
+    codeForm.elements.code.maxLength = 6;
+    title.textContent = 'Verificação em duas etapas';
+    message('');
+    view.replaceChildren(card('Autenticador', codeForm));
+    codeForm.elements.code.focus();
+  })));
+}
+
+try {
+  const status = await (await fetch('/auth/status')).json();
+  if (status.requiresLogin) {
+    document.querySelector('.environment').textContent = 'Homologação isolada';
+    showLogin();
+  } else {
+    await openWorkspace();
+  }
 } catch (error) {
   message(error.message, true);
 }

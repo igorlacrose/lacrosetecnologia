@@ -9,7 +9,7 @@ const assets = new Map([
   ['/app.mjs', ['app.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db) {
+export function createPreviewServer(db, { auth, oca, lacroseTenant = fixture.tenant } = {}) {
   return createServer(async (incoming, outgoing) => {
     try {
       const port = outgoing.socket.localPort;
@@ -30,8 +30,10 @@ export function createPreviewServer(db) {
         outgoing.writeHead(200, { ...headers, 'content-type': type + '; charset=utf-8' }).end(content);
         return;
       }
-      if (!url.pathname.startsWith('/api/') || incoming.headers['sec-fetch-site'] === 'cross-site'
-        || (incoming.method !== 'GET' && incoming.headers.origin !== origin)) {
+      const ocaRoute = Boolean(oca && url.pathname === '/integrations/oca');
+      if ((!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/auth/') && !ocaRoute)
+        || incoming.headers['sec-fetch-site'] === 'cross-site'
+        || (incoming.method !== 'GET' && !ocaRoute && incoming.headers.origin !== origin)) {
         outgoing.writeHead(403, headers).end();
         return;
       }
@@ -47,10 +49,23 @@ export function createPreviewServer(db) {
       }
       const request = new Request(url, {
         method: incoming.method,
-        headers: { 'content-type': incoming.headers['content-type'] ?? '' },
+        headers: { 'content-type': incoming.headers['content-type'] ?? '',
+          authorization: incoming.headers.authorization ?? '',
+          'x-oca-timestamp': incoming.headers['x-oca-timestamp'] ?? '',
+          'x-oca-signature': incoming.headers['x-oca-signature'] ?? '' },
         body: incoming.method === 'POST' ? Buffer.concat(chunks) : undefined,
       });
-      const response = await serveWorkspace(request, db, { sub: fixture.admin, aal: 'aal2' });
+      let response;
+      if (ocaRoute) response = await oca(request);
+      else if (url.pathname === '/auth/status' && incoming.method === 'GET') {
+        response = Response.json({ requiresLogin: Boolean(auth) });
+      } else if (url.pathname.startsWith('/auth/')) {
+        response = auth ? await auth.handle(request) : Response.json({}, { status: 404 });
+      } else {
+        const token = incoming.headers.authorization?.match(/^Bearer ([\w.-]+)$/)?.[1];
+        const claims = auth ? await auth.verify(token) : { sub: fixture.admin, aal: 'aal2' };
+        response = await serveWorkspace(request, db, claims, { lacroseTenant });
+      }
       outgoing.writeHead(response.status, { ...headers, 'content-type': 'application/json; charset=utf-8' })
         .end(await response.text());
     } catch {

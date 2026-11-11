@@ -10,6 +10,7 @@ const fields = {
   products: ['slug', 'name', 'kind'],
   plans: ['product_id', 'name', 'amount_brl_cents', 'interval'],
   subscription_drafts: ['client_id', 'plan_id'],
+  license_requests: ['subscription_id'],
   audit: [],
 };
 
@@ -35,7 +36,7 @@ function json(value, status = 200) {
   return Response.json(value, { status });
 }
 
-export async function serveWorkspace(request, db, claims) {
+export async function serveWorkspace(request, db, claims, { lacroseTenant = fixture.tenant } = {}) {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').slice(2);
   const [resource, id, action] = parts;
@@ -91,7 +92,7 @@ export async function serveWorkspace(request, db, claims) {
         if (typeof question !== 'string' || question.trim().length < 1 || question.length > 350) {
           return json({ error: 'Informe uma pergunta de até 350 caracteres.' }, 400);
         }
-        const approved = tenant === fixture.tenant ? knowledge.match(question) : null;
+        const approved = tenant === lacroseTenant ? knowledge.match(question) : null;
         const answer = approved?.answer ?? 'Encaminhe esta solicitação para análise comercial.';
         const drafts = await tx.query('select name from lkz_vnext.products where tenant_id = $1 order by name limit 100', [tenant]);
         return json({ answer, drafts: drafts.rows.map(row => row.name) });
