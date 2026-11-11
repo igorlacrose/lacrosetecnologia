@@ -171,17 +171,8 @@ async function apply(db,source,event,hashValue,key,pepper,clock){
       return {code:'opt_out_applied'};
     }
 
-    // Advisory lock prevents two concurrent revisions racing on a new appointment.
-    await tx.query('select pg_advisory_xact_lock(hashtextextended($1,0))',
-      [tenant+':'+product+':'+event.appointmentId]);
-    const prev=await tx.query(
-      'select revision from lkz_vnext.whatsapp_appointments where '+
-      'tenant_id=$1 and product=$2 and appointment_key=$3 for update',
-      [tenant,product,event.appointmentId]
-    );
-    if(prev.rows.length && Number(prev.rows[0].revision)>=event.revision)
-      return {code:'stale_revision'};
-
+    // Lock recipient BEFORE appointment, matching the opt-out lock order.
+    // Otherwise a concurrent opt-out across BarbarOS/LibertyOS can deadlock.
     const isCancelled=event.type==='cancelled';
     let permitted=Boolean(event.consent)&&!isCancelled;
     let hashed=null;
@@ -198,6 +189,16 @@ async function apply(db,source,event,hashValue,key,pepper,clock){
       if(permitted)cipher=encrypt(event.recipient,key);
       else hashed=null;
     }
+    // Revisions of the same appointment are serialized after consent checks.
+    await tx.query('select pg_advisory_xact_lock(hashtextextended($1,0))',
+      [tenant+':'+product+':'+event.appointmentId]);
+    const prev=await tx.query(
+      'select revision from lkz_vnext.whatsapp_appointments where '+
+      'tenant_id=$1 and product=$2 and appointment_key=$3 for update',
+      [tenant,product,event.appointmentId]
+    );
+    if(prev.rows.length && Number(prev.rows[0].revision)>=event.revision)
+      return {code:'stale_revision'};
     const state=isCancelled?'cancelled':'scheduled';
     await tx.query(
       'insert into lkz_vnext.whatsapp_appointments '+
