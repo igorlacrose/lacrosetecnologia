@@ -70,6 +70,14 @@ Fontes: https://developers.cloudflare.com/turnstile/get-started/client-side-rend
 - Testes atuais da CI são estáticos e locais; **não substituem a validação integrada com serviços reais**.
 - A ativação de OpenAI e publicação da migração dependem de homologação, gastos controlados, revisão de política de privacidade/LGPD e proteção contra abuso.
 
+## Estratégia de publicação do código inativo
+
+O PR #58 reúne o conhecimento aprovado e a proteção Turnstile, substituindo a necessidade de mesclar o PR #57 isoladamente. Ele deve ser integrado **somente após passar na CI exigida para a base atual da main**, preservando a correção anterior do LKZ ADM (PR #55).
+
+A integração GitHub **não** habilita o classificador remotamente: a sitekey do widget está vazia, a função `oca-interpret` não está implantada, a migração SQL não foi aplicada e a variável `OCA_AI_ENABLED` continua não configurada. Não converter a existência de arquivos `supabase/config.toml` e `supabase/functions/` em autorização de deploy. Qualquer pipeline que faça deploy automático das funções precisa ser inspecionado antes da integração.
+
+Após o merge, validar o HTML e os scripts servidos no domínio oficial (ambos hostnames), os FAQs e a captação existente com sessão de teste. Não declarar produção validada apenas pela confirmação de merge: GitHub, publicação web e sessão real são verificações distintas.
+
 ## Reversão
 
 - Frontend: reverter PR e o script de conhecimento, preservando `assets/oca-advisor.js` e o antigo fluxo.
