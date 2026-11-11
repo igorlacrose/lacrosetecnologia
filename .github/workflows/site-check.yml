@@ -64,6 +64,7 @@ jobs:
           node --check web/whatsapp-signup.mjs
           node --check staging.mjs
           node --check workspace.mjs
+          node --check web/app.mjs
           npm test
 
       - name: Verificar segredos no histórico Git
