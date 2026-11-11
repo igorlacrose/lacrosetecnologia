@@ -155,5 +155,27 @@
     }
     return null;
   }
-  return {norm,subject,questionFor,quickOptions,reply,productNames,isContactDecline,RELEASE_MONTHLY_BRL};
+  function answerTurn(text,lead={},previous=null){
+    const t=norm(text),ids=productNames(text);
+    const priceFollowup=/^(?:e|mas e|sobre|quanto ao|quanto a)\b/.test(t);
+    const previousIds=Array.isArray(previous?.products)?previous.products.filter(x=>PRODUCTS[x]):[];
+    if(previous?.kind==='product_price' && priceFollowup &&
+      (ids.length||/\b(ambos|os dois|os sistemas)\b/.test(t))){
+      const selected=ids.length?ids:['libertyos','barbaros'];
+      const names=selected.map(p=>PRODUCTS[p].name).join(' e ');
+      return {
+        text:'Para '+names+', a mensalidade de lançamento planejada é R$ '+RELEASE_MONTHLY_BRL+',00 por estabelecimento. Os produtos ainda estão em desenvolvimento; não estão disponíveis para contratação nem ativação automática.',
+        context:{kind:'product_price',products:selected}
+      };
+    }
+    if(previousIds.length && /^(?:e )?(?:ja esta pronto|ja funciona|posso contratar|esta disponivel|ja posso usar)\??$/.test(t)){
+      return {text:previousIds.map(id=>PRODUCTS[id].name).join(' e ')+' ainda '+(previousIds.length>1?'estão':'está')+' em desenvolvimento. Não há contratação ou liberação automática disponível.',context:previous};
+    }
+    const textReply=reply(text,lead);
+    if(!textReply)return null;
+    const askingPrice=/\b(quanto custa|quanto fica|preco|valor|mensalidade|mensal|assinatura|planos?|quanto cobram|quanto pag)/.test(t);
+    const context=ids.length?{kind:askingPrice?'product_price':'product_info',products:ids}:null;
+    return {text:textReply,context};
+  }
+  return {norm,subject,questionFor,quickOptions,reply,answerTurn,productNames,isContactDecline,RELEASE_MONTHLY_BRL};
 });
