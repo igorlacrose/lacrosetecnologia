@@ -37,7 +37,26 @@ O objetivo de longo prazo é medir a taxa de resolução local, o custo por clas
 
 Aplicar `supabase/sql/oca_ai_monthly_budget.sql` em ambiente isolado primeiro. Ele cria tabela privada com RLS e função pública executável **somente por service_role**. Nenhum dado bruto de conversa é persistido pelo classificador. O endpoint público verifica origem, tamanho, formato, dados sensíveis, limites por sessão/IP/global e orçamento transacional.
 
-**IMPORTANTE:** Origin/CORS não constituem autenticação; cabeçalhos IP podem ser forjados fora de proxy confiável. Antes de habilitar a Edge Function pública em produção, implementar proteção anti-automação com Turnstile validado no servidor ou mecanismo equivalente, reavaliar quotas por sessão e testar ataques de consumo. O teto de US$ 2 limita prejuízo, mas sem anti-bot um atacante ainda pode esgotar o atendimento pago.
+**IMPORTANTE:** Origin/CORS não constituem autenticação; cabeçalhos IP podem ser forjados fora de proxy confiável. A validação Turnstile e o bloqueio de replay foram preparados no código, mas **ainda dependem das chaves reais e de testes integrados antes de publicação**. O teto de US$ 2 limita o risco de consumo, não substitui proteção anti-abuso nem é garantia absoluta da fatura.
+
+## Proteção anti-bot implementada na revisão de segurança (ainda não implantada)
+
+O cliente usa `assets/oca-turnstile.js` e só aciona a API remota se o elemento `#ocaAiTurnstile` tiver uma **sitekey pública válida**. Enquanto `data-sitekey=""`, o modelo não recebe chamadas do site. O widget é carregado sob demanda; cada pergunta paga usa um token novo. O código cancela desafios pendentes no reset e ao trocar de assunto.
+
+A Edge Function rejeita chamadas se `TURNSTILE_SECRET_KEY` estiver ausente. Após as verificações de entrada e rate limit, envia o token ao Siteverify via HTTPS com timeout e exige: `success=true`, `action=oca_interpret`, hostname exato `lacrosetecnologia.com.br` ou `www.lacrosetecnologia.com.br` e data de desafio recente. **Só depois** solicita a reserva financeira. O servidor não armazena nem registra token, segredo ou questão do visitante.
+
+A migração acrescenta `lkz_adm_private.oca_ai_token_claims`: chave única de hash derivado de segredo privado, usada na mesma transação da reserva mensal para impedir cobranças duplicadas por replay simultâneo do mesmo desafio. As duas tabelas ficam privadas e com RLS. O rollback remove apenas a função de reserva, preservando os registros de auditoria.
+
+### Configuração pendente antes da ativação
+
+1. No Cloudflare Turnstile, criar widget para os dois hostnames oficiais; obter **sitekey pública** e **secret key privada**. Nunca publicar a secret key em código, dashboard aberto ou conversas.
+2. Preencher a sitekey pública em `index.html` no atributo `data-sitekey` do widget. O site usa CSP restritiva liberando somente scripts/iframes do domínio oficial do Turnstile.
+3. Definir `TURNSTILE_SECRET_KEY` nos Secrets da Edge Function. Não habilitar `OCA_AI_ENABLED` antes de configurar todas as variáveis e validar limites de custo.
+4. Homologar com chave de teste do Turnstile em ambiente isolado e conferir que rejeição, replay, timeout e hostname incorreto **nunca alcançam a OpenAI**.
+5. Confirmar no projeto OpenAI que o modelo `gpt-5.6-luna` é acessível, verificar o custo real por chamada e o limite financeiro. A reserva de US$ 2/mês não substitui a conciliação com a fatura real.
+6. Executar testes de concorrência no PostgreSQL de homologação, teste de uso por cliente real, revisão LGPD, backup e plano de rollback. Só então liberar a integração paga.
+
+Fontes: https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/ e https://developers.cloudflare.com/turnstile/get-started/server-side-validation/.
 
 ## Homologação obrigatória
 
