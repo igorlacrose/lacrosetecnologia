@@ -82,3 +82,8 @@ Pare a aplicação antes do backup, confirme que o banco é de homologação e p
 Foi acrescentado um módulo para que cada empresa conecte seu número WhatsApp Business por Embedded Signup, sem dividir o crédito Meta da Lacrose. Os módulos ficam isolados por tenant, utilizam conta/telefone próprios e a conexão só chega a `awaiting_billing`. O cliente informa que adicionou meio de pagamento na Meta, mas o servidor não permite enviar mensagens antes da verificação externa. O armazenamento de credenciais é cifrado e acessível somente a um papel técnico separado. **Nenhuma conta ou chave Meta está configurada; nenhuma mensagem é enviada.**
 
 A implantação depende de programa Tech Provider, App Review, configuração Embedded Signup v4, conta Meta e faturamento próprio da empresa, credenciais separadas de homologação e testes com Meta real. Consulte [WHATSAPP_META.md](./WHATSAPP_META.md) para credenciais de ambiente, papéis, restrições, testes, pendências e rollback.
+
+
+## Serviço de lembretes para BarbarOS e LibertyOS (em homologação)
+
+O módulo compartilhado de confirmação e lembretes 24h/2h recebe eventos **assinados** das agendas, cancela tarefas quando o agendamento é alterado e respeita consentimento/opt-out por tenant. Nenhuma mensagem é enviada: política e cobranças Meta continuam bloqueadas até validação de titularidade, templates e homologação. Os indicadores administrativos são agregados e não exibem telefones. Contrato e requisitos: [REMINDERS_SAAS.md](./REMINDERS_SAAS.md).
