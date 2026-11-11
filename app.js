@@ -2712,7 +2712,7 @@ function resetAgent(){
 
 
     el.input.placeholder=
-      'Ou simplesmente conte o problema da sua empresa...';
+      'Pergunte sobre nossos serviços ou descreva o que precisa...';
   }
 
 
@@ -2889,7 +2889,7 @@ if(el.form){
 
         setTimeout(
           ()=>submitText(
-            'Tenho uma clínica com 12 computadores e estou tendo problemas com controle de acesso e arquivos.'
+            'Tenho uma clínica de estética e quero automatizar e-mails para criar tarefas.'
           ),
           120
         );
