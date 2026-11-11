@@ -101,7 +101,8 @@ test('billing self-report cannot make an account verified or activate messages',
   });
   const path='whatsapp/'+linked.connectionId+'/report-billing';
   assert.equal((await call(db,path,{claims:viewer,data:{}}))[0],403);
-  assert.equal((await call(db,path,{claims:adminB,tenant:fixture.secondTenant,data:{}}))[0],403);
+  // Um admin B é autorizado apenas em B: a conexão de A é indisponível.
+  assert.equal((await call(db,path,{claims:adminB,tenant:fixture.secondTenant,data:{}}))[0],409);
   const [status,report]=await call(db,path,{data:{}});
   assert.equal(status,200);
   assert.equal(report.billing_state,'customer_reported');
