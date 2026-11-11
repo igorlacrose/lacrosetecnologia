@@ -13,7 +13,7 @@
   const CONTAINER_ID='ocaAiTurnstile';
   const ACTION='oca_interpret';
   const VALIDATION_TIMEOUT_MS=30000;
-  let scriptPromise=null,active=null;
+  let scriptPromise=null,active=null,generation=0;
 
   function container(){return root.document?.getElementById(CONTAINER_ID)||null;}
   function sitekey(){return String(container()?.dataset?.sitekey||'').trim();}
@@ -57,14 +57,16 @@
   }
 
   function cancel(){
+    generation+=1;
     active?.finish(null);
   }
 
   async function acquire(){
     if(!available()||active)return null;
+    const requestGeneration=generation;
     const target=container();
     const api=await load();
-    if(!api||!target||!target.isConnected||!available()||active)return null;
+    if(!api||!target||!target.isConnected||!available()||active||generation!==requestGeneration)return null;
     return new Promise(resolve=>{
       let widgetId=null,done=false,timeout=null;
       function finish(value){
@@ -90,7 +92,7 @@
           'error-callback':()=>finish(null)
         });
         if(widgetId===undefined||widgetId===null){finish(null);return;}
-        api.execute(widgetId);
+        if(!done)api.execute(widgetId);
       }catch{finish(null);}
     });
   }
