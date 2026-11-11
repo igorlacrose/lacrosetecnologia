@@ -113,3 +113,60 @@ test('FAQ não deve descartar contatos explícitos no formulário',()=>{
  assert.match(source,/if\(directAnswer\)\{\s*\/\/[\s\S]*?absorbContact\(text\);/);
  assert.match(source,/continueAfterContact\?../);
 });
+
+test('regressão: pergunta da captura real recebe serviços e não diagnóstico',()=>{
+ const question='Quais os serviços a Lacrose oferece?';
+ const result=advisor.answerTurn(question,{problem:'',segment:''},null);
+ assert.ok(result,'pergunta da captura não reconhecida');
+ assert.match(result.text,/desenvolvimento de sites e sistemas/);
+ assert.match(result.text,/automação empresarial com IA/);
+ assert.doesNotMatch(result.text,/Como você resolve isso hoje|tamanho aproximado|urgência/i);
+});
+test('variações naturais sobre atividades da Lacrose são perguntas informativas',()=>{
+ const samples=[
+   'Quais serviços vocês oferecem?',
+   'Quais são os serviços oferecidos pela Lacrose?',
+   'Que tipo de serviço vocês prestam?',
+   'O que a Lacrose faz?',
+   'O que vocês fazem?',
+   'Em que vocês trabalham?',
+   'Quais as soluções da Lacrose?',
+   'Fale sobre a Lacrose Tecnologia',
+   'Me conta sobre a Lacrose',
+   'Gostaria de saber mais sobre a empresa',
+   'Quais são as áreas de atuação de vocês?'
+ ];
+ for(const question of samples){
+   const result=advisor.answerTurn(question,{problem:'',segment:''},null);
+   assert.ok(result,question+' caiu no fluxo de diagnóstico');
+   assert.match(result.text,/Lacrose Tecnologia|desenvolvimento de sites/,question);
+   assert.doesNotMatch(result.text,/Como você resolve isso hoje/i,question);
+ }
+});
+test('questão desconhecida sobre a Lacrose recebe esclarecimento sem inventar',()=>{
+ const text=advisor.answerTurn('A Lacrose desenvolve drones agrícolas?',{problem:''},null);
+ assert.ok(text);
+ assert.doesNotMatch(text.text,/sim, (desenvolvemos|fazemos)/i);
+ assert.match(text.text,/qual dessas áreas você gostaria|pode perguntar/i);
+});
+test('pergunta comercial isolada não altera o diagnóstico',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../app.js'),'utf8');
+ const faq=source.indexOf('const directAnswer=ADVISOR?.answerTurn(');
+ const diagnostic=source.indexOf('setAwaited(',faq);
+ const earlyExit=source.indexOf('return;',faq);
+ assert.ok(faq>0 && earlyExit>faq && diagnostic>earlyExit,
+   'FAQ deve responder antes de consumir campo de problema');
+});
+
+test('pedidos reais de sistemas e sites não podem virar apresentação dos serviços',()=>{
+ const examples=[
+   'Preciso de um site que apresente meus serviços',
+   'Quero um sistema que organize as atividades da minha empresa',
+   'Busco uma automação que classifique os serviços internos',
+   'Tenho uma loja que oferece serviços e preciso de CRM'
+ ];
+ for(const text of examples){
+   assert.equal(advisor.reply(text,{problem:''}),null,
+     text+' não deve ser tratado como pergunta sobre a Lacrose');
+ }
+});

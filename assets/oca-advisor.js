@@ -123,7 +123,15 @@
     if(/\b(falar com (?:um |uma |o |a )?(?:humano|pessoa|atendente|consultor|responsavel|voce|igor)|quero atendimento humano)\b/.test(t)){
       return 'Claro. Podemos encaminhar sua solicitação para atendimento humano. Descreva brevemente o que precisa e, se quiser retorno, informe seu nome e um WhatsApp ou e-mail. Não é necessário compartilhar senhas nem dados sensíveis.';
     }
-    if(/\b(quais servicos|o que voces fazem|o que a lacrose faz|em que trabalham|que tipo de servico|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t)){
+    // Perguntas informativas não são respostas ao diagnóstico comercial.
+    // Aceitar artigos, inversões e sinônimos: "Quais os serviços a Lacrose oferece?"
+    const asksServices=
+      /^(?:oi[,! ]+|ola[,! ]+|bom dia[,! ]+|boa tarde[,! ]+|boa noite[,! ]+)?(?:quais?|que|qual)\b.{0,75}\b(?:servicos?|solucoes?|atividades?|areas? de atuacao)\b/.test(t) ||
+      /\b(?:servicos?|solucoes?|atividades?)\b.{0,75}\b(?:lacrose|voces|oferecem?|prestam?|fazem)\b/.test(t) ||
+      /\b(?:o que|como|em que)\b.{0,50}\b(?:lacrose|voces)\b.{0,35}\b(?:faz|fazem|trabalha|trabalham|oferece|oferecem|atua|atuam)\b/.test(t) ||
+      /\b(?:fale|fala|conte|conta|explique|me fale|me fala|me conte|me conta|gostaria de saber|quero conhecer|saber mais)\b.{0,45}\b(?:lacrose|empresa|sobre voces)\b/.test(t) ||
+      /\b(?:em que trabalham|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t);
+    if(asksServices){
       return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
     }
     if(/\b(atendem onde|onde (?:voces )?atendem|onde fica|qual cidade|atende em|atendimento presencial|atendem fora|atendem no brasil|atuam onde)\b/.test(t)){
@@ -165,6 +173,11 @@
     }
     if(/\b(portfolio|trabalhos feitos|clientes atendidos|exemplos de projetos)\b/.test(t)){
       return 'Entre os trabalhos da Lacrose Tecnologia estão projetos para a CESMT, Studio Liberty e Bahia Nexos. Para um orçamento, avaliamos cada necessidade separadamente; não presumo que um projeto tenha as mesmas funções de outro.';
+    }
+    // Se for uma pergunta sobre a empresa que ainda não está catalogada,
+    // pedir esclarecimento, nunca tratá-la como um "problema do cliente".
+    if(t.endsWith('?') && /\b(lacrose|voces|seus servicos|sua empresa|essa empresa)\b/.test(t)){
+      return 'Posso explicar nossos serviços de desenvolvimento de sites e sistemas, automação empresarial com IA, redes e segurança de TI. Qual dessas áreas você gostaria de conhecer melhor? Se sua dúvida for outra, pode perguntar com suas palavras.';
     }
     return null;
   }
