@@ -8,6 +8,8 @@ do $do$ begin
   end if;
 end $do$;
 
+grant usage on schema lkz_vnext to lkz_vnext_meta_bridge;
+
 create table lkz_vnext.whatsapp_connections (
   tenant_id uuid not null references lkz_vnext.tenants(id),
   id uuid not null default gen_random_uuid(),
