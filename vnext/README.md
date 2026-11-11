@@ -87,3 +87,7 @@ A implantação depende de programa Tech Provider, App Review, configuração Em
 ## Serviço de lembretes para BarbarOS e LibertyOS (em homologação)
 
 O módulo compartilhado de confirmação e lembretes 24h/2h recebe eventos **assinados** das agendas, cancela tarefas quando o agendamento é alterado e respeita consentimento/opt-out por tenant. Nenhuma mensagem é enviada: política e cobranças Meta continuam bloqueadas até validação de titularidade, templates e homologação. Os indicadores administrativos são agregados e não exibem telefones. Contrato e requisitos: [REMINDERS_SAAS.md](./REMINDERS_SAAS.md).
+
+## Webhook Meta para interrupção dos lembretes
+
+O receptor dedicado valida `X-Hub-Signature-256`, relaciona WABA/número à empresa e registra com idempotência solicitações explícitas de opt-out. Ele desativa consentimento e cancela os lembretes futuros dos dois produtos, sem armazenar texto ou telefone em claro. Ainda não está ligado a uma WABA real ou hospedado externamente. Consulte [META_INBOUND_OPT_OUT.md](./META_INBOUND_OPT_OUT.md) para configuração segura, migração, testes e bloqueios de produção.
