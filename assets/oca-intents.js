@@ -14,6 +14,7 @@
     .replace(/\b(vcs|vcs\.|vc|c6s)\b/g,'voces')
     .replace(/\b(q|oq|qdo)\b/g,(_,a)=>a==='qdo'?'quando':'que')
     .replace(/\b(qto|qt)\b/g,'quanto')
+    .replace(/\b(qro|qria|kero)\b/g,'quero')
     .replace(/\b(pra|pro)\b/g,'para')
     .replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const tokenize=text=>normalize(text).split(' ').filter(Boolean).slice(0,100);
@@ -53,7 +54,7 @@
     human:['humano','humana','pessoa','atendente','consultor','consultora','responsavel','igor'],
     price:['preco','precos','valor','valores','custa','custo','quanto','mensalidade','mensal','assinatura','investimento'],
     availability:['pronto','pronta','disponivel','disponibilidade','assinar','contratar','ativo','liberado','funcionando'],
-    location:['onde','local','cidade','endereco','endereco','presencial','remoto','atendem','atende','atendimento'],
+    location:['onde','local','cidade','endereco','presencial','remoto'],
     email:['email','emails','gmail','outlook','inbox','mensagens','correio','eletronico'],
     appointment:['agenda','agendar','agendamento','agendamentos','horario','horarios','marcar','reservar','reserva'],
     inventory:['estoque','inventario','almoxarifado','reposicao','lotes'],
@@ -115,7 +116,9 @@
       return {intent:'product_status',confidence:0.88,products:product};
     if(human && (asking||request||has(tokens,'inquiry')))
       return {intent:'human_handoff',confidence:0.88,products:product};
-    if(company && location && asking)return {intent:'company_location',confidence:0.84,products:product};
+    const geographicallyLocated=location ||
+      (/\b(atende|atendem)\b/.test(t) && /\b(na|no|em|brasil|bahia|jequie|fora|outros estados)\b/.test(t));
+    if(company && geographicallyLocated && asking)return {intent:'company_location',confidence:0.84,products:product};
     const serviceQuestionStart=/^(?:quais?|qual|que)\b.{0,45}\b(?:servicos?|solucoes?|atividades?|trabalhos?)\b/.test(t);
     const infoRequest=request && question && company && !project;
     if((service && (company||serviceQuestionStart) && asking) ||
