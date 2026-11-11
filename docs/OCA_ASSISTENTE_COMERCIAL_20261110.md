@@ -38,3 +38,12 @@
 - Pergunta por LibertyOS, seguida de 'E o BarbarOS?' usa contexto da mensalidade e sinaliza desenvolvimento.
 - Pedir atendimento humano, fornecer contato ou recusar contato não é tratado como campo inválido.
 - CI verde antes de mesclar; validação manual de navegador e gravação em Supabase após publicar.
+
+## Evolução de interpretação por assunto — 10/11/2026
+- Camada \`assets/oca-intents.js\`: classificação de intenções e temas sem dependência externa, com normalização, abreviações, famílias de palavras e distância de edição controlada.
+- Perguntas por **assunto**, não por correspondência exata de uma frase. Inclui erros comuns de digitação ("servissos", "qto", "qro"), temas de e-mail, agendas, sites, redes, automação e perguntas sobre a Lacrose.
+- Sinal de dúvida ou baixa confiança **não autoriza** nenhuma operação. A camada não faz pagamentos, não modifica contatos e não consulta dados sensíveis.
+- A base de fatos, preços e condições permanece separada em \`assets/oca-advisor.js\`, com mensalidade apenas para produtos explicitamente aprovados.
+- O classificador continua **heurístico**: não é um modelo de linguagem nem entende todas as paráfrases possíveis. Falso positivo e falso negativo são riscos conhecidos; testes cobrem pedidos reais versus perguntas sobre os serviços, abreviações e variações de escrita.
+- Suíte \`scripts/test_oca_intents.cjs\` incorporada ao CI, além dos testes anteriores. Publicação somente com CI e revisão.
+- Evolução necessária para maior flexibilidade: API conversacional server-side com um modelo de linguagem, catálogo versionado, classificação estruturada e validação determinística de todas as operações. Não integrar um provedor pago sem decisão expressa.
