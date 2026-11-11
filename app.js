@@ -291,18 +291,24 @@ const INTENT_LABELS={
 
 const ADVISOR=window.LacroseOcaAdvisor;
 const OCA_KNOWLEDGE=window.LacroseOcaKnowledge;
+const OCA_TURNSTILE=window.LacroseOcaTurnstile;
 const OCA_INTERPRET_ENDPOINT='https://icrtewhazpfauuroswri.supabase.co/functions/v1/oca-interpret';
 let ocaInterpretPending=false,ocaInterpretEpoch=0,ocaInterpretAbort=null;
 let ocaApprovedTopic='unknown';
 
 function mayAskOcaAi(text,meta,wasCompleted){
   if(wasCompleted||state.oca||meta.fromQuick||state.awaiting!=='problem'||
-     ocaInterpretPending||OCA_KNOWLEDGE?.isSpecificRequest(text))return false;
+     ocaInterpretPending||!OCA_TURNSTILE?.available()||
+     OCA_KNOWLEDGE?.isSpecificRequest(text))return false;
   // Não usar IA para diagnósticos extensos nem para dados pessoais.
   if(text.length>320||/@|https?:\/\/|(?:\d[\s.\-()]*){7,}/i.test(text))return false;
   return /\?|^(?:voc[eê]s|a lacrose|essa empresa|qual|quais|como|onde|por que|ser[aá] que|tem como)\b/i.test(text);
 }
 async function classifyOcaQuestion(text){
+  // O desafio público não é prova de autorização: o backend validará Siteverify.
+  const epoch=ocaInterpretEpoch;
+  const challenge=await OCA_TURNSTILE?.acquire();
+  if(!challenge||epoch!==ocaInterpretEpoch)return null;
   const controller=new AbortController();
   ocaInterpretAbort=controller;
   const timeout=setTimeout(()=>controller.abort(),6800);
@@ -313,7 +319,8 @@ async function classifyOcaQuestion(text){
       credentials:'omit',
       signal:controller.signal,
       body:JSON.stringify({
-        sessionId:agentSessionId,question:text,lastTopic:ocaApprovedTopic
+        sessionId:agentSessionId,question:text,lastTopic:ocaApprovedTopic,
+        turnstileToken:challenge
       })
     });
     if(!response.ok)return null;
@@ -2515,7 +2522,7 @@ async function submitText(
     const epoch=ocaInterpretEpoch;
     ocaInterpretPending=true;
     if(el.input)el.input.disabled=true;
-    setOcaStatus('Interpretando sua pergunta...');
+    setOcaStatus('Verificando segurança e interpretando sua pergunta...');
     let matched=null;
     try{matched=await classifyOcaQuestion(text);}
     finally{
@@ -2639,6 +2646,14 @@ function startIntent(
   label,
   oca=false
 ){
+  // Iniciar novo tema cancela a classificação antiga sem perder o histórico.
+  ++ocaInterpretEpoch;
+  OCA_TURNSTILE?.cancel();
+  ocaInterpretAbort?.abort();
+  ocaInterpretAbort=null;
+  ocaInterpretPending=false;
+  if(el.input)el.input.disabled=false;
+  setOcaStatus('');
 
   state.oca=oca;
   state.lead.intent=
@@ -2691,6 +2706,7 @@ function startIntent(
 
 function resetAgent(){
   ++ocaInterpretEpoch;
+  OCA_TURNSTILE?.cancel();
   ocaInterpretAbort?.abort();
   ocaInterpretAbort=null;
   ocaInterpretPending=false;
