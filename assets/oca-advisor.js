@@ -135,6 +135,19 @@
     if(/\b(voces fazem automacao|conseguem automatizar|da pra automatizar|fazem automacoes|automatizam)\b/.test(t) && /\?|^voces|^conseguem|^da pra/.test(t)){
       return 'Podemos estudar automações como e-mails que viram tarefas, qualificação de leads, extração de dados de documentos e acompanhamento comercial. Primeiro mapeamos gatilhos, dados, permissões e exceções; a execução depende das integrações disponíveis.';
     }
+    const asking=/\?|^(?:voces|voce|fazem|trabalham|conseguem|posso|pode|tem|quais|como|da pra)\b/.test(t);
+    if(asking && /\b(mikrotik|pfsense|firewall|vpn|wi-?fi|redes?|servidores?|infraestrutura|seguranca da rede|backup|failover)\b/.test(t)){
+      return 'Sim, a Lacrose Tecnologia atua com redes, infraestrutura e segurança de TI. Podemos avaliar roteadores, MikroTik, pfSense, Wi-Fi corporativo, VPN, firewall, backups, disponibilidade e controle de acesso conforme a necessidade. A solução depende do diagnóstico técnico e do ambiente atual.';
+    }
+    if(asking && /\b(sistemas? sob medida|aplicativos?|apps?|software|plataforma saas|desenvolvimento de sistemas)\b/.test(t)){
+      return 'Desenvolvemos sistemas, aplicativos e plataformas conforme o processo do cliente. Definimos requisitos, permissões, integrações e necessidades de operação antes de apresentar escopo, preço ou prazo. Recursos ainda em desenvolvimento não são oferecidos como prontos.';
+    }
+    if(asking && /\b(inteligencia artificial|ia empresarial|agente de ia|automacoes? com ia)\b/.test(t)){
+      return 'Trabalhamos com automação empresarial com IA quando ela traz benefício concreto: classificar e-mails, organizar tarefas, tratar documentos ou qualificar atendimentos. Primeiro definimos regras, dados, integrações, limites e aprovação humana quando necessária.';
+    }
+    if(asking && /\b(suporte|manutencao|acompanhamento|sla|garantia do sistema)\b/.test(t)){
+      return 'Suporte e manutenção podem fazer parte da proposta, mas cobertura, horários, responsabilidades e eventuais mensalidades são definidos no contrato. Não vou prometer um nível de serviço sem confirmar o escopo.';
+    }
     if(/\b(whatsapp|wpp|zap)\b/.test(t) && /\b(integr|conect|api|bot|automat|mensagem automatica|mensagens automaticas)\b/.test(t) && (/\?/.test(t)||/^(voces|da pra|pode|consigo|tem)/.test(t))){
       return 'Integrações com WhatsApp podem ser avaliadas usando os canais e APIs oficialmente permitidos. A disponibilidade e eventuais cobranças do provedor dependem da conta do cliente; não vou afirmar que a integração está ativa sem validar a configuração.';
     }
