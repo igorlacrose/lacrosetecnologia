@@ -34,6 +34,9 @@ jobs:
       - name: Testar MFA e limite de inatividade
         run: node --test scripts/test_admin_idle_mfa.mjs
 
+      - name: Revisar segurança da migração de mensagens
+        run: node --test scripts/test_admin_message_migration.mjs
+
       - name: Validar sintaxe e respostas do assistente OCA
         run: |
           node --check app.js
