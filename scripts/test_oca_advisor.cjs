@@ -73,7 +73,7 @@ test('código publicado usa conhecimento, reduz campos e mantém persistência e
  assert.ok(html.indexOf('assets/oca-advisor.js')<html.indexOf('app.js?v='));
  assert.match(app,/LacroseOcaAdvisor/);
  assert.match(app,/return \['problem','segment','current','contact'\];/);
- assert.match(app,/ADVISOR\?\.reply\(text,state\.lead\)/);
+ assert.match(app,/ADVISOR\?\.answerTurn\(text,state\.lead,state\.faqContext\)/);
  assert.match(app,/schedulePersist\(\)/);
  assert.doesNotMatch(html+app,/Sites simples a partir de R\$ 350/);
 });
