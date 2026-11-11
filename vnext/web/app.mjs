@@ -11,6 +11,7 @@ const tabs = {
 const stages = { qualification: 'Qualificação', proposal: 'Proposta', negotiation: 'Negociação', won: 'Ganha', lost: 'Perdida' };
 const channels = { oca: 'OCA', email: 'E-mail', phone: 'Telefone', internal: 'Interno' };
 const intervals = { once: 'Único', monthly: 'Mensal', annual: 'Anual' };
+const sandboxStates = { pending: 'pendentes', paid: 'pagas', overdue: 'vencidas', reversed: 'estornadas', disputed: 'em disputa' };
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 let page = 'overview';
 let generation = 0;
@@ -196,7 +197,9 @@ async function build(section) {
         + ' · ' + intervals[row.interval] + ' · Rascunho';
     } else if (section === 'subscription_drafts') {
       heading = choices.clients[row.client_id] ?? 'Cliente';
-      details = (choices.plans[row.plan_id] ?? 'Plano') + ' · Rascunho sem cobrança';
+      const paymentCounts = Object.entries(row.sandbox_payments).map(([state, total]) => total + ' ' + sandboxStates[state]);
+      details = (choices.plans[row.plan_id] ?? 'Plano') + ' · Rascunho';
+      if (paymentCounts.length) details += ' · Cobranças Sandbox: ' + paymentCounts.join(', ');
       control = element('button', 'Consultar liberação');
       control.onclick = async () => {
         control.disabled = true;

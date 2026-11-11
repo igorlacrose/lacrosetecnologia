@@ -82,6 +82,19 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
         // This catalog stores drafts only. Eligibility cannot be granted by a browser or OCA request.
         return json({ eligible: false, product: result.rows[0].slug, reason: 'product_not_homologated' });
       }
+      if (request.method === 'GET' && resource === 'subscription_drafts' && parts.length === 1) {
+        const { rows } = await tx.query(`
+          select d.*, coalesce((
+            select jsonb_object_agg(p.state,p.total)
+            from (
+              select state,count(*) as total from lkz_vnext_billing.payment_bindings
+              where tenant_id=d.tenant_id and subscription_id=d.id group by state
+            ) p
+          ),'{}'::jsonb) as sandbox_payments
+          from lkz_vnext.subscription_drafts d where d.tenant_id=$1 order by d.id limit 100
+        `, [tenant]);
+        return json(rows);
+      }
       if (request.method === 'GET' && parts.length === 1 && Object.hasOwn(fields, resource)) {
         return json((await tx.query('select * from lkz_vnext.' + resource
           + ' where tenant_id = $1 order by id ' + (resource === 'audit' ? 'desc ' : '') + 'limit 100', [tenant])).rows);

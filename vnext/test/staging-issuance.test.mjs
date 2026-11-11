@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { issueSandboxRecord } from '../asaas-issuance.mjs';
 import { createAsaasSandboxWebhook } from '../asaas-sandbox.mjs';
-import { reconcileBoundSandboxPayment } from '../commercial-reconcile.mjs';
+import { reconcileBoundSandboxPayment, reconcileNextCommercialEvent } from '../commercial-reconcile.mjs';
 import { createPreviewDatabase, fixture, withIdentity } from '../preview-db.mjs';
+import { serveWorkspace } from '../workspace.mjs';
 
 function asRole(db, role) {
   return { transaction: operation => db.transaction(async tx => {
@@ -92,7 +93,28 @@ test('Sandbox issuance reserves before POST, recovers without another POST and r
   assert.equal(await reconcile('evt_recur_1', { ...recurring, customer: 'cus_unknown' }), 'mismatch');
   assert.equal(await reconcile('evt_recur_1', recurring), 'paid');
   assert.equal(await reconcile('evt_recur_1', recurring), 'already_processed');
-  assert.equal(await reconcile('evt_recur_2', { ...recurring, id: 'pay_recur_2' }), 'paid');
+  const next = request => reconcileNextCommercialEvent({ db: reconciler, apiKey: randomUUID(), request });
+  assert.equal(await next(async () => new Response(null, { status: 503 })), 'retry');
+  assert.equal(await next(), 'idle');
+  await db.exec("update lkz_vnext_billing.asaas_sandbox_events set commercial_next_attempt_at=now() where event_id='evt_recur_2'");
+  const secondPayment = { ...recurring, id: 'pay_recur_2' };
+  assert.equal(await next(async () => Response.json({ ...secondPayment, value: 29 })), 'needs_review');
+  assert.equal(await next(), 'idle');
+  assert.equal(await reconcile('evt_recur_2', secondPayment), 'paid');
+  assert.equal((await db.query(`select commercial_result,commercial_attempts
+    from lkz_vnext_billing.asaas_sandbox_events where event_id='evt_recur_2'`)).rows[0].commercial_result, 'applied');
+  assert.equal(await ingestEvent('evt_refund', 'pay_once'), 200);
+  assert.equal(await next(async () => Response.json({ ...created.get('payments'), status: 'REFUNDED' })), 'applied');
+
+  const drafts = (user, aal = 'aal2') => serveWorkspace(
+    new Request('http://127.0.0.1/api/subscription_drafts?tenant=' + tenant), db, { sub: user, aal },
+  );
+  const adminDrafts = await (await drafts(fixture.admin)).json();
+  assert.deepEqual(adminDrafts.find(row => row.id === once.id).sandbox_payments, { reversed: 1 });
+  assert.deepEqual(adminDrafts.find(row => row.id === monthly.id).sandbox_payments, { paid: 2 });
+  assert.ok((await (await drafts(fixture.viewer)).json()).every(row => Object.keys(row.sandbox_payments).length === 0));
+  assert.equal((await drafts(fixture.secondAdmin)).status, 403);
+  assert.equal((await drafts(fixture.admin, 'aal1')).status, 403);
   assert.equal((await db.query('select state from lkz_vnext.license_requests')).rows[0].state, 'blocked');
   assert.equal((await db.query('select count(*) as count from lkz_vnext_billing.payment_bindings')).rows[0].count, 3);
 });
