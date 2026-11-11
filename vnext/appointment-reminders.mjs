@@ -121,6 +121,16 @@ async function apply(db,source,event,hashValue,key,pepper,clock){
   return db.transaction(async tx=>{
     await tx.exec('set local role lkz_vnext_reminder_bridge');
     const tenant=source.tenant,product=source.product;
+    // Serialize by tenant/product so concurrent requests cannot bypass the
+    // 60-events/minute guard. Separate products keep independent quotas.
+    await tx.query('select pg_advisory_xact_lock(hashtextextended($1,0))',
+      [tenant+':'+product+':source-rate']);
+    const {rows:[rate]}=await tx.query(
+      "select count(*)::integer as total from lkz_vnext.whatsapp_appointment_events "+
+      "where tenant_id=$1 and product=$2 and received_at>now()-interval '1 minute'",
+      [tenant,product]
+    );
+    if(Number(rate.total)>=60)return {code:'rate_limited'};
     const priorEvent=await tx.query(
       'select event_digest from lkz_vnext.whatsapp_appointment_events '+
       'where tenant_id=$1 and product=$2 and event_id=$3',
@@ -242,7 +252,7 @@ export function createAppointmentWebhook(options){
     const source=cfg.sources.get(request.headers.get('x-lkz-source-id'));
     const timestamp=request.headers.get('x-lkz-timestamp')??'';
     const sig=request.headers.get('x-lkz-signature')??'';
-    if(!source||!/^\d{10,13}$/.test(timestamp)||!/^[a-f0-9]{64}$/i.test(sig))
+    if(!source||!/^\d{10}$/.test(timestamp)||!/^[a-f0-9]{64}$/i.test(sig))
       return reply(401,'unauthorized');
     const millis=Number(timestamp)*1000;
     if(!Number.isSafeInteger(millis)||Math.abs(cfg.clock()-millis)>300000)
@@ -261,7 +271,8 @@ export function createAppointmentWebhook(options){
     try{
       const result=await apply(cfg.db,source,event,digest(raw),
         cfg.key,cfg.pepper,cfg.clock);
-      const status=result.code==='event_conflict'||result.code==='stale_revision'?409:200;
+      const status=result.code==='rate_limited'?429:
+        result.code==='event_conflict'||result.code==='stale_revision'?409:200;
       return reply(status,result.code,result.jobs===undefined?{}:{scheduledJobs:result.jobs});
     }catch{
       // No raw payloads, phone numbers, secrets or tokens are logged.
