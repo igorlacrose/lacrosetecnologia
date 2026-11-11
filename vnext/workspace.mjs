@@ -36,7 +36,7 @@ function json(value, status = 200) {
   return Response.json(value, { status });
 }
 
-export async function serveWorkspace(request, db, claims, { lacroseTenant = fixture.tenant } = {}) {
+export async function serveWorkspace(request, db, claims, { lacroseTenant = fixture.tenant, metaProvider = null } = {}) {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').slice(2);
   const [resource, id, action] = parts;
@@ -58,6 +58,50 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
       }
       const access = await tx.query(`select role from lkz_vnext.memberships where tenant_id = $1`, [tenant]);
       if (!access.rows.length) return json({ error: 'Empresa indisponível para esta sessão.' }, 403);
+      if (resource === 'whatsapp') {
+        // MFA-backed RLS is checked by the active tenant membership lookup above.
+        // The actual Meta OAuth token is never accessible from this API or its role.
+        if (request.method === 'GET' && parts.length === 1) {
+          const { rows } = await tx.query(
+            'select tenant_id,id,meta_waba_id,meta_phone_number_id,meta_messaging_account_id,' +
+            'phone_display,connection_state,billing_owner,billing_state,billing_verified_at,' +
+            'created_at,updated_at from lkz_vnext.whatsapp_connections ' +
+            'where tenant_id=$1 order by created_at desc limit 20', [tenant]);
+          return json(rows);
+        }
+        if (request.method === 'GET' && id === 'config' && parts.length === 2) {
+          return json({ enabled: Boolean(metaProvider), directBillingOnly: true,
+            ...(metaProvider?.publicConfig ?? {}) });
+        }
+        if (request.method === 'GET' && id === 'reminders' && parts.length === 2) {
+          const { rows } = await tx.query(
+            'select enabled,offsets_minutes,monthly_message_limit ' +
+            'from lkz_vnext.whatsapp_reminder_policies where tenant_id=$1', [tenant]);
+          // Reminders MUST remain disabled pending provider/billing checks and product QA.
+          return json(rows[0] ?? { enabled: false, offsets_minutes: [1440,120], monthly_message_limit: 0 });
+        }
+        if (request.method !== 'POST' || access.rows[0].role !== 'admin')
+          return json({ error: 'Conexão WhatsApp exige administrador com MFA.' }, 403);
+        if (id === 'signup' && parts.length === 2) {
+          if (!metaProvider) return json({ error: 'Integração Meta ainda não configurada.' }, 503);
+          return json(await metaProvider.start(tx, tenant, claims.sub), 201);
+        }
+        if (id === 'complete' && parts.length === 2) {
+          if (!metaProvider) return json({ error: 'Integração Meta ainda não configurada.' }, 503);
+          const linked = await metaProvider.finish(tenant, claims.sub, data);
+          return linked.ok ? json(linked, 201) : json({ error: linked.status }, 409);
+        }
+        if (id && action === 'report-billing' && parts.length === 3) {
+          if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))
+            return json({ error: 'Conta inválida.' }, 400);
+          const { rows:[report] } = await tx.query(
+            'select lkz_vnext.report_whatsapp_billing($1,$2) as billing_state', [tenant,id]);
+          return json({ billing_state: report.billing_state, active: false,
+            message: 'Relato recebido. Verificação externa da conta Meta ainda pendente.' });
+        }
+        return json({ error: 'Ação WhatsApp indisponível.' }, 404);
+      }
+
       if (request.method === 'GET' && resource === 'overview' && parts.length === 1) {
         const result = await tx.query(`
           select
