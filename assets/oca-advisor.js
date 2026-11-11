@@ -126,7 +126,7 @@
     if(/\b(quais servicos|o que voces fazem|o que a lacrose faz|em que trabalham|que tipo de servico|como podem me ajudar|o que voces oferecem|areas de atuacao)\b/.test(t)){
       return 'A Lacrose Tecnologia trabalha com desenvolvimento de sites e sistemas, automação empresarial com IA, infraestrutura de redes e segurança de TI. Também avaliamos integrações e melhorias em processos ou sistemas existentes. Qual dessas necessidades você quer explorar?';
     }
-    if(/\b(atendem onde|onde fica|qual cidade|atende em|atendimento presencial|atendem fora|atendem no brasil|atuam onde)\b/.test(t)){
+    if(/\b(atendem onde|onde (?:voces )?atendem|onde fica|qual cidade|atende em|atendimento presencial|atendem fora|atendem no brasil|atuam onde)\b/.test(t)){
       return 'Atendemos projetos remotamente em todo o Brasil e, conforme disponibilidade, presencialmente em Jequié, Bahia. A forma de atendimento depende do serviço e do escopo.';
     }
     if(/\b(voces fazem site|fazem sites|criam sites|desenvolvem site|site institucional|loja virtual)\b/.test(t) && /\?|^voces|^fazem|^criam|^desenvolvem/.test(t)){
