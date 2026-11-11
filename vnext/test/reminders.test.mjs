@@ -160,7 +160,7 @@ test('direct tables deny authenticated users; aggregate summary requires AAL2 te
   assert.equal(Number(summary.pending),3);
   assert.equal((await call({sub:fixture.viewer,aal:'aal1'},fixture.tenant))[0],403);
   assert.equal((await call({sub:fixture.secondAdmin,aal:'aal2'},fixture.tenant))[0],403);
-  assert.equal((await call({sub:fixture.secondAdmin,aal:'aal2'},fixture.secondTenant))[1].appointments,'0');
+  assert.equal(Number((await call({sub:fixture.secondAdmin,aal:'aal2'},fixture.secondTenant))[1].appointments),0);
 });
 
 test('signed sender reaches the local staging route without exposed data',async t=>{
