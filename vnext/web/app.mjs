@@ -1,3 +1,5 @@
+import { startEmbeddedSignup } from './whatsapp-signup.mjs';
+
 const title = document.querySelector('#title');
 const view = document.querySelector('#view');
 const tenant = document.querySelector('#tenant');
@@ -6,7 +8,7 @@ const nav = document.querySelector('#navigation');
 const tabs = {
   overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
-  subscription_drafts: 'Assinaturas', license_requests: 'Licenças', audit: 'Auditoria',
+  subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', audit: 'Auditoria',
 };
 const stages = { qualification: 'Qualificação', proposal: 'Proposta', negotiation: 'Negociação', won: 'Ganha', lost: 'Perdida' };
 const channels = { oca: 'OCA', email: 'E-mail', phone: 'Telefone', internal: 'Interno' };
@@ -123,6 +125,78 @@ async function build(section) {
     resources.forEach(key => {
       content.append(card(tabs[key], element('strong', String(counts[key]), 'metric')));
     });
+    return content;
+  }
+
+  if (section === 'whatsapp') {
+    content.className = 'records';
+    const [connections, metaConfig, reminders] = await Promise.all([
+      api('whatsapp'), api('whatsapp/config'), api('whatsapp/reminders'),
+    ]);
+    const instructions = element('p',
+      'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
+      'no Gerenciador do WhatsApp. A assinatura do software é separada, via Asaas.');
+    const setup = element('div');
+    setup.append(instructions);
+    if (metaConfig.enabled) {
+      const button = element('button', 'Conectar meu WhatsApp Business');
+      button.type = 'button';
+      button.onclick = async () => {
+        button.disabled = true;
+        const token = generation;
+        try {
+          // Same-origin authenticated API binds the challenge to tenant + operator.
+          const intent = await api('whatsapp/signup', {});
+          const grant = await startEmbeddedSignup(intent);
+          await api('whatsapp/complete', {
+            intentId: intent.intentId, state: intent.state, ...grant,
+          });
+          if (token === generation) await render('Conta conectada. Faturamento Meta ainda não verificado.');
+        } catch (error) {
+          if (token === generation) message(error.message, true);
+        } finally {
+          button.disabled = false;
+        }
+      };
+      setup.append(button);
+    } else {
+      setup.append(element('p',
+        'Conexão ainda indisponível neste ambiente: aguardando aprovação da Meta e ' +
+        'configuração protegida no backend. Nenhuma mensagem paga será enviada.'));
+    }
+    content.append(card('WhatsApp da empresa · faturamento próprio', setup));
+    for (const item of connections) {
+      const label = item.phone_display || 'Número cadastrado na Meta';
+      const payment = item.billing_state === 'verified' ? 'verificado' :
+        item.billing_state === 'customer_reported' ? 'informado, aguardando revisão' :
+        'ainda não informado';
+      const details = 'Conta ' + item.meta_waba_id +
+        ' · Cobrança: Meta diretamente à empresa · Pagamento ' + payment +
+        ' · Envios: ' + (item.connection_state === 'ready' ? 'aptos após homologação' : 'bloqueados');
+      let action;
+      if (item.connection_state === 'awaiting_billing' && item.billing_state === 'unverified') {
+        action = element('button', 'Informar pagamento configurado na Meta');
+        action.type = 'button';
+        action.onclick = async () => {
+          action.disabled = true;
+          const token = generation;
+          try {
+            await api('whatsapp/' + item.id + '/report-billing', {});
+            if (token === generation) await render('Informação recebida. Os envios continuam bloqueados até verificação.');
+          } catch (error) {
+            if (token === generation) message(error.message, true);
+          } finally {
+            action.disabled = false;
+          }
+        };
+      }
+      content.append(record(label, details, action));
+    }
+    if (!connections.length) content.append(element('p', 'Nenhum número conectado para esta empresa.'));
+    content.append(card('Lembretes de agendamento', element('p',
+      'Estado: ' + (reminders.enabled ? 'política cadastrada (não homologada)' : 'desativados') +
+      ' · 24h e 2h antes do horário. A liberação depende de agenda, consentimento, ' +
+      'template aprovado e cobrança própria validada.')));
     return content;
   }
 

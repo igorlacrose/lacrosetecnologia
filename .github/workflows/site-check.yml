@@ -56,6 +56,10 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm audit --audit-level=high
+          node --check meta-whatsapp.mjs
+          node --check web/whatsapp-signup.mjs
+          node --check staging.mjs
+          node --check workspace.mjs
           npm test
 
       - name: Verificar segredos no histórico Git

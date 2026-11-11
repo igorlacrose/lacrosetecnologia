@@ -8,9 +8,10 @@ const assets = new Map([
   ['/', ['index.html', 'text/html']],
   ['/style.css', ['style.css', 'text/css']],
   ['/app.mjs', ['app.mjs', 'text/javascript']],
+  ['/whatsapp-signup.mjs', ['whatsapp-signup.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant } = {}) {
+export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant, metaProvider = null } = {}) {
   if (webhookOnly && !asaasWebhook) throw new Error('A webhook handler is required');
   const limits = webhookOnly ? { requestTimeout: 15_000, headersTimeout: 10_000 } : {};
   return createServer(limits, async (incoming, outgoing) => {
@@ -22,10 +23,14 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
         outgoing.writeHead(403).end();
         return;
       }
+      const metaCsp = metaProvider
+        ? "script-src 'self' https://connect.facebook.net; frame-src https://www.facebook.com https://web.facebook.com https://business.facebook.com; connect-src 'self' https://www.facebook.com https://graph.facebook.com"
+        : "script-src 'self'; connect-src 'self'";
       const headers = {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
-        'content-security-policy': "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        'content-security-policy': "default-src 'self'; " + metaCsp +
+          "; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
       };
       if (webhookOnly) {
         if (incoming.url !== '/integrations/asaas-sandbox') {
@@ -87,7 +92,7 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
       } else {
         const token = incoming.headers.authorization?.match(/^Bearer ([\w.-]+)$/)?.[1];
         const claims = auth ? await auth.verify(token) : { sub: fixture.admin, aal: 'aal2' };
-        response = await serveWorkspace(request, db, claims, { lacroseTenant });
+        response = await serveWorkspace(request, db, claims, { lacroseTenant, metaProvider });
       }
       outgoing.writeHead(response.status, { ...headers, 'content-type': 'application/json; charset=utf-8' })
         .end(await response.text());

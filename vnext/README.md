@@ -75,3 +75,10 @@ O worker de observação da primeira entrega continua disponível. Os vínculos 
 ### Backup e rollback
 
 Pare a aplicação antes do backup, confirme que o banco é de homologação e preserve o snapshot com controle de acesso. Para PostgreSQL standalone, use o backup homologado da instalação. Um backup frio exige desligamento limpo e restauração em outro diretório, com a mesma versão e arquitetura. Valide a restauração em instância isolada antes de alterar a origem. Para reverter a quarta entrega, pare a emissão e a recepção, volte o checkout para `b432df59` e restaure o snapshot anterior à migração 008 em outra base. O migrador rejeita um banco com histórico à frente do checkout. Preserve o banco avançado e concilie as referências pendentes antes de reativar emissão. Uma restauração local não apaga registros já criados no Sandbox.
+
+
+## WhatsApp Meta por empresa — módulo de homologação
+
+Foi acrescentado um módulo para que cada empresa conecte seu número WhatsApp Business por Embedded Signup, sem dividir o crédito Meta da Lacrose. Os módulos ficam isolados por tenant, utilizam conta/telefone próprios e a conexão só chega a `awaiting_billing`. O cliente informa que adicionou meio de pagamento na Meta, mas o servidor não permite enviar mensagens antes da verificação externa. O armazenamento de credenciais é cifrado e acessível somente a um papel técnico separado. **Nenhuma conta ou chave Meta está configurada; nenhuma mensagem é enviada.**
+
+A implantação depende de programa Tech Provider, App Review, configuração Embedded Signup v4, conta Meta e faturamento próprio da empresa, credenciais separadas de homologação e testes com Meta real. Consulte [WHATSAPP_META.md](./WHATSAPP_META.md) para credenciais de ambiente, papéis, restrições, testes, pendências e rollback.
