@@ -41,5 +41,15 @@ jobs:
           node --check assets/oca-advisor.js
           node --test scripts/test_oca_advisor.cjs scripts/test_oca_intents.cjs
 
+      - name: Validar conhecimento supervisionado e limites de IA
+        run: |
+          node --check assets/oca-knowledge.js
+          node --test scripts/test_oca_supervised.cjs
+
+      - name: Testar Turnstile e bloqueios de chamadas pagas
+        run: |
+          node --check assets/oca-turnstile.js
+          node --test scripts/test_oca_turnstile.cjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py

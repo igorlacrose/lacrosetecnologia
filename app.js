@@ -290,6 +290,49 @@ const INTENT_LABELS={
 
 
 const ADVISOR=window.LacroseOcaAdvisor;
+const OCA_KNOWLEDGE=window.LacroseOcaKnowledge;
+const OCA_TURNSTILE=window.LacroseOcaTurnstile;
+const OCA_INTERPRET_ENDPOINT='https://icrtewhazpfauuroswri.supabase.co/functions/v1/oca-interpret';
+let ocaInterpretPending=false,ocaInterpretEpoch=0,ocaInterpretAbort=null;
+let ocaApprovedTopic='unknown';
+
+function mayAskOcaAi(text,meta,wasCompleted){
+  if(wasCompleted||state.oca||meta.fromQuick||state.awaiting!=='problem'||
+     ocaInterpretPending||!OCA_TURNSTILE?.available()||
+     OCA_KNOWLEDGE?.isSpecificRequest(text))return false;
+  // Não usar IA para diagnósticos extensos nem para dados pessoais.
+  if(text.length>320||/@|https?:\/\/|(?:\d[\s.\-()]*){7,}/i.test(text))return false;
+  return /\?|^(?:voc[eê]s|a lacrose|essa empresa|qual|quais|como|onde|por que|ser[aá] que|tem como)\b/i.test(text);
+}
+async function classifyOcaQuestion(text){
+  // O desafio público não é prova de autorização: o backend validará Siteverify.
+  const epoch=ocaInterpretEpoch;
+  const challenge=await OCA_TURNSTILE?.acquire();
+  if(!challenge||epoch!==ocaInterpretEpoch)return null;
+  const controller=new AbortController();
+  ocaInterpretAbort=controller;
+  const timeout=setTimeout(()=>controller.abort(),6800);
+  try{
+    const response=await fetch(OCA_INTERPRET_ENDPOINT,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'omit',
+      signal:controller.signal,
+      body:JSON.stringify({
+        sessionId:agentSessionId,question:text,lastTopic:ocaApprovedTopic,
+        turnstileToken:challenge
+      })
+    });
+    if(!response.ok)return null;
+    const data=await response.json();
+    if(!data?.ok||typeof data.id!=='string')return null;
+    return OCA_KNOWLEDGE?.entry(data.id)||null;
+  }catch{return null;}
+  finally{
+    clearTimeout(timeout);
+    if(ocaInterpretAbort===controller)ocaInterpretAbort=null;
+  }
+}
 const OCA_SITE='Site integrado com sistema personalizado';
 const OCA_SITE_OPENING='Qual é o seu negócio e o que você quer que o site ou projeto faça ou integre? O orçamento depende do escopo que definirmos juntos.';
 const OCA_SITE_CONTACT='Qual telefone ou e-mail a Lacrose pode usar para retornar com a análise?';
@@ -2421,7 +2464,7 @@ function askNext(){
    ENVIO DE RESPOSTA
    ========================================================= */
 
-function submitText(
+async function submitText(
   text,
   meta={}
 ){
@@ -2430,7 +2473,7 @@ function submitText(
     clean(text);
 
 
-  if(!text){
+  if(!text||ocaInterpretPending){
     return;
   }
 
@@ -2453,7 +2496,11 @@ function submitText(
   );
 
   // Atender perguntas comerciais sem consumir campos do diagnóstico.
-  const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext);
+  const approvedMatch=OCA_KNOWLEDGE?.match(text);
+  const directAnswer=ADVISOR?.answerTurn(text,state.lead,state.faqContext) ||
+    (approvedMatch
+      ?{text:approvedMatch.answer,context:{kind:'approved',id:approvedMatch.id}}
+      :null);
   if(directAnswer){
     // Informações de contato fornecidas junto de uma dúvida comercial também
     // devem compor o lead, sem preencher problema/segmento indevidamente.
@@ -2464,9 +2511,34 @@ function submitText(
       updatePreview();
     }
     state.faqContext=directAnswer.context;
+    if(approvedMatch)ocaApprovedTopic=approvedMatch.id;
     const continueAfterContact=state.awaiting==='contact' && Boolean(state.lead.contact);
     agentSay(directAnswer.text,260,continueAfterContact?()=>askNext():undefined);
     return;
+  }
+  // Perguntas comerciais desconhecidas: IA escolhe somente ID aprovado.
+  // Se faltar chave, saldo, rede ou confiança, o fluxo anterior segue intacto.
+  if(mayAskOcaAi(text,meta,wasCompleted)){
+    const epoch=ocaInterpretEpoch;
+    ocaInterpretPending=true;
+    if(el.input)el.input.disabled=true;
+    setOcaStatus('Verificando segurança e interpretando sua pergunta...');
+    let matched=null;
+    try{matched=await classifyOcaQuestion(text);}
+    finally{
+      if(epoch===ocaInterpretEpoch){
+        ocaInterpretPending=false;
+        if(el.input)el.input.disabled=false;
+        setOcaStatus('');
+      }
+    }
+    if(epoch!==ocaInterpretEpoch)return;
+    if(matched){
+      state.faqContext={kind:'approved',id:matched.id};
+      ocaApprovedTopic=matched.id;
+      agentSay(matched.answer,260);
+      return;
+    }
   }
   state.faqContext=null;
 
@@ -2574,6 +2646,14 @@ function startIntent(
   label,
   oca=false
 ){
+  // Iniciar novo tema cancela a classificação antiga sem perder o histórico.
+  ++ocaInterpretEpoch;
+  OCA_TURNSTILE?.cancel();
+  ocaInterpretAbort?.abort();
+  ocaInterpretAbort=null;
+  ocaInterpretPending=false;
+  if(el.input)el.input.disabled=false;
+  setOcaStatus('');
 
   state.oca=oca;
   state.lead.intent=
@@ -2625,6 +2705,13 @@ function startIntent(
    ========================================================= */
 
 function resetAgent(){
+  ++ocaInterpretEpoch;
+  OCA_TURNSTILE?.cancel();
+  ocaInterpretAbort?.abort();
+  ocaInterpretAbort=null;
+  ocaInterpretPending=false;
+  ocaApprovedTopic='unknown';
+  if(el.input)el.input.disabled=false;
 
   const hadVisitorActivity=
     state.messages.some(
@@ -2767,6 +2854,7 @@ if(el.form){
       e.preventDefault();
 
 
+      if(ocaInterpretPending)return;
       const text=
         el.input.value;
 

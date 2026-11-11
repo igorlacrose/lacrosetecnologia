@@ -1,0 +1,7 @@
+# OCA website classifier: public browser traffic has no Supabase Auth JWT.
+# Platform verify_jwt must be disabled ONLY for this function.
+# The handler MUST enforce Origin, Turnstile Siteverify, rate limits,
+# strict monthly reserve and secrets in server environment BEFORE OpenAI calls.
+# Do not copy this setting to administrative or operational Edge Functions.
+[functions.oca-interpret]
+verify_jwt = false
