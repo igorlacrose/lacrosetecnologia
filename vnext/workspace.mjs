@@ -86,6 +86,22 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
           // Reminders MUST remain disabled pending provider/billing checks and product QA.
           return json(rows[0] ?? { enabled: false, offsets_minutes: [1440,120], monthly_message_limit: 0 });
         }
+        if (request.method === 'POST' && id === 'reminders' && parts.length === 2) {
+          if (access.rows[0].role !== 'admin')
+            return json({ error: 'Configuração restrita a administrador com MFA.' }, 403);
+          if (Object.keys(data).sort().join(',') !== 'monthly_message_limit,offsets_minutes'
+            || !Array.isArray(data.offsets_minutes)
+            || !data.offsets_minutes.every(Number.isInteger)
+            || !Number.isInteger(data.monthly_message_limit)) {
+            return json({ error: 'Preferências inválidas.' }, 400);
+          }
+          const { rows:[preferences] } = await tx.query(
+            'select * from lkz_vnext.save_reminder_preferences($1,$2::integer[],$3::integer)',
+            [tenant,data.offsets_minutes,data.monthly_message_limit]
+          );
+          return json({ ...preferences, canDispatch:false,
+            message:'Preferências salvas. Envios permanecem desativados até homologação.' });
+        }
         if (request.method !== 'POST' || access.rows[0].role !== 'admin')
           return json({ error: 'Conexão WhatsApp exige administrador com MFA.' }, 403);
         if (id === 'signup' && parts.length === 2) {
@@ -195,7 +211,7 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
   } catch (error) {
     if (error.code === '42501') return json({ error: 'Ação sem permissão.' }, 403);
     if (['23503', '23505', 'P0002'].includes(error.code)) return json({ error: 'Registro indisponível ou duplicado.' }, 409);
-    if ((error instanceof SyntaxError || error instanceof TypeError) || ['22P02', '22003', '23502', '23514'].includes(error.code)) {
+    if ((error instanceof SyntaxError || error instanceof TypeError) || ['22P02', '22003', '22023', '23502', '23514'].includes(error.code)) {
       return json({ error: 'Confira os dados informados.' }, 400);
     }
     return json({ error: 'Falha ao acessar o espaço de trabalho.' }, 500);
