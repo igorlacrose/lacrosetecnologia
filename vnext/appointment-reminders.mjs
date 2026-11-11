@@ -130,7 +130,8 @@ async function apply(db,source,event,hashValue,key,pepper,clock){
       "where tenant_id=$1 and product=$2 and received_at>now()-interval '1 minute'",
       [tenant,product]
     );
-    if(Number(rate.total)>=60)return {code:'rate_limited'};
+    // Consent withdrawal cannot be blocked by the ordinary booking quota.
+    if(Number(rate.total)>=60 && event.type!=='opted_out')return {code:'rate_limited'};
     const priorEvent=await tx.query(
       'select event_digest from lkz_vnext.whatsapp_appointment_events '+
       'where tenant_id=$1 and product=$2 and event_id=$3',
