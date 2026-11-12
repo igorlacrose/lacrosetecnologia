@@ -234,6 +234,11 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
         if(item.review_note)row(box,'small','crm-preview-note','Nota: '+item.review_note);
       }
       entries.append(box);
+      if(item.status==='approved'&&window.LKZOcaPreflight?.mount){
+        window.LKZOcaPreflight.mount({
+          target:box,preview:item,sb,isSessionActive:active
+        });
+      }
     }
     renderReadiness();
     setBusy(false);
