@@ -48,8 +48,8 @@ test('staging refuses institutional endpoints and requires verified AAL2 claims'
 });
 
 test('startup rejects database roles when PostgreSQL would skip row-level security', async () => {
-  const workspace = { name: 'lkz_vnext_runtime', can_auth: true, billing_roles: '0', owned_schemas: '0' };
-  const integration = { permitted: true, other_roles: '0', owned_schemas: '0' };
+  const workspace = { name: 'lkz_vnext_runtime', can_auth: true, other_roles: false, owned_schemas: '0' };
+  const integration = { permitted: true, other_roles: false, owned_schemas: '0' };
   function database(role, schemas, enforced, setRole = false) {
     let roleSelected = false;
     return { transaction: operation => operation({

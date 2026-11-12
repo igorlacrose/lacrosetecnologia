@@ -121,6 +121,12 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
 
   const workspace = connect(runtime);
   await assertWorkspaceRole(workspace);
+  await setup.transaction(tx => tx.exec('grant pg_read_all_data to lkz_vnext_runtime'));
+  try {
+    await assert.rejects(assertWorkspaceRole(workspace), /Invalid VNext runtime database role/);
+  } finally {
+    await setup.transaction(tx => tx.exec('revoke pg_read_all_data from lkz_vnext_runtime'));
+  }
   const visible = aal => withIdentity(workspace, { sub: fixture.admin, aal }, async tx =>
     (await tx.query('select id from lkz_vnext.tenants order by id')).rows.map(row => row.id));
   assert.deepEqual(await visible('aal1'), []);
