@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -37,8 +37,15 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
   assert.ok(setupPassword.status === 0 && !/\b(?:ERROR|FATAL|PANIC):/.test(setupPassword.stdout + setupPassword.stderr),
     'Could not initialize the temporary PostgreSQL login');
   writeFileSync(join(directory, 'pg_hba.conf'), 'host all all 127.0.0.1/32 scram-sha-256\n');
-  execFileSync(pgCtl, ['-D', directory, '-l', join(directory, 'server.log'),
-    '-o', '-h 127.0.0.1 -p ' + port + ' -c log_min_error_statement=panic', '-w', 'start'], { timeout: 30_000 });
+  const serverLog = join(directory, 'server.log');
+  try {
+    execFileSync(pgCtl, ['-D', directory, '-l', serverLog,
+      '-o', '-h 127.0.0.1 -p ' + port + ' -c unix_socket_directories= -c log_min_error_statement=panic',
+      '-w', 'start'], { timeout: 30_000 });
+  } catch (error) {
+    const details = existsSync(serverLog) ? readFileSync(serverLog, 'utf8').trim() : error.message;
+    throw new Error('Temporary PostgreSQL could not start: ' + details);
+  }
   const database = 'lkz_vnext_stage_ci';
   const admin = new pg.Client({ connectionString: bootstrap.href });
   const pools = [];
