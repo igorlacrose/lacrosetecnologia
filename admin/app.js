@@ -109,7 +109,7 @@ function threadStampKey(items){
   return JSON.stringify(items.map(item=>[item.id,item.last]));
 }
 function conversationRefreshBlocked(){
-  if(trashBusy)return true;
+  if(typeof trashBusy!=='undefined'&&trashBusy)return true;
   const root=el('chatWorkspace'),pane=el('messagePane');
   return !root?.isConnected ||
     document.activeElement===el('threadFilter') ||
