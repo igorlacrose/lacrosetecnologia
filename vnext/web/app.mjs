@@ -130,9 +130,10 @@ async function build(section) {
 
   if (section === 'whatsapp') {
     content.className = 'records';
-    const [connections, metaConfig, reminders, reminderCounts, rehearsal] = await Promise.all([
+    const [connections, metaConfig, reminders, reminderCounts, rehearsal, simulation] = await Promise.all([
       api('whatsapp'), api('whatsapp/config'), api('whatsapp/reminders'),
       api('whatsapp/reminders/summary'), api('whatsapp/reminders/rehearsal'),
+      api('whatsapp/reminders/simulated'),
     ]);
     const instructions = element('p',
       'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
@@ -210,6 +211,12 @@ async function build(section) {
         ' · Expiradas: ' + Number(rehearsal.expired) +
         '. Esses números são diagnósticos e não comprovam entrega, ' +
         'autorização de faturamento ou consumo da API Meta.')));
+    content.append(card('Cota de testes — somente simulação',
+      element('p',
+        'Despachos fictícios acumulados: ' + Number(simulation.simulated_jobs) +
+        ' · No mês UTC atual: ' + Number(simulation.simulated_this_month) +
+        '. Nenhuma dessas simulações envia WhatsApp ou consome créditos Meta. ' +
+        'A cota não representa um limite financeiro real.')));
     // Operator settings are drafts; neither this form nor the API can enable
     // message delivery, verify customer billing or select a Meta credit line.
     const settings = element('form');
