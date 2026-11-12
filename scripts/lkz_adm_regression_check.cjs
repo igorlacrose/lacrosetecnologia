@@ -103,3 +103,6 @@ check('Resumo financeiro distingue minuta de cobrança',app.includes('LKZClientS
 check('Módulo de serviços e estilos carregados',html.includes('client-services.js?v=20261112-2')&&html.includes('client-services.css?v=20261112-2'));
 check('Seleção dos sistemas por dropdown com preço condicional',require('node:fs').readFileSync('admin/client-services.js','utf8').includes("node('details','service-picker')")&&require('node:fs').readFileSync('admin/client-services.js','utf8').includes('f.pricesCard.hidden=!enabled'));
 check('Busca de cliente por nome abre ficha sem depender do CRM externo',app.includes('clientNameSuggestions')&&app.includes('client-name-link')&&app.includes('selectExactName'));
+
+check('Módulo de propostas disponível na ficha de cliente',app.includes('window.LKZClientQuotes.mount')&&html.includes('client-quotes.js?v=20261112-1')&&html.includes('client-quotes.css?v=20261112-1'));
+check('Proposta não confunde aceite com cobrança',require('node:fs').readFileSync('admin/client-quotes.js','utf8').includes('Preparar proposta (sem envio)')&&require('node:fs').readFileSync('admin/client-quotes.js','utf8').includes('customer_acceptance_enabled'));
