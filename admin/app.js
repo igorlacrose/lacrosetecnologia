@@ -1637,9 +1637,22 @@ function clients(feedback=''){
       });
     }
   }
-  if(selected&&!editMode&&!newMode&&window.LKZClientServices?.mountDetail){
+  if(selected&&!editMode&&!newMode){
     const panel=el('clientDetail')?.querySelector('.client-profile');
-    if(panel)void window.LKZClientServices.mountDetail({panel,contact:selected,sb});
+    if(panel&&window.LKZClientServices?.mountDetail)
+      void window.LKZClientServices.mountDetail({panel,contact:selected,sb});
+    if(panel&&window.LKZClientQuotes?.mount){
+      void window.LKZClientQuotes.mount({
+        panel,contact:selected,sb,confirm:askConfirmation,
+        isMaster:profile?.role==='master',isSessionActive:()=>Boolean(user)
+      }).catch(()=>{
+        if(!panel.isConnected||panel.querySelector('[data-client-quotes]'))return;
+        const issue=document.createElement('p');
+        issue.className='operation-feedback error';issue.setAttribute('role','alert');
+        issue.textContent='Propostas indisponíveis. Atualize a ficha para consultar novamente.';
+        panel.append(issue);
+      });
+    }
   }
   const form=el('professionalClientForm');
   if(!form)return;
