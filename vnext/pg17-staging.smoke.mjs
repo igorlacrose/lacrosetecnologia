@@ -7,6 +7,7 @@ import pg from 'pg';
 import { migrateStaging,openStagingDatabase,assertReminderRole,assertWorkspaceRole } from './staging-db.mjs';
 import { simulateReminderDispatch } from './simulated-dispatch.mjs';
 import { verifyFinancialRls } from './financial-rls-pg17.mjs';
+import { verifyAsaasLeastPrivilege } from './asaas-roles-pg17.mjs';
 
 // This test can connect ONLY to a fixture database on the Actions runner.
 // The CI password is intentionally non-secret and never used elsewhere.
@@ -75,6 +76,7 @@ test('PostgreSQL 17: migrations, idempotence, quota and RLS', {skip:!connection}
     await assertReminderRole(reminder);
     await assertWorkspaceRole(workspace);
     await verifyFinancialRls(pool,workspace,{a,b,adminA,adminB});
+    await verifyAsaasLeastPrivilege(pool);
 
     // All data are synthetic, inside a disposable CI database.
     await pool.query(
