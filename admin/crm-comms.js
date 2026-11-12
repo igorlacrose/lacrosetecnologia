@@ -1,5 +1,5 @@
 /* LKZ ADM • comunicação comercial manual.
-   Não envia mensagens e nunca mantém rascunhos em localStorage.
+   Não envia mensagens nem usa armazenamento persistente do navegador.
    Dados acessados somente por RPCs privadas com sessão MFA. */
 (function(){
 'use strict';
