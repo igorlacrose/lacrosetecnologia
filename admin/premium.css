@@ -241,3 +241,41 @@ header p{font-size:14px;color:#587384;margin:0}
   .message-item{padding:0 12px}
 }
 @media(prefers-reduced-motion:reduce){button{transition:none}}
+
+
+/* Confirmação administrativa acessível: substitui alertas nativos bloqueados pelo browser. */
+.lkz-modal-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+  background:rgba(4,22,35,.72);padding:18px;overflow:auto;overscroll-behavior:contain}
+.lkz-modal{width:min(520px,100%);max-height:min(86vh,820px);overflow:auto;background:#fff;
+  border:1px solid #c8dce6;border-radius:17px;padding:25px;
+  box-shadow:0 25px 70px rgba(0,16,29,.36);color:#143a4e}
+.lkz-modal h2{font-size:22px;margin:0 0 9px;color:#0d2c40;letter-spacing:-.025em}
+.lkz-modal p{margin:0 0 18px;font-size:14px;line-height:1.65;color:#4d6c7c}
+.lkz-modal label{display:block;font-size:13px;color:#2e5364;font-weight:700;margin-top:13px}
+.lkz-modal input[type="text"],.lkz-modal input[type="search"]{width:100%;height:45px;
+  background:#fff;border:1px solid #b6d0dd;border-radius:10px;margin-top:7px;padding:0 12px;
+  font-size:14px;color:#183f50}
+.lkz-modal input:focus-visible{outline:3px solid #75cdda;outline-offset:1px}
+.lkz-modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:24px}
+.lkz-modal-actions button{min-width:125px}
+.lkz-modal .lkz-modal-message{font-size:12px;color:#356578;margin:12px 0 0}
+.lkz-contact-picker{width:min(600px,100%)}
+.lkz-contact-results{display:grid;gap:7px;max-height:310px;overflow:auto;margin-top:14px;
+  padding:6px 3px;scrollbar-color:#b1d4e0 transparent}
+.lkz-contact-result{display:flex!important;align-items:flex-start;gap:11px;border:1px solid #d9e8ef;
+  background:#f6fafc;border-radius:11px;padding:11px!important;margin:0!important;cursor:pointer;
+  font-size:13px}
+.lkz-contact-result:has(input:checked){background:#e2f4f8;border-color:#4bb2ca}
+.lkz-contact-result input{accent-color:#087d98;margin-top:4px;flex:none}
+.lkz-contact-result span{flex:1;min-width:0;overflow-wrap:anywhere}
+.lkz-contact-result strong{display:block;color:#173e52;font-size:14px}
+.lkz-contact-result small{display:block;font-size:12px;font-weight:400;color:#547486;margin-top:3px}
+.lkz-contact-result em{display:block;font-style:normal;font-size:11px;font-weight:800;color:#087b8e;margin-top:5px}
+.thread-info .contact-suggestion{font-size:10.5px;color:#0d7186;font-weight:750}
+@media(max-width:560px){
+  .lkz-modal-overlay{align-items:start;padding:13px}
+  .lkz-modal{padding:18px;border-radius:13px;margin:auto 0}
+  .lkz-modal h2{font-size:19px}
+  .lkz-modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lkz-modal-actions button{min-width:0}
+}
