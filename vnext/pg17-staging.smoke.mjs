@@ -4,7 +4,12 @@ import pg from 'pg';
 import { migrateStaging,openStagingDatabase,assertReminderRole,assertWorkspaceRole } from './staging-db.mjs';
 import { simulateReminderDispatch } from './simulated-dispatch.mjs';
 
-const connection=process.env.CI_PG17_TEST_URL;
+// This test can connect ONLY to a fixture database on the Actions runner.
+// The CI password is intentionally non-secret and never used elsewhere.
+const connection=process.env.GITHUB_ACTIONS==='true' &&
+  process.env.CI_PG17_LOCAL_TEST==='1'
+  ? 'postgresql://postgres:ci-local-only-not-a-secret@127.0.0.1:5432/lkz_vnext_stage_ci'
+  : undefined;
 const a='00000000-0000-4000-8000-000000000001';
 const b='00000000-0000-4000-8000-000000000002';
 const adminA='00000000-0000-4000-8000-000000000011';
