@@ -1,14 +1,15 @@
 import { once } from 'node:events';
 import { createAsaasSandboxWebhook } from './asaas-sandbox.mjs';
 import { createPreviewServer } from './preview.mjs';
-import { assertIntegrationRole, openStagingDatabase } from './staging-db.mjs';
+import { assertIntegrationRole, openStagingDatabase, withAsaasRole } from './staging-db.mjs';
 
 export async function openStagingAsaasWebhook({ connection, token }) {
   const db = openStagingDatabase(connection);
   try {
     await assertIntegrationRole(db, 'lkz_vnext_asaas_ingest');
+    const scoped = withAsaasRole(db, 'lkz_vnext_asaas_ingest');
     const handler = createAsaasSandboxWebhook({
-      token, db: { query: (sql, args) => db.transaction(tx => tx.query(sql, args)) },
+      token, db: { query: (sql, args) => scoped.transaction(tx => tx.query(sql, args)) },
     });
     return { handler, close: db.close };
   } catch (error) {
