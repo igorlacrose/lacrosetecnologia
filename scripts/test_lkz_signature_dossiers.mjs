@@ -104,7 +104,11 @@ test('MASTER prepara referência sem qualquer envio ou aceite',async()=>{
  assert.equal(f.calls.filter(c=>c.name==='lkz_adm_prepare_signature_dossier').length,1);
  assert.equal(f.records[0].dossier.status,'prepared');
  assert.ok(find(root,n=>n.className==='signature-state'&&n.textContent.includes('NÃO ASSINADO')));
- assert.ok(!f.calls.some(c=>/send|sign|charge|provision|dispatch/.test(c.name)));
+ assert.ok(f.calls.every(c=>[
+   'lkz_adm_list_signature_dossiers',
+   'lkz_adm_prepare_signature_dossier',
+   'lkz_adm_void_signature_dossier'
+ ].includes(c.name)), 'Somente RPCs administrativas de dossiês são permitidas');
 });
 test('MASTER pode invalidar com motivo; não converte em aceite',async()=>{
  const f=fixture({quotes:[{id:'quote-1',draft_version:2,status:'prepared',current:true,eligible:false,
@@ -116,7 +120,11 @@ test('MASTER pode invalidar com motivo; não converte em aceite',async()=>{
  await action(root,'Invalidar referência').onclick();
  assert.equal(f.records[0].dossier.status,'void');
  assert.ok(find(root,n=>n.className==='signature-notice'&&n.textContent.includes('Documento substituído')));
- assert.ok(!f.calls.some(c=>/send|sign|charge|provision|dispatch/.test(c.name)));
+ assert.ok(f.calls.every(c=>[
+   'lkz_adm_list_signature_dossiers',
+   'lkz_adm_prepare_signature_dossier',
+   'lkz_adm_void_signature_dossier'
+ ].includes(c.name)), 'Somente RPCs administrativas de dossiês são permitidas');
 });
 test('ADMIN sem MASTER não prepara nem invalida documentos',async()=>{
  const f=fixture({master:false,quotes:[{id:'quote-1',draft_version:1,status:'prepared',
