@@ -676,6 +676,133 @@ async function conversationAction(id,action){
   conversations(conversationFolder);
 }
 
+
+function openContactSelector(thread){
+  if(activeDialogCancel)return;
+  const lead=state.leads.find(l=>l.id===thread.lead_id);
+  if(!lead||lead.contact_id)return;
+  const contacts=[...state.contacts].sort((a,b)=>{
+    const aMatch=thread.suggestedContactIds.includes(a.id)?1:0;
+    const bMatch=thread.suggestedContactIds.includes(b.id)?1:0;
+    return bMatch-aMatch||contactDisplayName(a).localeCompare(contactDisplayName(b),'pt-BR');
+  });
+  const overlay=document.createElement('div');
+  overlay.className='lkz-modal-overlay';
+  const dialog=document.createElement('section');
+  dialog.className='lkz-modal lkz-contact-picker';
+  dialog.setAttribute('role','dialog');
+  dialog.setAttribute('aria-modal','true');
+  const title=document.createElement('h2');
+  title.textContent='Vincular cliente existente';
+  title.id='lkz-contact-picker-title';
+  dialog.setAttribute('aria-labelledby',title.id);
+  const description=document.createElement('p');
+  description.textContent='Selecione o cadastro correto. Correspondências de e-mail/telefone são sugestões, não vínculos automáticos.';
+  const search=document.createElement('input');
+  search.type='search';search.autocomplete='off';
+  search.placeholder='Buscar nome, empresa, e-mail ou telefone';
+  search.setAttribute('aria-label','Buscar contato cadastrado');
+  const list=document.createElement('div');
+  list.className='lkz-contact-results';
+  list.setAttribute('role','radiogroup');
+  list.setAttribute('aria-label','Clientes cadastrados');
+  const info=document.createElement('p');info.className='lkz-modal-message';info.setAttribute('role','status');
+  const actions=document.createElement('div');actions.className='lkz-modal-actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='cta secondary';cancel.textContent='Cancelar';
+  const link=document.createElement('button');link.type='button';link.className='cta';link.textContent='Vincular cliente';link.disabled=true;
+  actions.append(cancel,link);
+  dialog.append(title,description,search,list,info,actions);overlay.append(dialog);
+  let chosen=null,closing=false;
+  const previous=document.activeElement;
+  const close=()=>{
+    if(closing)return;
+    closing=true;activeDialogCancel=null;
+    document.removeEventListener('keydown',onKey,true);
+    overlay.remove();
+    if(previous?.isConnected)previous.focus();
+  };
+  const onKey=e=>{
+    if(e.key==='Escape'){e.preventDefault();close();return}
+    if(e.key==='Tab'){
+      const focusables=[search,...list.querySelectorAll('input[type="radio"]'),cancel,link]
+        .filter(element=>!element.disabled&&!element.hidden);
+      if(!focusables.length)return;
+      if(e.shiftKey&&document.activeElement===focusables[0]){
+        e.preventDefault();focusables[focusables.length-1].focus();
+      }else if(!e.shiftKey&&document.activeElement===focusables[focusables.length-1]){
+        e.preventDefault();focusables[0].focus();
+      }
+    }
+  };
+  const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  function renderMatches(){
+    chosen=null;link.disabled=true;
+    list.replaceChildren();
+    const term=normalize(search.value.trim());
+    const matches=contacts.filter(c=>
+      normalize([c.company_name,c.person_name,c.email,c.phone,c.city].join(' ')).includes(term)
+    );
+    for(const contact of matches.slice(0,35)){
+      const label=document.createElement('label');
+      label.className='lkz-contact-result';
+      const radio=document.createElement('input');
+      radio.type='radio';radio.name='lkz-contact-choice';radio.value=contact.id;
+      const detail=document.createElement('span');
+      const name=document.createElement('strong');name.textContent=contactDisplayName(contact);
+      const secondary=document.createElement('small');
+      secondary.textContent=[contact.email,contact.phone].filter(Boolean).join(' · ')||'Sem e-mail ou telefone';
+      detail.append(name,secondary);
+      if(thread.suggestedContactIds.includes(contact.id)){
+        const suggested=document.createElement('em');
+        suggested.textContent='Correspondência encontrada · confirme a identidade';
+        detail.append(suggested);
+      }
+      label.append(radio,detail);list.append(label);
+      radio.onchange=()=>{chosen=contact.id;link.disabled=false;info.textContent='Cadastro selecionado: '+contactDisplayName(contact)};
+    }
+    if(!matches.length){
+      const empty=document.createElement('p');
+      empty.textContent='Nenhum cadastro correspondente. Use “Novo cliente” no atendimento.';
+      list.append(empty);
+    }
+    if(matches.length>35){
+      const more=document.createElement('p');more.textContent='Refine a busca para visualizar outros resultados.';
+      list.append(more);
+    }
+  }
+  search.oninput=renderMatches;
+  cancel.onclick=close;
+  overlay.onclick=e=>{if(e.target===overlay)close()};
+  activeDialogCancel=close;
+  document.body.append(overlay);
+  document.addEventListener('keydown',onKey,true);
+  renderMatches();search.focus();
+  link.onclick=async()=>{
+    if(!chosen)return;
+    link.disabled=true;cancel.disabled=true;search.disabled=true;
+    info.textContent='Validando e vinculando cadastro...';
+    let response;
+    try{response=await sb.rpc('lkz_adm_link_existing_contact',{
+      p_conversation:thread.id,p_expected_lead:lead.id,p_contact:chosen
+    })}catch{response={error:{code:'REDE'}}}
+    if(!overlay.isConnected||!user)return;
+    if(response.error||!response.data?.id){
+      info.textContent='Não foi possível vincular o cadastro. Código: '+(response.error?.code||'SEM_CONFIRMACAO')+
+        '. Atualize e confira se ele já não foi vinculado.';
+      link.disabled=false;cancel.disabled=false;search.disabled=false;return;
+    }
+    close();
+    try{await loadCommercial();}catch{
+      lead.contact_id=response.data.id;
+      state.contacts=[response.data,...state.contacts.filter(c=>c.id!==response.data.id)];
+    }
+    if(currentView==='conversations'){
+      conversationFlash='Cadastro existente vinculado ao atendimento com sucesso.';
+      conversations(conversationFolder,thread.id);
+    }
+  };
+}
+
 async function openThread(id,folder='active',before=null,feedback=''){
   const thread=state.threads.find(item=>item.id===id);
   const pane=el('messagePane');
