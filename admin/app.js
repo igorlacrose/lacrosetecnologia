@@ -358,6 +358,51 @@ function dailyBrief(data, now=Date.now()){
     approvals:actions.filter(a=>a.priority===1).length,
     priorities:[...grouped.values()]};
 }
+
+/* Análise determinística local: identifica ações úteis; nunca envia ou cobra sozinho. */
+function ocaInternalTriage(data,now=Date.now()){
+  const pending=new Set(data.followups.filter(f=>f.status==='pending').map(f=>f.lead_id));
+  const closed=new Set(['won','lost','archived']);
+  const results=[];
+  for(const lead of data.leads){
+    if(closed.has(lead.status))continue;
+    const updated=Date.parse(lead.updated_at);
+    const ageHours=Number.isFinite(updated)?(now-updated)/3600000:0;
+    let action=null,reason='',priority=9;
+    if(lead.status==='human_review'||lead.needs_human_review){
+      action='review';reason='Exige revisão comercial';priority=0;
+    }else if(!lead.contact_id){
+      action='identify';reason='Identificação do cliente pendente';priority=1;
+    }else if(['qualified','contacted'].includes(lead.status)&&!pending.has(lead.id)){
+      action='schedule';reason='Qualificado sem retorno agendado';priority=2;
+    }else if(lead.status==='diagnosing'&&ageHours>=48){
+      action='review';reason='Diagnóstico sem atualização há 48h';priority=3;
+    }else if(lead.status==='new'&&ageHours>=24){
+      action='review';reason='Novo lead aguardando análise há 24h';priority=4;
+    }
+    if(action)results.push({id:lead.id,name:lead.name,reason,action,priority,updated:updated||0});
+  }
+  return results.sort((a,b)=>a.priority-b.priority||a.updated-b.updated||a.id.localeCompare(b.id));
+}
+function openTriageAction(id,action){
+  const lead=state.leads.find(item=>item.id===id);
+  if(!lead)return;
+  if(action==='schedule'){
+    followupFilter='pending';followupFocus=null;
+    view('followups');openFollowupEditor('create',null,id);
+    return;
+  }
+  if(action==='identify'){
+    const thread=state.threads.find(t=>t.lead_id===id&&t.folder!=='deleted');
+    if(thread){
+      conversationFolder=thread.folder;
+      view('conversations');
+      conversations(thread.folder,thread.id);
+      return;
+    }
+  }
+  openOpportunity(id);
+}
 function navigatePriority(target,followupId,leadId){
   if(target==='followups'){
     followupFocus=followupId||null;followupFilter='all';view('followups');
@@ -369,6 +414,7 @@ function navigatePriority(target,followupId,leadId){
 }
 function overview(){
   const info=dailyBrief(state);
+  const suggestions=ocaInternalTriage(state);
   const list=info.priorities.slice(0,12).map(item=>
     '<article class="priority-item"><span class="priority-dot'+(item.priority===0?' overdue':'')+'"></span>'+
       '<div><strong>'+esc(item.name)+'</strong><small>'+esc([...item.reasons].join(' · '))+'</small></div>'+
@@ -395,7 +441,19 @@ function overview(){
       '<button type="button" data-overview="leads"><span>Oportunidades</span><small>Negociação, notas e histórico</small></button>'+
       '<button type="button" data-overview="followups"><span>Agenda de retornos</span><small>Agendar, reagendar e concluir</small></button>'+
       '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+
-      '</section></div>';
+      '</section></div>'+
+      '<section class="panel oca-triage"><div class="panel-head"><div><span class="eyebrow">OCA · TRIAGEM INTERNA</span>'+
+        '<h2>Próximas ações sugeridas</h2></div><span class="mini-count">'+suggestions.length+' pendência(s)</span></div>'+
+        '<p class="support-note">Análise automática dos registros carregados. Nenhuma mensagem, cobrança ou mudança comercial é enviada sem confirmação.</p>'+
+        '<div class="oca-triage-grid">'+
+        (suggestions.slice(0,8).map(item=>'<article class="oca-triage-item">'+
+          '<div><strong>'+esc(item.name)+'</strong><small>'+esc(item.reason)+'</small></div>'+
+          '<button type="button" class="cta secondary" data-oca-lead="'+esc(item.id)+'" data-oca-action="'+item.action+'">'+
+          (item.action==='schedule'?'Preparar retorno':item.action==='identify'?'Identificar cliente':'Revisar ficha')+
+          '</button></article>').join('')||
+          '<p class="empty-state">Nenhuma ação interna sugerida para os registros carregados.</p>')+
+        '</div></section>';
+  el('content').querySelectorAll('[data-oca-lead]').forEach(button=>button.onclick=()=>openTriageAction(button.dataset.ocaLead,button.dataset.ocaAction));
   el('content').querySelectorAll('[data-overview]').forEach(b=>b.onclick=()=>view(b.dataset.overview));
   el('content').querySelectorAll('[data-priority]').forEach(b=>b.onclick=()=>{
     const p=info.priorities.find(a=>a.key===b.dataset.priority);
