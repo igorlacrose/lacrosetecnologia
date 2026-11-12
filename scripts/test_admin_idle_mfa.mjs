@@ -15,7 +15,7 @@ function harness({ hidden, now, lastActivity }) {
     user: { id: 'admin-test' },
     endingForIdle: false,
     lastInteractionAt: lastActivity,
-    ADMIN_IDLE_MS: 24 * 60 * 60 * 1000,
+    ADMIN_IDLE_MS: 30 * 60 * 1000,
     idleTimer: null,
     Date: { now: () => now },
     el: id => {
@@ -56,8 +56,8 @@ test('painel ativo registra interação antes do limite', () => {
   assert.equal(x.ctx.lastInteractionAt, 5000);
 });
 
-test('painel bloqueia interação após 24h de inatividade', () => {
-  const x = harness({ hidden: false, now: 24 * 60 * 60 * 1000 + 1000, lastActivity: 0 });
+test('painel bloqueia interação após 30min de inatividade', () => {
+  const x = harness({ hidden: false, now: 30 * 60 * 1000 + 1000, lastActivity: 0 });
   x.activity();
   assert.equal(x.report().expired, 1);
   assert.equal(x.report().prevented, 1);
