@@ -1,0 +1,11 @@
+/* LKZ ADM | OCA: diagnóstico auditado, transporte sempre desligado. */
+.oca-preflight{margin-top:13px;padding:14px 16px;border:1px solid #cee0e9;
+  border-radius:11px;background:linear-gradient(160deg,#f5fafc,#fff)}
+.oca-preflight h4{margin:0 0 5px;color:#173e51;font-size:14px}
+.oca-preflight-intro{margin:0 0 11px;color:#607c8b;font-size:12px;line-height:1.5}
+.oca-preflight .cta{font-size:12px;min-height:36px}
+.oca-preflight-status{margin:11px 0 0;color:#365f72;font-size:12px;overflow-wrap:anywhere}
+.oca-preflight-blockers{margin:9px 0 0;padding-left:20px;display:grid;gap:6px;
+  color:#864d27;font-size:12px;line-height:1.5}
+.oca-preflight-blockers:empty{display:none}
+@media(max-width:560px){.oca-preflight{padding:12px}.oca-preflight .cta{width:100%}}
