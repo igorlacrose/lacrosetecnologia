@@ -79,7 +79,8 @@ function setup({isMaster,consent}){
     }
     throw Error('Unexpected RPC:'+name);
   }};
-  return {panel,sb,calls,mount:window.LKZCrmPreviews.mount};
+  return {panel,sb,calls,mount:window.LKZCrmPreviews.mount,
+    updateReadiness:change=>{for(const p of previews)Object.assign(p,change);}};
 }
 
 test('sem consentimento pode preparar, mas não aprovar nem enviar',async()=>{
@@ -128,4 +129,17 @@ test('backend nega acesso direto e não implementa transporte',()=>{
   assert.match(migration,/delivery_enabled',false/);
   assert.match(migration,/draft_version/);
   assert.doesNotMatch(source,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(/);
+});
+
+test('aprovação antiga mostra bloqueio se consentimento for revogado depois',async()=>{
+  const t=setup({isMaster:true,consent:true});
+  await t.mount({panel:t.panel,lead:{id:'lead-test'},sb:t.sb,isMaster:true,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
+  const box=t.panel.querySelector('[data-crm-preview]');
+  await locate(box,'Solicitar revisão').onclick();
+  await locate(box,'Aprovar sem enviar').onclick();
+  t.updateReadiness({consent_ready:false});
+  await locate(box,'Atualizar revisões').onclick();
+  assert.ok(find(box,x=>x.className==='crm-preview-warning'&&
+    x.textContent.includes('Aprovação antiga não está mais apta')));
 });
