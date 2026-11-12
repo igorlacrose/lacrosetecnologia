@@ -10,6 +10,7 @@
 <title>LKZ ADM · Lacrose Tecnologia</title>
 <link rel="stylesheet" href="styles.css?v=20261106-4">
 <link rel="stylesheet" href="operacao.css?v=20261106-2">
+<link rel="stylesheet" href="premium.css?v=20261112-1">
 </head>
 <body>
 <section id="auth" class="auth">
@@ -43,23 +44,24 @@
 <div id="app" class="shell" hidden>
   <aside id="sidebar" class="sidebar" aria-label="Navegação principal">
     <div class="brand"><strong><i>LKZ</i> ADM</strong><span>by Lacrose Tecnologia</span></div>
-    <div class="nav-group"><small>ADMINISTRAÇÃO</small>
+    <div class="nav-group"><small>VISÃO GERAL</small>
       <nav>
-        <button data-view="overview" class="active">Painel geral</button>
+        <button data-view="overview" class="active">Central de comando</button>
         <button data-view="systems">Sistemas</button>
       </nav>
     </div>
-    <div class="nav-group"><small>OPERAÇÃO</small>
+    <div class="nav-group"><small>CRM · COMERCIAL</small>
       <nav>
+        <button data-view="crm">Pipeline comercial</button>
         <button data-view="conversations">Atendimentos</button>
         <button data-view="leads">Oportunidades</button>
         <button data-view="clients">Clientes</button>
-        <button data-view="approvals">Aprovações e exceções</button>
         <button data-view="followups">Agenda de retornos</button>
+        <button data-view="approvals">Aprovações e exceções</button>
       </nav>
     </div>
-    <div class="nav-group"><small>ACESSO</small>
-      <nav><button data-view="settings">Configurações</button></nav>
+    <div class="nav-group"><small>SEGURANÇA</small>
+      <nav><button data-view="settings">Acessos e configurações</button></nav>
     </div>
     <div class="side-foot">
       <b id="userName">Administrador</b><span id="userRole">admin</span>
@@ -73,11 +75,11 @@
       <button id="mobileMenu" class="mobile-menu" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
-      <div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Visão Geral</h1><p id="subtitle"></p></div><input id="search" type="search" placeholder="Buscar oportunidades..."></header>
+      <div><small>LKZ · CENTRAL ADMINISTRATIVA</small><h1 id="title">Central de comando</h1><p id="subtitle"></p></div><div class="header-tools"><input id="search" type="search" placeholder="Buscar oportunidades..." aria-label="Buscar oportunidades"><button id="refreshData" class="refresh-data" type="button" title="Atualizar registros">Atualizar</button></div></header>
     <section id="content"></section>
   </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
-<script src="app.js?v=20261111-conversation-poll-1"></script>
+<script src="app.js?v=20261112-crm-1"></script>
 </body>
 </html>
