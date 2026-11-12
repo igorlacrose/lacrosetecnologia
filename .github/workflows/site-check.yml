@@ -58,6 +58,8 @@ jobs:
           npm audit --audit-level=high
           node --check meta-inbound.mjs
           node --check meta-inbound-listener.mjs
+          node --check simulated-dispatch.mjs
+          node --check simulate-dispatch-cli.mjs
           node --check reminder-rehearsal.mjs
           node --check rehearse-reminders.mjs
           node --check appointment-reminders.mjs
