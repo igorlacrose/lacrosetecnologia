@@ -10,6 +10,15 @@
 - Permissões negativas confirmadas: `anon` sem USAGE nos dois schemas; `authenticated` sem leitura de `token_ciphertext` Meta, sem leitura de `recipient_ciphertext` e sem UPDATE na tabela financeira; o papel de ingestão Asaas sem SELECT de vínculos financeiros.
 - Advisor de segurança do Supabase de homologação: **nenhum alerta** no momento da verificação. Isso não substitui revisão da aplicação ou autenticação real.
 
+## RLS multiempresa — teste real no Supabase hospedado
+
+- Executado em 12/11/2026 no projeto separado `nijsafzwxzcfqdevlsxe` a partir do SQL versionado em `scripts/test_vnext_hosted_rls.sql` (blob `963242537b59b696c8060388aad14b6f5e4469ee`).
+- Usa uma **única transação com BEGIN/ROLLBACK**, exigindo ausência de usuários Auth, tenants e bindings antes de iniciar; aborta em base já populada.
+- Cria duas empresas, quatro usuários fictícios sem senha e planos/vínculos financeiros apenas durante a transação; testa papel `authenticated` de verdade no PostgreSQL, com claims sintéticas.
+- Confirma separação de clientes e cobranças entre admins A/B, restrição do viewer, rejeição sem MFA AAL2, usuário desativado, inserção cruzada e tentativa de alterar estado financeiro; revogação de associação remove acesso na mesma sessão; anônimo não tem USAGE nos schemas.
+- Resultado confirmado pelo Supabase SQL: `hosted_rls_passed_no_persisted_data`. Contagens de `auth.users`, `lkz_vnext.tenants` e `payment_bindings` zero após ROLLBACK.
+- O teste **não** valida login real, TOTP, JWT assinado, API externa, webhook Meta, provedor Asaas ou backup/restauração. Use `psql -X -v ON_ERROR_STOP=1 -f scripts/test_vnext_hosted_rls.sql` somente contra o projeto de homologação vazio.
+
 ## Lixeira de mensagens — validação adicional em Supabase hospedado
 
 Fonte: `supabase/sql/lkz_adm_move_messages_acl_fix.sql` (blob Git `0e14bc88cc7d8e9f2f71759cc782b367b5fb88d4`) e rollback `supabase/sql/lkz_adm_move_messages_acl_rollback.sql` (blob `3f78852b6126203c72051ae25d26ca58de7373be`), incorporados na `main` pela PR #77.
