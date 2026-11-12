@@ -26,9 +26,12 @@ function search(root,match){
   }return null;
 }
 function setup(options={}){
-  const document={createElement:tag=>new Node(tag)},window={},id='33333333-3333-4333-8333-333333333333';
+  const document={createElement:tag=>new Node(tag)},window={};
   const generated=[];
-  const crypto={randomUUID:()=>{generated.push(id);return id}};
+  const crypto={randomUUID:()=>{
+    const id='33333333-3333-4333-8333-'+String(generated.length+1).padStart(12,'0');
+    generated.push(id);return id;
+  }};
   vm.runInNewContext(code,{window,document,crypto,console});
   const card=new Node('article');
   const calls=[],responses=options.responses||[];
@@ -98,4 +101,21 @@ test('proibição de envio, RLS e isolamento por tenant no backend',()=>{
   assert.match(migration,/delivery_enabled=false/);
   assert.doesNotMatch(code,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(|localStorage|sessionStorage/);
   assert.ok(!migration.includes('pg_net.http_post'));
+});
+
+test('falha de autorização descarta chave sem reenvio e permite diagnóstico posterior',async()=>{
+  const x=setup({responses:[
+    {error:{code:'42501'}},
+    {data:{status:'blocked',delivery_enabled:false,dry_run_only:true,
+      blockers:['transport_disabled'],already_recorded:false}}
+  ]});
+  x.mount({id:'preview-4',status:'approved'});
+  const root=x.card.querySelector('[data-oca-preflight]');
+  const button=search(root,n=>n.tagName==='button');
+  await button.onclick();
+  assert.ok(search(root,n=>n.className==='oca-preflight-status').textContent.includes('Corrija o impedimento'));
+  await button.onclick();
+  assert.equal(x.calls.length,2);
+  assert.notEqual(x.calls[0].args.p_request_id,x.calls[1].args.p_request_id);
+  assert.equal(x.generated.length,2);
 });
