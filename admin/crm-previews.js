@@ -22,7 +22,7 @@ const titles={pending:'Pendente de revisão',approved:'Aprovada — NÃO enviada
   rejected:'Rejeitada',cancelled:'Cancelada'};
 const channelTitle={whatsapp:'WhatsApp',email:'E-mail'};
 
-async function mount({panel,lead,sb,confirm,isMaster=false,isSessionActive,formatDate}){
+async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessionActive,formatDate,openClient=null}){
   if(!panel?.isConnected||!lead?.id||!sb||!isSessionActive())return;
   if(panel.querySelector('[data-crm-preview]'))return;
   const shell=node('section','crm-preview');
@@ -43,14 +43,30 @@ async function mount({panel,lead,sb,confirm,isMaster=false,isSessionActive,forma
   const request=btn('Solicitar revisão','');
   const reload=btn('Atualizar revisões','secondary');
   toolbar.append(channel,request,reload);shell.append(toolbar);
+  const readiness=row(shell,'div','crm-preview-readiness','');
+  readiness.setAttribute('aria-label','Requisitos para solicitar revisão e aprovação');
   const feedback=row(shell,'p','crm-preview-feedback','');
   feedback.setAttribute('role','status');
   const entries=row(shell,'div','crm-preview-list','');
   const existing=panel.querySelector('.lead-history');
   if(existing)existing.before(shell);else panel.append(shell);
-  let busy=false,drafts=new Map(),items=[],requestToken=null;
+  let busy=false,loaded=false,drafts=new Map(),items=[],requestToken=null;
+  const destination=ch=>{
+    if(!contact)return '';
+    return ch==='email'?String(contact.email||'').trim().toLowerCase():
+      String(contact.phone||'').replace(/\D/g,'');
+  };
+  const validDestination=ch=>{
+    const value=destination(ch);
+    return ch==='email'?value.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value):
+      /^[0-9]{10,13}$/.test(value);
+  };
+  const linked=()=>Boolean(lead.contact_id&&contact?.id===lead.contact_id);
+  const consentReady=()=>Boolean(contact?.consent_contact&&contact?.consent_at);
+  const pending=()=>items.some(item=>item.status==='pending'&&item.channel===channel.value);
   const active=()=>shell.isConnected&&isSessionActive();
-  const canSubmit=()=>Boolean(drafts.get(channel.value)?.version);
+  const canSubmit=()=>loaded&&linked()&&validDestination(channel.value)&&
+    Boolean(drafts.get(channel.value)?.version)&&!pending();
   const setBusy=(flag)=>{
     busy=flag;channel.disabled=flag;
     request.disabled=flag||!canSubmit();
