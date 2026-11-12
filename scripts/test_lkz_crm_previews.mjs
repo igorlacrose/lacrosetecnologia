@@ -51,7 +51,11 @@ function find(root,pred){
 }
 const locate=(root,label)=>find(root,node=>node.tagName==='button'&&node.textContent===label);
 
-function setup({isMaster,consent}){
+function setup({isMaster,consent,drafts}){
+  const lead={id:'lead-test',contact_id:'contact-test'};
+  const contact={id:'contact-test',person_name:'Cliente teste',email:'cliente@example.com',
+    phone:'73 99999-9999',consent_contact:consent,
+    consent_at:consent?'2026-11-12T15:00:00Z':null};
   const window={};
   const document={createElement:tag=>new Node(tag)};
   const crypto={randomUUID:()=> 'a0000000-bbbb-4333-8555-666666666666'};
@@ -60,7 +64,7 @@ function setup({isMaster,consent}){
   const history=new Node('section');history.className='lead-history';
   panel.append(history);
   const calls=[];
-  const saved=[{channel:'whatsapp',version:1,body:'Olá, cliente.'}];
+  const saved=drafts??[{channel:'whatsapp',version:1,body:'Olá, cliente.'}];
   let previews=[];
   const sb={rpc:async(name,args)=>{
     calls.push(name);
@@ -79,13 +83,13 @@ function setup({isMaster,consent}){
     }
     throw Error('Unexpected RPC:'+name);
   }};
-  return {panel,sb,calls,mount:window.LKZCrmPreviews.mount,
+  return {panel,sb,calls,mount:window.LKZCrmPreviews.mount,lead,contact,
     updateReadiness:change=>{for(const p of previews)Object.assign(p,change);}};
 }
 
 test('sem consentimento pode preparar, mas não aprovar nem enviar',async()=>{
   const t=setup({isMaster:true,consent:false});
-  await t.mount({panel:t.panel,lead:{id:'lead-test'},sb:t.sb,isMaster:true,
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
     confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
   const box=t.panel.querySelector('[data-crm-preview]');
   assert.ok(box);
@@ -100,7 +104,7 @@ test('sem consentimento pode preparar, mas não aprovar nem enviar',async()=>{
 
 test('com consentimento MASTER aprova e transporte continua inativo',async()=>{
   const t=setup({isMaster:true,consent:true});
-  await t.mount({panel:t.panel,lead:{id:'lead-test'},sb:t.sb,isMaster:true,
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
     confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
   const box=t.panel.querySelector('[data-crm-preview]');
   await locate(box,'Solicitar revisão').onclick();
@@ -114,7 +118,7 @@ test('com consentimento MASTER aprova e transporte continua inativo',async()=>{
 
 test('operação não-master não possui botão de aprovação',async()=>{
   const t=setup({isMaster:false,consent:true});
-  await t.mount({panel:t.panel,lead:{id:'lead-test'},sb:t.sb,isMaster:false,
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:false,
     confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
   const box=t.panel.querySelector('[data-crm-preview]');
   await locate(box,'Solicitar revisão').onclick();
@@ -133,7 +137,7 @@ test('backend nega acesso direto e não implementa transporte',()=>{
 
 test('aprovação antiga mostra bloqueio se consentimento for revogado depois',async()=>{
   const t=setup({isMaster:true,consent:true});
-  await t.mount({panel:t.panel,lead:{id:'lead-test'},sb:t.sb,isMaster:true,
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
     confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
   const box=t.panel.querySelector('[data-crm-preview]');
   await locate(box,'Solicitar revisão').onclick();
@@ -142,4 +146,35 @@ test('aprovação antiga mostra bloqueio se consentimento for revogado depois',a
   await locate(box,'Atualizar revisões').onclick();
   assert.ok(find(box,x=>x.className==='crm-preview-warning'&&
     x.textContent.includes('Aprovação antiga não está mais apta')));
+});
+
+
+test('sem rascunho a tela explica o bloqueio e não fica exibindo Atualizando',async()=>{
+  const t=setup({isMaster:true,consent:false,drafts:[]});
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
+  const box=t.panel.querySelector('[data-crm-preview]');
+  const request=locate(box,'Solicitar revisão');
+  assert.equal(request.disabled,true);
+  assert.ok(locate(box,'Ir para rascunhos'));
+  const feedback=find(box,x=>x.className==='crm-preview-feedback');
+  assert.ok(feedback.textContent.includes('Registros atualizados'));
+  assert.ok(!feedback.textContent.includes('Atualizando'));
+  assert.ok(!t.calls.includes('lkz_adm_crm_submit_message_preview'));
+  await locate(box,'Atualizar revisões').onclick();
+  assert.ok(!feedback.textContent.includes('Atualizando'));
+  assert.ok(feedback.textContent.includes('Revisões atualizadas'));
+});
+
+test('um rascunho salvo habilita solicitação mesmo sem consentimento, mas não aprovação',async()=>{
+  const t=setup({isMaster:true,consent:false});
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
+  const box=t.panel.querySelector('[data-crm-preview]');
+  const request=locate(box,'Solicitar revisão');
+  assert.equal(request.disabled,false);
+  assert.ok(find(box,x=>x.className==='crm-preview-legal-warning'));
+  await request.onclick();
+  assert.equal(request.disabled,true);
+  assert.equal(locate(box,'Aprovar sem enviar').disabled,true);
 });
