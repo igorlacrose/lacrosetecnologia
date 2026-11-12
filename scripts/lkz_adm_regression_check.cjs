@@ -106,3 +106,6 @@ check('Busca de cliente por nome abre ficha sem depender do CRM externo',app.inc
 
 check('Módulo de propostas disponível na ficha de cliente',app.includes('window.LKZClientQuotes.mount')&&html.includes('client-quotes.js?v=20261112-1')&&html.includes('client-quotes.css?v=20261112-1'));
 check('Proposta não confunde aceite com cobrança',require('node:fs').readFileSync('admin/client-quotes.js','utf8').includes('Preparar proposta (sem envio)')&&require('node:fs').readFileSync('admin/client-quotes.js','utf8').includes('customer_acceptance_enabled'));
+
+check('Dossiê sem aceite disponível na ficha do cliente',app.includes('window.LKZSignatureDossiers.mount')&&html.includes('client-signature-dossiers.js?v=20261112-1')&&html.includes('client-signature-dossiers.css?v=20261112-1'));
+check('Dossiê não habilita assinatura por UI',require('node:fs').readFileSync('admin/client-signature-dossiers.js','utf8').includes('customer_accepted!==false')&&require('node:fs').readFileSync('admin/client-signature-dossiers.js','utf8').includes('signature_enabled!==false'));
