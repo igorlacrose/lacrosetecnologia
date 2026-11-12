@@ -17,10 +17,97 @@ const systemCatalog=[
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
 ];
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+function normalizedPhone(value){
+  let digits=String(value||'').replace(/\D/g,'');
+  if(digits.length===13&&digits.startsWith('55'))digits=digits.slice(2);
+  return digits.length>=10&&digits.length<=11?digits:'';
+}
+function recognizedContactCandidates(lead,contacts){
+  const d=lead?.structured_data&&typeof lead.structured_data==='object'?lead.structured_data:{};
+  const email=String(d.contact_email||'').trim().toLowerCase();
+  const phone=normalizedPhone(d.contact_phone);
+  if(!email&&!phone)return [];
+  return contacts.filter(c=>
+    !!(email&&c.email&&c.email.trim().toLowerCase()===email)||
+    !!(phone&&normalizedPhone(c.phone)===phone)
+  );
+}
+function contactDisplayName(contact){
+  return contact?.person_name||contact?.company_name||'Contato sem identificação';
+}
 const label=s=>({new:'Novo',diagnosing:'Diagnóstico',qualified:'Qualificado',human_review:'Revisão humana',contacted:'Contato realizado',proposal:'Proposta',won:'Fechado',lost:'Perdido',archived:'Arquivado',pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado',done:'Concluído',cancelled:'Cancelado'})[s]||s;
 const tag=s=>{const t=label(s),c=['Fechado','Aprovado','Concluído'].includes(t)?'ok':['Perdido','Rejeitado'].includes(t)?'err':['Pendente','Revisão humana','Proposta'].includes(t)?'warn':'info';return '<span class="tag '+c+'">'+esc(t)+'</span>'};
 function msg(node,text){node.textContent=text||''}
-function showLogin(text=''){stopConversationPolling();setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
+
+let activeDialogCancel=null;
+/* Confirmações internas: navegadores incorporados podem bloquear window.prompt/confirm. */
+function askConfirmation({title,message,keyword='',destructive=false}){
+  if(activeDialogCancel)return Promise.resolve(false);
+  return new Promise(resolve=>{
+    const previous=document.activeElement;
+    const overlay=document.createElement('div');
+    overlay.className='lkz-modal-overlay';
+    const dialog=document.createElement('section');
+    dialog.className='lkz-modal';
+    dialog.setAttribute('role','alertdialog');
+    dialog.setAttribute('aria-modal','true');
+    const heading=document.createElement('h2');
+    heading.id='lkz-dialog-heading';
+    heading.textContent=title;
+    dialog.setAttribute('aria-labelledby',heading.id);
+    const body=document.createElement('p');
+    body.textContent=message;
+    dialog.append(heading,body);
+    let input=null;
+    if(keyword){
+      const label=document.createElement('label');
+      label.textContent='Digite '+keyword+' para confirmar:';
+      input=document.createElement('input');
+      input.type='text';input.autocomplete='off';input.spellcheck=false;
+      input.maxLength=32;label.append(input);dialog.append(label);
+    }
+    const actions=document.createElement('div');
+    actions.className='lkz-modal-actions';
+    const cancel=document.createElement('button');
+    cancel.type='button';cancel.className='cta secondary';cancel.textContent='Cancelar';
+    const confirm=document.createElement('button');
+    confirm.type='button';confirm.className=destructive?'cta danger':'cta';
+    confirm.textContent=destructive?'Confirmar exclusão':'Confirmar';
+    if(input)confirm.disabled=true;
+    actions.append(cancel,confirm);dialog.append(actions);
+    overlay.append(dialog);
+    let finished=false;
+    const close=value=>{
+      if(finished)return;
+      finished=true;activeDialogCancel=null;
+      document.removeEventListener('keydown',onKey,true);
+      overlay.remove();
+      if(previous?.isConnected)previous.focus();
+      resolve(value);
+    };
+    const onKey=event=>{
+      if(event.key==='Escape'){event.preventDefault();close(false);}
+      if(event.key==='Tab'){
+        const focusables=[...(input?[input]:[]),cancel,confirm].filter(el=>!el.disabled);
+        if(!focusables.length)return;
+        const first=focusables[0],last=focusables[focusables.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+      }
+    };
+    activeDialogCancel=()=>close(false);
+    document.body.append(overlay);
+    cancel.onclick=()=>close(false);
+    confirm.onclick=()=>close(!input||input.value===keyword);
+    overlay.onclick=event=>{if(event.target===overlay)close(false)};
+    input?.addEventListener('input',()=>{confirm.disabled=input.value!==keyword});
+    document.addEventListener('keydown',onKey,true);
+    (input||cancel).focus();
+  });
+}
+
+function showLogin(text=''){activeDialogCancel?.();stopConversationPolling();setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
 async function enforceMfa(p,u){const {data:aal,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;if(aal?.currentLevel==='aal2')return enter(p,u);const {data:factors,error:fe}=await sb.auth.mfa.listFactors();if(fe)throw fe;let factor=factors?.totp?.[0];if(!factor){const {data:en,error:ee}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'LKZ ADM'});if(ee)throw ee;factor=en;el('enroll').hidden=false;el('qr').src=en.totp?.qr_code||'';el('secret').textContent=en.totp?.secret||'';el('mfaIntro').textContent='Configure o autenticador e confirme o código.'}else{el('enroll').hidden=true;el('mfaIntro').textContent='Digite o código atual do autenticador.'}const {data:ch,error:ce}=await sb.auth.mfa.challenge({factorId:factor.id});if(ce)throw ce;profile=p;user=u;factorId=factor.id;challengeId=ch.id;el('auth').hidden=true;el('mfaScreen').hidden=false;el('code').value='';setTimeout(()=>el('code').focus(),40)}
 async function expireIdleSession(){
@@ -93,11 +180,23 @@ async function loadCommercial(){
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
-    threads:(vr.data||[]).map(c=>({
-  id:c.id,
-  lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
-  last:c.last_message_at||c.started_at,channel:c.channel||'Site',lead_id:c.lead_id,folder:folderMap.get(c.id)||'active'
-})),
+    threads:(vr.data||[]).map(c=>{
+      const linkedLead=lm.get(c.lead_id);
+      const linkedContact=linkedLead?.contact_id?cm.get(linkedLead.contact_id):null;
+      const candidates=linkedContact?[]:recognizedContactCandidates(linkedLead,contacts);
+      const suggested=candidates.length===1?candidates[0]:null;
+      const verifiedName=linkedContact&&(linkedContact.person_name||linkedContact.company_name);
+      const possibleName=suggested&&(suggested.person_name||suggested.company_name);
+      return {
+        id:c.id,lead_id:c.lead_id,
+        lead:verifiedName?verifiedName:possibleName?'Possível: '+possibleName:
+          'Atendimento '+c.id.slice(0,8).toUpperCase(),
+        contactState:linkedContact?'linked':possibleName?'suggested':'unknown',
+        suggestedContactIds:candidates.map(item=>item.id),
+        last:c.last_message_at||c.started_at,channel:c.channel||'Site',
+        folder:folderMap.get(c.id)||'active'
+      };
+    }),
     followups:(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'})),
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
   };
@@ -170,7 +269,7 @@ const titles={
   tasks:['Demandas','Pendências comerciais que precisam de ação.'],
   commercial:['Visão comercial','Resumo dos registros comerciais.'],
   leads:['Oportunidades','Leads e estágios comerciais.'],
-  conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
+  conversations:['Atendimentos','Organize as conversas, identifique clientes e gerencie o histórico.'],
   followups:['Agenda de retornos','Agende, reagende, conclua e acompanhe seus retornos aqui.'],
   approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
   settings:['Configurações','Sessão e gestão de acesso.']
@@ -446,7 +545,8 @@ function conversations(folder=conversationFolder,selectId=null){
   const list=threads.map(t=>
     '<button type="button" class="thread" data-thread="'+esc(t.id)+'" data-search="'+esc((t.lead+' '+t.channel).toLowerCase())+'">'+
       '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
-      '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span>'+
+      '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small>'+
+      (t.contactState==='suggested'?'<small class="contact-suggestion">Confirme o cadastro sugerido</small>':'')+'</span>'+
     '</button>').join('');
   el('content').innerHTML=
     (folder==='deleted'&&profile?.role==='master'
@@ -509,9 +609,11 @@ async function emptyTrash(kind,selectedConversation=null){
       return;
     }
     const noun=kind==='messages'?'mensagem(ns)':'atendimento(s)';
-    const answer=window.prompt('ATENÇÃO: apagar DEFINITIVAMENTE '+count+' '+noun+
-      ' de todas as conversas. Não será possível desfazer. Digite ESVAZIAR para confirmar:');
-    if(answer!=='ESVAZIAR')return;
+    if(!await askConfirmation({
+      title:'Esvaziar lixeira definitivamente',
+      message:'Você está prestes a apagar '+count+' '+noun+' de todas as conversas. A operação é irreversível.',
+      keyword:'ESVAZIAR',destructive:true
+    }))return;
     let result;
     try{result=await sb.rpc('lkz_adm_empty_trash',
       {p_kind:kind,p_conversation:null,p_expected_count:count})}
@@ -541,11 +643,16 @@ async function emptyTrash(kind,selectedConversation=null){
 async function conversationAction(id,action){
   const t=state.threads.find(item=>item.id===id);
   if(!t)return;
-  if(action==='trash'&&!window.confirm('Excluir este atendimento da lista e mover todo o histórico à Lixeira? Você poderá restaurá-lo.'))return;
+  if(action==='trash'&&!await askConfirmation({
+    title:'Mover atendimento para a lixeira',message:'O atendimento e seu histórico ficarão na Lixeira, podendo ser restaurados.'
+  }))return;
   if(action==='purge'){
     if(profile?.role!=='master')return;
-    const answer=window.prompt('EXCLUSÃO DEFINITIVA do atendimento e de todas as suas mensagens. Não é possível desfazer. Digite EXCLUIR para confirmar:');
-    if(answer!=='EXCLUIR')return;
+    if(!await askConfirmation({
+      title:'Excluir atendimento definitivamente',
+      message:'Este atendimento e todas as suas mensagens serão apagados permanentemente.',
+      keyword:'EXCLUIR',destructive:true
+    }))return;
   }
   const actionLabels={archive:'Atendimento arquivado.',trash:'Atendimento movido para a Lixeira.',
     restore:'Atendimento restaurado.',purge:'Atendimento e mensagens excluídos definitivamente.'};
@@ -568,6 +675,133 @@ async function conversationAction(id,action){
   else t.folder=data.folder;
   conversationFocus=null;conversationFlash=actionLabels[action]||'Operação concluída.';
   conversations(conversationFolder);
+}
+
+
+function openContactSelector(thread){
+  if(activeDialogCancel)return;
+  const lead=state.leads.find(l=>l.id===thread.lead_id);
+  if(!lead||lead.contact_id)return;
+  const contacts=[...state.contacts].sort((a,b)=>{
+    const aMatch=thread.suggestedContactIds.includes(a.id)?1:0;
+    const bMatch=thread.suggestedContactIds.includes(b.id)?1:0;
+    return bMatch-aMatch||contactDisplayName(a).localeCompare(contactDisplayName(b),'pt-BR');
+  });
+  const overlay=document.createElement('div');
+  overlay.className='lkz-modal-overlay';
+  const dialog=document.createElement('section');
+  dialog.className='lkz-modal lkz-contact-picker';
+  dialog.setAttribute('role','dialog');
+  dialog.setAttribute('aria-modal','true');
+  const title=document.createElement('h2');
+  title.textContent='Vincular cliente existente';
+  title.id='lkz-contact-picker-title';
+  dialog.setAttribute('aria-labelledby',title.id);
+  const description=document.createElement('p');
+  description.textContent='Selecione o cadastro correto. Correspondências de e-mail/telefone são sugestões, não vínculos automáticos.';
+  const search=document.createElement('input');
+  search.type='search';search.autocomplete='off';
+  search.placeholder='Buscar nome, empresa, e-mail ou telefone';
+  search.setAttribute('aria-label','Buscar contato cadastrado');
+  const list=document.createElement('div');
+  list.className='lkz-contact-results';
+  list.setAttribute('role','radiogroup');
+  list.setAttribute('aria-label','Clientes cadastrados');
+  const info=document.createElement('p');info.className='lkz-modal-message';info.setAttribute('role','status');
+  const actions=document.createElement('div');actions.className='lkz-modal-actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='cta secondary';cancel.textContent='Cancelar';
+  const link=document.createElement('button');link.type='button';link.className='cta';link.textContent='Vincular cliente';link.disabled=true;
+  actions.append(cancel,link);
+  dialog.append(title,description,search,list,info,actions);overlay.append(dialog);
+  let chosen=null,closing=false;
+  const previous=document.activeElement;
+  const close=()=>{
+    if(closing)return;
+    closing=true;activeDialogCancel=null;
+    document.removeEventListener('keydown',onKey,true);
+    overlay.remove();
+    if(previous?.isConnected)previous.focus();
+  };
+  const onKey=e=>{
+    if(e.key==='Escape'){e.preventDefault();close();return}
+    if(e.key==='Tab'){
+      const focusables=[search,...list.querySelectorAll('input[type="radio"]'),cancel,link]
+        .filter(element=>!element.disabled&&!element.hidden);
+      if(!focusables.length)return;
+      if(e.shiftKey&&document.activeElement===focusables[0]){
+        e.preventDefault();focusables[focusables.length-1].focus();
+      }else if(!e.shiftKey&&document.activeElement===focusables[focusables.length-1]){
+        e.preventDefault();focusables[0].focus();
+      }
+    }
+  };
+  const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  function renderMatches(){
+    chosen=null;link.disabled=true;
+    list.replaceChildren();
+    const term=normalize(search.value.trim());
+    const matches=contacts.filter(c=>
+      normalize([c.company_name,c.person_name,c.email,c.phone,c.city].join(' ')).includes(term)
+    );
+    for(const contact of matches.slice(0,35)){
+      const label=document.createElement('label');
+      label.className='lkz-contact-result';
+      const radio=document.createElement('input');
+      radio.type='radio';radio.name='lkz-contact-choice';radio.value=contact.id;
+      const detail=document.createElement('span');
+      const name=document.createElement('strong');name.textContent=contactDisplayName(contact);
+      const secondary=document.createElement('small');
+      secondary.textContent=[contact.email,contact.phone].filter(Boolean).join(' · ')||'Sem e-mail ou telefone';
+      detail.append(name,secondary);
+      if(thread.suggestedContactIds.includes(contact.id)){
+        const suggested=document.createElement('em');
+        suggested.textContent='Correspondência encontrada · confirme a identidade';
+        detail.append(suggested);
+      }
+      label.append(radio,detail);list.append(label);
+      radio.onchange=()=>{chosen=contact.id;link.disabled=false;info.textContent='Cadastro selecionado: '+contactDisplayName(contact)};
+    }
+    if(!matches.length){
+      const empty=document.createElement('p');
+      empty.textContent='Nenhum cadastro correspondente. Use “Novo cliente” no atendimento.';
+      list.append(empty);
+    }
+    if(matches.length>35){
+      const more=document.createElement('p');more.textContent='Refine a busca para visualizar outros resultados.';
+      list.append(more);
+    }
+  }
+  search.oninput=renderMatches;
+  cancel.onclick=close;
+  overlay.onclick=e=>{if(e.target===overlay)close()};
+  activeDialogCancel=close;
+  document.body.append(overlay);
+  document.addEventListener('keydown',onKey,true);
+  renderMatches();search.focus();
+  link.onclick=async()=>{
+    if(!chosen)return;
+    link.disabled=true;cancel.disabled=true;search.disabled=true;
+    info.textContent='Validando e vinculando cadastro...';
+    let response;
+    try{response=await sb.rpc('lkz_adm_link_existing_contact',{
+      p_conversation:thread.id,p_expected_lead:lead.id,p_contact:chosen
+    })}catch{response={error:{code:'REDE'}}}
+    if(!overlay.isConnected||!user)return;
+    if(response.error||!response.data?.id){
+      info.textContent='Não foi possível vincular o cadastro. Código: '+(response.error?.code||'SEM_CONFIRMACAO')+
+        '. Atualize e confira se ele já não foi vinculado.';
+      link.disabled=false;cancel.disabled=false;search.disabled=false;return;
+    }
+    close();
+    try{await loadCommercial();}catch{
+      lead.contact_id=response.data.id;
+      state.contacts=[response.data,...state.contacts.filter(c=>c.id!==response.data.id)];
+    }
+    if(currentView==='conversations'){
+      conversationFlash='Cadastro existente vinculado ao atendimento com sucesso.';
+      conversations(conversationFolder,thread.id);
+    }
+  };
 }
 
 async function openThread(id,folder='active',before=null,feedback=''){
@@ -600,8 +834,9 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const visible=messages.slice(0,50).reverse();
   const leadForContact=state.leads.find(l=>l.id===thread.lead_id);
   const contactControl=leadForContact?.contact_id
-    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir contato</button>'
-    :'<button type="button" class="cta secondary" data-message-contact="new">Salvar contato</button>';
+    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir cliente</button>'
+    :(thread.lead_id?'<button type="button" class="cta secondary" data-message-contact="link">Vincular existente</button>':'')+
+      '<button type="button" class="cta secondary" data-message-contact="new">Novo cliente</button>';
   const controls=thread.folder==='deleted'
     ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
@@ -625,7 +860,9 @@ async function openThread(id,folder='active',before=null,feedback=''){
     '<div class="message-heading">'+
       '<button class="message-back" type="button">‹ Voltar aos atendimentos</button>'+
       '<div class="message-heading-main"><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel)+'</span>'+
-        '<h2>'+esc(thread.lead)+'</h2><small>Oportunidade vinculada: '+(thread.lead_id?'Sim':'Não')+'</small></div>'+
+        '<h2>'+esc(thread.lead)+'</h2><small>'+(leadForContact?.contact_id?'Cliente vinculado':
+        thread.contactState==='suggested'?'Possível cliente encontrado · confirme a identidade':
+        'Cliente ainda não vinculado')+'</small></div>'+
         '<div class="conversation-actions">'+contactControl+controls+'</div></div>'+
     '</div>'+
     '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
@@ -651,7 +888,8 @@ async function openThread(id,folder='active',before=null,feedback=''){
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelector('[data-empty-messages]')?.addEventListener('click',()=>emptyTrash('messages',id));
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
-  page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
+  page.querySelectorAll('[data-message-contact]').forEach(contactButton=>contactButton.addEventListener('click',async()=>{
+    if(contactButton.dataset.messageContact==='link'){openContactSelector(thread);return;}
     let lead=state.leads.find(l=>l.id===thread.lead_id);
     if(!lead&&thread.lead_id){
       const {data,error}=await sb.from('leads').select('*').eq('id',thread.lead_id).maybeSingle();
@@ -688,7 +926,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       clientMode='new';
     }
     view('clients');
-  });
+  }));
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
@@ -717,8 +955,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
       return;
     }
     if(destination==='purge'){
-      const answer=window.prompt('Apagar definitivamente '+ids.length+' mensagem(ns)? Digite EXCLUIR para confirmar:');
-      if(answer!=='EXCLUIR')return;
+      if(!await askConfirmation({
+        title:'Excluir mensagens definitivamente',
+        message:ids.length+' mensagem(ns) serão apagadas permanentemente.',
+        keyword:'EXCLUIR',destructive:true
+      }))return;
     }
     const status=page.querySelector('[data-notice]');
     page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
@@ -818,9 +1059,11 @@ function openFollowupEditor(mode,id=null,leadId=null){
       if(action==='edit'){openFollowupEditor('edit',id);return}
       if(action==='lead'){openOpportunity(followup.lead_id);return}
       if(!['complete','cancel'].includes(action))return;
-      if(!window.confirm(action==='complete'?
-        'Confirmar que este retorno foi realizado? Não será enviada mensagem.':
-        'Cancelar este retorno? Esta decisão será registrada.'))return;
+      if(!await askConfirmation({
+        title:action==='complete'?'Concluir retorno':'Cancelar retorno',
+        message:action==='complete'?'Registrar o retorno como realizado? Nenhuma mensagem será enviada.':
+          'Cancelar este retorno e registrar a alteração?'
+      }))return;
       const msg=target.querySelector('[data-return-status]');
       target.querySelectorAll('button').forEach(x=>x.disabled=true);
       msg.textContent='Registrando...';
@@ -918,7 +1161,11 @@ function approvals(feedback=''){
   el('content').querySelectorAll('[data-review-lead]').forEach(button=>button.onclick=()=>{view('leads');const lead=el('content').querySelector('[data-lead="'+button.dataset.reviewLead+'"]');lead?.click()});
   el('content').querySelectorAll('[data-decision]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-approval]'),status=button.dataset.decision;
-    if(!window.confirm(status==='approved'?'Confirmar aprovação?':'Confirmar rejeição?'))return;
+    if(!await askConfirmation({
+      title:status==='approved'?'Aprovar solicitação':'Rejeitar solicitação',
+      message:'Confirme esta decisão administrativa. A ação será registrada.',
+      destructive:status!=='approved'
+    }))return;
     row.querySelectorAll('button').forEach(control=>control.disabled=true);
     const {error}=await sb.rpc('lkz_adm_decide_approval',{p_id:row.dataset.approval,p_status:status});
     if(!row.isConnected||!user)return;
@@ -1059,6 +1306,28 @@ function clients(feedback=''){
     if(!val('company_name')&&!val('person_name')){
       status.textContent='Informe a empresa ou pessoa de contato.';return;
     }
+    if(newMode){
+      const enteredEmail=val('email').toLowerCase();
+      const enteredPhone=normalizedPhone(val('phone'));
+      const duplicates=state.contacts.filter(c=>
+        (enteredEmail&&c.email?.trim().toLowerCase()===enteredEmail)||
+        (enteredPhone&&normalizedPhone(c.phone)===enteredPhone)
+      );
+      if(duplicates.length){
+        const match=duplicates[0];
+        if(clientDraft?.conversation_id){
+          status.textContent='Possível duplicidade com '+contactDisplayName(match)+
+            '. Volte ao atendimento e use “Vincular existente”, sem criar outro cadastro.';
+          return;
+        }
+        const approved=await askConfirmation({
+          title:'Possível cliente duplicado',
+          message:'Existe cadastro com e-mail ou telefone igual: '+contactDisplayName(match)+
+            '. Confirme somente se for outra pessoa ou empresa e você realmente precisar de um novo cadastro.'
+        });
+        if(!approved||!form.isConnected)return;
+      }
+    }
     const payload={
       p_company:val('company_name'),p_name:val('person_name'),
       p_segment:val('segment'),p_email:val('email'),p_phone:val('phone'),
@@ -1145,7 +1414,11 @@ async function loadUsers(target,feedback=''){
   target.querySelectorAll('[data-user-action]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-account]'),item=data.find(entry=>entry.id===row.dataset.account);
     const action=button.dataset.userAction;
-    if(action==='remove'&&!window.confirm('Excluir o acesso deste usuário ao LKZ ADM?'))return;
+    if(action==='remove'&&!await askConfirmation({
+      title:'Excluir acesso do usuário',
+      message:'Revogar o acesso deste usuário ao LKZ ADM? A conta MASTER permanece protegida.',
+      keyword:'EXCLUIR',destructive:true
+    }))return;
     const controls=[...row.querySelectorAll('input,select,button')];
     controls.forEach(control=>control.disabled=true);
     const {error}=await sb.rpc('lkz_adm_manage_user',{p_id:item.id,p_version:item.updated_at,p_action:action,
