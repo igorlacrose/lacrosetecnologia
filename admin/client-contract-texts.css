@@ -1,0 +1,24 @@
+/* LKZ ADM · minutas contratuais privadas geradas no servidor */
+.contract-texts{margin-top:22px;padding:18px;border-radius:13px;border:1px solid #d2e3eb;
+ background:linear-gradient(150deg,#f6fbfe,#fff);display:grid;gap:11px}
+.contract-texts h3{font-size:17px;color:#173e51;margin:0}
+.contract-texts-note{font-size:12.5px;line-height:1.55;color:#527688;margin:0}
+.contract-texts-warning{font-size:12px;line-height:1.5;color:#8b5a2e;background:#fff5e6;
+ border-radius:8px;padding:8px 10px;margin:0}
+.contract-texts-status{color:#456b7e;font-size:12px;line-height:1.5;margin:0}
+.contract-texts-list{display:grid;gap:9px}
+.contract-text-item{border:1px solid #d8e6ed;border-radius:10px;padding:13px;
+ background:white;display:grid;gap:8px}
+.contract-text-item strong{color:#1a4458;font-size:13.5px}
+.contract-text-item small{color:#607a89;font-size:12px;overflow-wrap:anywhere}
+.contract-text-item button,.contract-texts>button{justify-self:start;font-size:12px;min-height:37px}
+.contract-texts-empty{color:#688393;font-size:12px;line-height:1.5;margin:0}
+.contract-text-reader{display:grid;gap:9px}
+.contract-text-reader:empty{display:none}
+.contract-text-reader h4{font-size:14px;color:#194657;margin:0}
+.contract-text-hash{font:11.5px ui-monospace,SFMono-Regular,Consolas,monospace;
+ color:#496b7d;overflow-wrap:anywhere;margin:0}
+.contract-text-reader textarea{font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;
+ color:#173c4d;background:#fbfdff;border:1px solid #c8dce7;border-radius:9px;
+ width:100%;padding:13px;resize:vertical;min-height:360px}
+@media(max-width:540px){.contract-texts{padding:12px}.contract-text-item button{width:100%}}
