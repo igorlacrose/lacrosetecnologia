@@ -1,5 +1,5 @@
 import { reconcileBoundSandboxPayment, reconcileNextCommercialEvent } from './commercial-reconcile.mjs';
-import { assertIntegrationRole, openStagingDatabase } from './staging-db.mjs';
+import { assertIntegrationRole, openStagingDatabase, withAsaasRole } from './staging-db.mjs';
 
 try {
   const eventId = process.argv[2];
@@ -10,9 +10,10 @@ try {
   const db = openStagingDatabase(process.env.VNEXT_ASAAS_RECONCILE_DATABASE_URL);
   try {
     await assertIntegrationRole(db, 'lkz_vnext_asaas_reconcile');
+    const scoped = withAsaasRole(db, 'lkz_vnext_asaas_reconcile');
     const result = eventId === '--next'
-      ? await reconcileNextCommercialEvent({ db, apiKey })
-      : await reconcileBoundSandboxPayment({ db, eventId, apiKey });
+      ? await reconcileNextCommercialEvent({ db: scoped, apiKey })
+      : await reconcileBoundSandboxPayment({ db: scoped, eventId, apiKey });
     console.log('Sandbox reconciliation:', result);
     if (!['already_processed', 'paid', 'pending', 'overdue', 'reversed', 'disputed', 'applied', 'idle'].includes(result)) process.exitCode = 2;
   } finally {

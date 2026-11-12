@@ -39,6 +39,27 @@ A prévia anterior continua disponível. O modo de homologação usa um servidor
 4. No ambiente seguro, configure VNEXT_RUNTIME_DATABASE_URL, VNEXT_AUTH_URL e VNEXT_AUTH_PUBLISHABLE_KEY. Opcionalmente, defina VNEXT_LACROSE_TENANT para ativar o conhecimento aprovado da Lacrose somente nesse tenant. Execute npm run staging. Use uma conta de homologação com TOTP previamente cadastrado. O navegador guarda o token apenas em memória. O servidor verifica emissor, audiência, validade, perfil e AAL2 antes de consultar o banco sob RLS.
 5. Execute npm test. Os testes automatizados usam respostas sintéticas do Auth e Asaas. Em homologação, valide separadamente login/TOTP real, negação sem MFA, revogação de vínculo, acesso cruzado e sessão expirada.
 
+### Papéis de runtime — migração 017 (homologação)
+
+A migração `db/017-nologin-runtime-identities.sql` cria **somente seis identidades técnicas PostgreSQL sem LOGIN e sem senha**:
+
+| Identidade | Papel permitido via SET ROLE |
+| --- | --- |
+| `lkz_vnext_runtime` | `authenticated` |
+| `lkz_vnext_asaas_ingest_runtime` | `lkz_vnext_asaas_ingest` |
+| `lkz_vnext_asaas_issue_runtime` | `lkz_vnext_asaas_issue` |
+| `lkz_vnext_asaas_reconcile_runtime` | `lkz_vnext_asaas_reconcile` |
+| `lkz_vnext_meta_runtime` | `lkz_vnext_meta_bridge` |
+| `lkz_vnext_reminder_runtime` | `lkz_vnext_reminder_bridge` |
+
+Todos começam sem LOGIN, SUPERUSER, BYPASSRLS, CREATEDB, CREATEROLE e **sem herdar os privilégios** dos papéis associados. As identidades só podem ser usadas após provisionamento explícito, separado e seguro de credenciais de homologação.
+
+Os workers Asaas selecionam o papel correspondente com `SET LOCAL ROLE` **dentro de cada transação**. Meta e lembretes já selecionam seus papéis nas transações. O workspace precisa de JWT verificado e consulta ao banco como `authenticated`, com RLS e MFA AAL2.
+
+No PostgreSQL 17 descartável da CI, apenas os testes habilitam logins com credenciais sintéticas. **Não habilitar LOGIN no projeto Supabase** como parte desta migração.
+
+**Status em 12/11/2026:** a migração 017 foi aplicada com sucesso **somente** no Supabase de homologação `nijsafzwxzcfqdevlsxe`, pelo mecanismo gerenciado do Supabase. Confirmados seis papéis sem LOGIN, associação única, `MEMBER=true`, `USAGE=false`, `SET=true` e ausência de privilégio herdado. O projeto possui 17 migrações, 26 tabelas com RLS ativo e nenhum tenant/usuário/cobrança real. O operador SQL gerenciado `postgres` **não** possui `SET ROLE` para esses papéis: a tentativa foi recusada (`42501`), sem alteração de privilégios. Por isso, a execução funcional com logins reais ainda exige provisionamento isolado e revisão; a CI PostgreSQL 17 descartável testou a troca de papel. **Nunca** usar `npm run migrate:staging` para reaplicar migrações no projeto gerenciado, conceder `service_role`, usar credenciais de produção ou alterar papéis fora da homologação. Ativação futura exige segredo protegido, TLS, revisão dos privilégios e Auth real.
+
 ### Integração OCA
 
 A rota POST /integrations/oca é opcional. Configure VNEXT_OCA_ACTOR como um operador técnico ativo no tenant VNEXT_LACROSE_TENANT e VNEXT_OCA_HMAC_KEY como 32 bytes em hexadecimal. O remetente deve enviar x-oca-timestamp em segundos Unix e x-oca-signature com HMAC-SHA256 hexadecimal sobre timestamp, ponto e os bytes exatos do corpo. O envelope contém eventId e conversationId UUID, consent=true, name, email e note. A integração fixa o tenant no servidor, registra lead e interação em uma transação e audita o operador. Entregas repetidas com o mesmo conteúdo retornam 200. Referência repetida com conteúdo diferente retorna 409. O emissor público ainda precisa ser ligado em homologação. O VNext não recebe chamadas do site institucional nesta entrega.
