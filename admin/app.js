@@ -545,7 +545,8 @@ function conversations(folder=conversationFolder,selectId=null){
   const list=threads.map(t=>
     '<button type="button" class="thread" data-thread="'+esc(t.id)+'" data-search="'+esc((t.lead+' '+t.channel).toLowerCase())+'">'+
       '<span class="thread-avatar" aria-hidden="true">'+esc(t.lead.charAt(0))+'</span>'+
-      '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span>'+
+      '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small>'+
+      (t.contactState==='suggested'?'<small class="contact-suggestion">Confirme o cadastro sugerido</small>':'')+'</span>'+
     '</button>').join('');
   el('content').innerHTML=
     (folder==='deleted'&&profile?.role==='master'
@@ -833,8 +834,9 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const visible=messages.slice(0,50).reverse();
   const leadForContact=state.leads.find(l=>l.id===thread.lead_id);
   const contactControl=leadForContact?.contact_id
-    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir contato</button>'
-    :'<button type="button" class="cta secondary" data-message-contact="new">Salvar contato</button>';
+    ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir cliente</button>'
+    :(thread.lead_id?'<button type="button" class="cta secondary" data-message-contact="link">Vincular existente</button>':'')+
+      '<button type="button" class="cta secondary" data-message-contact="new">Novo cliente</button>';
   const controls=thread.folder==='deleted'
     ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
@@ -858,7 +860,9 @@ async function openThread(id,folder='active',before=null,feedback=''){
     '<div class="message-heading">'+
       '<button class="message-back" type="button">‹ Voltar aos atendimentos</button>'+
       '<div class="message-heading-main"><div><span class="message-eyebrow">ATENDIMENTO · '+esc(thread.channel)+'</span>'+
-        '<h2>'+esc(thread.lead)+'</h2><small>Oportunidade vinculada: '+(thread.lead_id?'Sim':'Não')+'</small></div>'+
+        '<h2>'+esc(thread.lead)+'</h2><small>'+(leadForContact?.contact_id?'Cliente vinculado':
+        thread.contactState==='suggested'?'Possível cliente encontrado · confirme a identidade':
+        'Cliente ainda não vinculado')+'</small></div>'+
         '<div class="conversation-actions">'+contactControl+controls+'</div></div>'+
     '</div>'+
     '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
@@ -884,7 +888,8 @@ async function openThread(id,folder='active',before=null,feedback=''){
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelector('[data-empty-messages]')?.addEventListener('click',()=>emptyTrash('messages',id));
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
-  page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
+  page.querySelectorAll('[data-message-contact]').forEach(contactButton=>contactButton.addEventListener('click',async()=>{
+    if(contactButton.dataset.messageContact==='link'){openContactSelector(thread);return;}
     let lead=state.leads.find(l=>l.id===thread.lead_id);
     if(!lead&&thread.lead_id){
       const {data,error}=await sb.from('leads').select('*').eq('id',thread.lead_id).maybeSingle();
@@ -921,7 +926,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       clientMode='new';
     }
     view('clients');
-  });
+  }));
   page.querySelectorAll('[data-folder]').forEach(button=>button.onclick=()=>openThread(id,button.dataset.folder));
   page.querySelector('[data-older]')?.addEventListener('click',()=>openThread(id,folder,next));
   page.querySelector('[data-recent]')?.addEventListener('click',()=>openThread(id,folder));
