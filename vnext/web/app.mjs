@@ -130,9 +130,9 @@ async function build(section) {
 
   if (section === 'whatsapp') {
     content.className = 'records';
-    const [connections, metaConfig, reminders, reminderCounts] = await Promise.all([
+    const [connections, metaConfig, reminders, reminderCounts, rehearsal] = await Promise.all([
       api('whatsapp'), api('whatsapp/config'), api('whatsapp/reminders'),
-      api('whatsapp/reminders/summary'),
+      api('whatsapp/reminders/summary'), api('whatsapp/reminders/rehearsal'),
     ]);
     const instructions = element('p',
       'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
@@ -202,6 +202,14 @@ async function build(section) {
       '. Os eventos são recebidos apenas de agendas com assinatura HMAC. ' +
       'NENHUMA mensagem será enviada antes da homologação da conta, consentimento, ' +
       'template aprovado e cobrança própria validada.')));
+    content.append(card('Ensaio de processamento — nenhuma mensagem enviada',
+      element('p',
+        'Tarefas verificadas: ' + Number(rehearsal.checks) +
+        ' · Elegíveis somente na simulação: ' + Number(rehearsal.ready_simulated) +
+        ' · Bloqueadas: ' + Number(rehearsal.blocked) +
+        ' · Expiradas: ' + Number(rehearsal.expired) +
+        '. Esses números são diagnósticos e não comprovam entrega, ' +
+        'autorização de faturamento ou consumo da API Meta.')));
     // Operator settings are drafts; neither this form nor the API can enable
     // message delivery, verify customer billing or select a Meta credit line.
     const settings = element('form');
