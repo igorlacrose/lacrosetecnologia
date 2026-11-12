@@ -1,3 +1,5 @@
+import { readAsaasJson } from './asaas-response.mjs';
+
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const origin = 'https://api-sandbox.asaas.com/v3/';
 const idPatterns = {
@@ -33,7 +35,7 @@ export function createAsaasSandboxIssuer({ apiKey, request = fetch }) {
       await response.body?.cancel();
       return null;
     }
-    const result = await response.json();
+    const result = await readAsaasJson(response);
     if (body !== undefined) return result;
     if (result?.hasMore !== false || !Array.isArray(result.data) || result.data.length !== 1) return null;
     return result.data[0];
