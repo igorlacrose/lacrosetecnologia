@@ -60,5 +60,10 @@ jobs:
       - name: Testar paginação e triagem interna do LKZ ADM
         run: node scripts/test_lkz_adm_scaling.cjs
 
+      - name: Testar respostas manuais do CRM
+        run: |
+          node --check admin/crm-comms.js
+          node --test scripts/test_lkz_crm_comms.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
