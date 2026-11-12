@@ -17,6 +17,25 @@ const systemCatalog=[
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
 ];
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+function normalizedPhone(value){
+  let digits=String(value||'').replace(/\D/g,'');
+  if(digits.length===13&&digits.startsWith('55'))digits=digits.slice(2);
+  return digits.length>=10&&digits.length<=11?digits:'';
+}
+function recognizedContactCandidates(lead,contacts){
+  const d=lead?.structured_data&&typeof lead.structured_data==='object'?lead.structured_data:{};
+  const email=String(d.contact_email||'').trim().toLowerCase();
+  const phone=normalizedPhone(d.contact_phone);
+  if(!email&&!phone)return [];
+  return contacts.filter(c=>
+    !!(email&&c.email&&c.email.trim().toLowerCase()===email)||
+    !!(phone&&normalizedPhone(c.phone)===phone)
+  );
+}
+function contactDisplayName(contact){
+  return contact?.person_name||contact?.company_name||'Contato sem identificação';
+}
 const label=s=>({new:'Novo',diagnosing:'Diagnóstico',qualified:'Qualificado',human_review:'Revisão humana',contacted:'Contato realizado',proposal:'Proposta',won:'Fechado',lost:'Perdido',archived:'Arquivado',pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado',done:'Concluído',cancelled:'Cancelado'})[s]||s;
 const tag=s=>{const t=label(s),c=['Fechado','Aprovado','Concluído'].includes(t)?'ok':['Perdido','Rejeitado'].includes(t)?'err':['Pendente','Revisão humana','Proposta'].includes(t)?'warn':'info';return '<span class="tag '+c+'">'+esc(t)+'</span>'};
 function msg(node,text){node.textContent=text||''}
@@ -161,11 +180,23 @@ async function loadCommercial(){
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
-    threads:(vr.data||[]).map(c=>({
-  id:c.id,
-  lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
-  last:c.last_message_at||c.started_at,channel:c.channel||'Site',lead_id:c.lead_id,folder:folderMap.get(c.id)||'active'
-})),
+    threads:(vr.data||[]).map(c=>{
+      const linkedLead=lm.get(c.lead_id);
+      const linkedContact=linkedLead?.contact_id?cm.get(linkedLead.contact_id):null;
+      const candidates=linkedContact?[]:recognizedContactCandidates(linkedLead,contacts);
+      const suggested=candidates.length===1?candidates[0]:null;
+      const verifiedName=linkedContact&&(linkedContact.person_name||linkedContact.company_name);
+      const possibleName=suggested&&(suggested.person_name||suggested.company_name);
+      return {
+        id:c.id,lead_id:c.lead_id,
+        lead:verifiedName?verifiedName:possibleName?'Possível: '+possibleName:
+          'Atendimento '+c.id.slice(0,8).toUpperCase(),
+        contactState:linkedContact?'linked':possibleName?'suggested':'unknown',
+        suggestedContactIds:candidates.map(item=>item.id),
+        last:c.last_message_at||c.started_at,channel:c.channel||'Site',
+        folder:folderMap.get(c.id)||'active'
+      };
+    }),
     followups:(fr.data||[]).map(f=>({...f,lead:lm.get(f.lead_id)?.name||'Lead'})),
     approvals:(ar.data||[]).map(a=>({...a,lead:lm.get(a.lead_id)?.name||'Lead'}))
   };
