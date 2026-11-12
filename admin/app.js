@@ -269,7 +269,7 @@ const titles={
   tasks:['Demandas','Pendências comerciais que precisam de ação.'],
   commercial:['Visão comercial','Resumo dos registros comerciais.'],
   leads:['Oportunidades','Leads e estágios comerciais.'],
-  conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
+  conversations:['Atendimentos','Organize as conversas, identifique clientes e gerencie o histórico.'],
   followups:['Agenda de retornos','Agende, reagende, conclua e acompanhe seus retornos aqui.'],
   approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
   settings:['Configurações','Sessão e gestão de acesso.']
