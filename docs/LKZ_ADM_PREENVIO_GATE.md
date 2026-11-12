@@ -25,6 +25,7 @@
 - A aprovação de prévia é autorizada pelo histórico específico do canal consultado diretamente no banco, sem confiar em um booleano no navegador. Revogação desabilita a prontidão de prévias já aprovadas, **mas não altera retroativamente os registros de decisão**.
 - Um UUID por operação impede dupla gravação ao repetir uma mesma solicitação após falha de rede. A mesma chave com outros dados é rejeitada.
 - O módulo é **monocliente** na implantação atual. Para reutilizar em um SaaS multiempresa é bloqueador adicionar tenant_id, verificar isolamento/RLS/autorização por tenant e revisar rotas administrativas.
+- Cada autorização salva de forma privada uma referência canônica ao **destino exato** (telefone ou e-mail). Se esse campo mudar, a autorização aparece como **desatualizada** e não pode liberar aprovações. A nova comprovação deve ser posterior à alteração cadastral.
 - A mera declaração do operador não torna um consentimento legalmente válido. O controlador deve possuir evidência de manifestação livre, informada, inequívoca e vinculada a finalidade, conforme orientação da ANPD.
 - **Não existe disparo de mensagens.** Uma autorização registrada não deve ser interpretada como habilitação de transporte.
 
