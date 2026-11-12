@@ -8,7 +8,7 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
-check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-3'));
+check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-4'));
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));
@@ -55,3 +55,17 @@ const matched=vm.runInContext('recognizedContactCandidates',contactScope)(
 assert.equal(matched.length,2);
 assert.equal(vm.runInContext('normalizedPhone',contactScope)('+55 (73) 99999-0000'),'73999990000');
 console.log('OK: Sugestões por coincidência exata, sem atribuir nome arbitrário');
+
+
+const workerSql=fs.readFileSync('docs/oca/internal-worker-staged.sql','utf8');
+check('OCA visível no menu',html.includes('data-view="oca"')&&app.includes('function oca('));
+check('Fila interna usa RPCs autorizadas',app.includes('lkz_adm_oca_list_tasks')&&app.includes('lkz_adm_oca_resolve_task'));
+check('Motor possui pausa e execução com MASTER',app.includes('lkz_adm_oca_run_now')&&app.includes('lkz_adm_oca_set_enabled'));
+check('Worker grava somente tarefas internas',workerSql.includes('insert into lkz_adm_private.oca_internal_tasks')&&
+ !/insert\s+into\s+public\.followups/i.test(workerSql));
+check('Worker não envia mensagens/solicitações externas',!/https?:\/\/|net\.http|sendTelegram|sendMessage|pg_net/i.test(workerSql));
+check('Automação idempotente e semanal',workerSql.includes('unique(lead_id,rule_code,week_start)')&&
+ workerSql.includes('on conflict(lead_id,rule_code,week_start) do nothing'));
+check('Fila administrativa exige MFA',workerSql.includes('lkz_adm_private.is_operator()'));
+check('Pausa exige MASTER MFA',workerSql.includes('lkz_adm_private.is_master()'));
+check('Cron apenas dias úteis',workerSql.includes("'10 14 * * 1-5'"));
