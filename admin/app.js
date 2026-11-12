@@ -577,9 +577,11 @@ async function emptyTrash(kind,selectedConversation=null){
       return;
     }
     const noun=kind==='messages'?'mensagem(ns)':'atendimento(s)';
-    const answer=window.prompt('ATENÇÃO: apagar DEFINITIVAMENTE '+count+' '+noun+
-      ' de todas as conversas. Não será possível desfazer. Digite ESVAZIAR para confirmar:');
-    if(answer!=='ESVAZIAR')return;
+    if(!await askConfirmation({
+      title:'Esvaziar lixeira definitivamente',
+      message:'Você está prestes a apagar '+count+' '+noun+' de todas as conversas. A operação é irreversível.',
+      keyword:'ESVAZIAR',destructive:true
+    }))return;
     let result;
     try{result=await sb.rpc('lkz_adm_empty_trash',
       {p_kind:kind,p_conversation:null,p_expected_count:count})}
@@ -609,11 +611,16 @@ async function emptyTrash(kind,selectedConversation=null){
 async function conversationAction(id,action){
   const t=state.threads.find(item=>item.id===id);
   if(!t)return;
-  if(action==='trash'&&!window.confirm('Excluir este atendimento da lista e mover todo o histórico à Lixeira? Você poderá restaurá-lo.'))return;
+  if(action==='trash'&&!await askConfirmation({
+    title:'Mover atendimento para a lixeira',message:'O atendimento e seu histórico ficarão na Lixeira, podendo ser restaurados.'
+  }))return;
   if(action==='purge'){
     if(profile?.role!=='master')return;
-    const answer=window.prompt('EXCLUSÃO DEFINITIVA do atendimento e de todas as suas mensagens. Não é possível desfazer. Digite EXCLUIR para confirmar:');
-    if(answer!=='EXCLUIR')return;
+    if(!await askConfirmation({
+      title:'Excluir atendimento definitivamente',
+      message:'Este atendimento e todas as suas mensagens serão apagados permanentemente.',
+      keyword:'EXCLUIR',destructive:true
+    }))return;
   }
   const actionLabels={archive:'Atendimento arquivado.',trash:'Atendimento movido para a Lixeira.',
     restore:'Atendimento restaurado.',purge:'Atendimento e mensagens excluídos definitivamente.'};
@@ -785,8 +792,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
       return;
     }
     if(destination==='purge'){
-      const answer=window.prompt('Apagar definitivamente '+ids.length+' mensagem(ns)? Digite EXCLUIR para confirmar:');
-      if(answer!=='EXCLUIR')return;
+      if(!await askConfirmation({
+        title:'Excluir mensagens definitivamente',
+        message:ids.length+' mensagem(ns) serão apagadas permanentemente.',
+        keyword:'EXCLUIR',destructive:true
+      }))return;
     }
     const status=page.querySelector('[data-notice]');
     page.querySelectorAll('button,input').forEach(control=>control.disabled=true);
@@ -886,9 +896,11 @@ function openFollowupEditor(mode,id=null,leadId=null){
       if(action==='edit'){openFollowupEditor('edit',id);return}
       if(action==='lead'){openOpportunity(followup.lead_id);return}
       if(!['complete','cancel'].includes(action))return;
-      if(!window.confirm(action==='complete'?
-        'Confirmar que este retorno foi realizado? Não será enviada mensagem.':
-        'Cancelar este retorno? Esta decisão será registrada.'))return;
+      if(!await askConfirmation({
+        title:action==='complete'?'Concluir retorno':'Cancelar retorno',
+        message:action==='complete'?'Registrar o retorno como realizado? Nenhuma mensagem será enviada.':
+          'Cancelar este retorno e registrar a alteração?'
+      }))return;
       const msg=target.querySelector('[data-return-status]');
       target.querySelectorAll('button').forEach(x=>x.disabled=true);
       msg.textContent='Registrando...';
@@ -986,7 +998,11 @@ function approvals(feedback=''){
   el('content').querySelectorAll('[data-review-lead]').forEach(button=>button.onclick=()=>{view('leads');const lead=el('content').querySelector('[data-lead="'+button.dataset.reviewLead+'"]');lead?.click()});
   el('content').querySelectorAll('[data-decision]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-approval]'),status=button.dataset.decision;
-    if(!window.confirm(status==='approved'?'Confirmar aprovação?':'Confirmar rejeição?'))return;
+    if(!await askConfirmation({
+      title:status==='approved'?'Aprovar solicitação':'Rejeitar solicitação',
+      message:'Confirme esta decisão administrativa. A ação será registrada.',
+      destructive:status!=='approved'
+    }))return;
     row.querySelectorAll('button').forEach(control=>control.disabled=true);
     const {error}=await sb.rpc('lkz_adm_decide_approval',{p_id:row.dataset.approval,p_status:status});
     if(!row.isConnected||!user)return;
@@ -1213,7 +1229,11 @@ async function loadUsers(target,feedback=''){
   target.querySelectorAll('[data-user-action]').forEach(button=>button.onclick=async()=>{
     const row=button.closest('[data-account]'),item=data.find(entry=>entry.id===row.dataset.account);
     const action=button.dataset.userAction;
-    if(action==='remove'&&!window.confirm('Excluir o acesso deste usuário ao LKZ ADM?'))return;
+    if(action==='remove'&&!await askConfirmation({
+      title:'Excluir acesso do usuário',
+      message:'Revogar o acesso deste usuário ao LKZ ADM? A conta MASTER permanece protegida.',
+      keyword:'EXCLUIR',destructive:true
+    }))return;
     const controls=[...row.querySelectorAll('input,select,button')];
     controls.forEach(control=>control.disabled=true);
     const {error}=await sb.rpc('lkz_adm_manage_user',{p_id:item.id,p_version:item.updated_at,p_action:action,
