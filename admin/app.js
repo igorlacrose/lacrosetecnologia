@@ -489,6 +489,48 @@ const messageActions={
   archived:{active:'Restaurar mensagens',deleted:'Excluir mensagens'},
   deleted:{active:'Restaurar mensagens',purge:'Apagar definitivamente'}
 };
+async function emptyTrash(kind,selectedConversation=null){
+  if(trashBusy||profile?.role!=='master')return;
+  trashBusy=true;
+  try{
+    const {data:stats,error:statsError}=await sb.rpc('lkz_adm_trash_stats');
+    if(statsError||!stats)throw new Error('CONTAGEM_INDISPONIVEL');
+    const count=Number(kind==='messages'?stats.messages:stats.conversations);
+    if(!Number.isInteger(count)||count<=0){
+      conversationFlash='A lixeira já está vazia.';
+      if(currentView==='conversations')conversations(conversationFolder);
+      return;
+    }
+    const noun=kind==='messages'?'mensagem(ns)':'atendimento(s)';
+    const answer=window.prompt('ATENÇÃO: apagar DEFINITIVAMENTE '+count+' '+noun+
+      ' de todas as conversas. Não será possível desfazer. Digite ESVAZIAR para confirmar:');
+    if(answer!=='ESVAZIAR')return;
+    let result;
+    try{result=await sb.rpc('lkz_adm_empty_trash',
+      {p_kind:kind,p_conversation:null,p_expected_count:count})}
+    catch{result={error:{code:'REDE'}}}
+    if(result.error||Number(result.data?.deleted)!==count){
+      throw new Error(result.error?.code||'CONFERIR_RESULTADO');
+    }
+    await loadCommercial();
+    conversationFlash='Lixeira esvaziada: '+count+' '+noun+' apagados definitivamente.';
+    if(currentView==='conversations'){
+      const folder=conversationFolder;
+      conversations(folder);
+      if(kind==='messages'&&selectedConversation&&state.threads.some(t=>t.id===selectedConversation)){
+        await openThread(selectedConversation,'deleted',null,conversationFlash);
+        conversationFlash='';
+      }
+    }
+  }catch(error){
+    const notice=el('messagePane')?.querySelector('[data-notice]');
+    const message='Falha ao esvaziar a lixeira. Código: '+(error?.message||'INDEFINIDO')+
+      '. Recarregue para conferir o estado antes de tentar novamente.';
+    if(notice)notice.textContent=message;
+    else {conversationFlash=message;if(currentView==='conversations')conversations(conversationFolder)}
+  }finally{trashBusy=false}
+}
+
 async function conversationAction(id,action){
   const t=state.threads.find(item=>item.id===id);
   if(!t)return;
