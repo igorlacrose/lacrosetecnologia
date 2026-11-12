@@ -76,6 +76,9 @@ check('Atendimento não agenda para oportunidade fechada',app.includes("!['won',
 check('Polling detecta alterações acima dos primeiros 100',app.includes("count:'exact'")&&app.includes('countChanged'));
 check('Polling preserva diálogo em aberto',app.includes('activeDialogCancel!==')||app.includes("typeof activeDialogCancel!=='undefined'&&activeDialogCancel"));
 
-check('Central manual carregada na ficha de oportunidade',app.includes('LKZCrmComms.mount')&&html.includes('crm-comms.js?v=20261112-1'));
+check('Central manual carregada na ficha de oportunidade',app.includes('LKZCrmComms.mount')&&html.includes('crm-comms.js?v=20261112-2'));
 check('Estilo isolado carregado',html.includes('crm-comms.css?v=20261112-1'));
 check('Nenhuma chave privada de API introduzida',!app.includes('sb_secret_')&&!html.includes('service_role'));
+
+check('Registro manual usa RPC idempotente',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('lkz_adm_crm_log_manual_contact_once'));
+check('Chave de retentativa preservada por conteúdo',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('requestForManualContact(note,currentChannel)'));
