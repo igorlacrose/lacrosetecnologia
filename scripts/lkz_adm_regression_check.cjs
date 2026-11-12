@@ -69,3 +69,9 @@ check('Automação idempotente e semanal',workerSql.includes('unique(lead_id,rul
 check('Fila administrativa exige MFA',workerSql.includes('lkz_adm_private.is_operator()'));
 check('Pausa exige MASTER MFA',workerSql.includes('lkz_adm_private.is_master()'));
 check('Cron apenas dias úteis',workerSql.includes("'10 14 * * 1-5'"));
+
+check('Atendimento abre oportunidade existente',app.includes('data-message-lead')&&app.includes('openOpportunity(thread.lead_id)'));
+check('Atendimento agenda retorno no CRM interno',app.includes('data-message-schedule')&&app.includes("openFollowupEditor('create',null,thread.lead_id)"));
+check('Atendimento não agenda para oportunidade fechada',app.includes("!['won','lost','archived'].includes(linkedLead.status)"));
+check('Polling detecta alterações acima dos primeiros 100',app.includes("count:'exact'")&&app.includes('countChanged'));
+check('Polling preserva diálogo em aberto',app.includes('activeDialogCancel!==')||app.includes("typeof activeDialogCancel!=='undefined'&&activeDialogCancel"));
