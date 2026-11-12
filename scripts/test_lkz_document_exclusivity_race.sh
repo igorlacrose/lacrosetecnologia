@@ -6,14 +6,14 @@ quote="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3"
 contact="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 set +e
-psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lkz_contract_test -c "BEGIN;
+psql -v ON_ERROR_STOP=1 -U postgres -d lkz_contract_test -c "BEGIN;
  INSERT INTO lkz_adm_private.contract_text_previews(quote_id,contact_id)
  VALUES ('$quote','$contact');
  SELECT pg_sleep(1);
  COMMIT;" > /tmp/lkz-text-race.log 2>&1 &
 text_pid=$!
 
-psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lkz_contract_test -c "BEGIN;
+psql -v ON_ERROR_STOP=1 -U postgres -d lkz_contract_test -c "BEGIN;
  INSERT INTO lkz_adm_private.signature_dossiers
   (quote_id,contact_id,request_id,terms_version,document_ref,document_sha256)
  VALUES ('$quote','$contact','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3',
@@ -31,7 +31,7 @@ if (( (text_status == 0) == (dossier_status == 0) )); then
   exit 1
 fi
 
-counts=$(psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d lkz_contract_test -At -F '|' -c "
+counts=$(psql -v ON_ERROR_STOP=1 -U postgres -d lkz_contract_test -At -F '|' -c "
  SELECT
   (SELECT count(*) FROM lkz_adm_private.contract_text_previews WHERE quote_id='$quote')+
   (SELECT count(*) FROM lkz_adm_private.signature_dossiers WHERE quote_id='$quote'),
