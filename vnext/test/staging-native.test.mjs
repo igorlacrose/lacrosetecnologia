@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
-import { mkdtempSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,6 +10,15 @@ import { fixture, withIdentity } from '../preview-db.mjs';
 import { assertIntegrationRole, assertWorkspaceRole, migrateStaging, openStagingDatabase } from '../staging-db.mjs';
 
 const nativeTest = process.env.VNEXT_TEST_NATIVE_POSTGRES === '1';
+
+function scramVerifier(password) {
+  const salt = randomBytes(16);
+  const key = pbkdf2Sync(password, salt, 4096, 32, 'sha256');
+  const client = createHmac('sha256', key).update('Client Key').digest();
+  const stored = createHash('sha256').update(client).digest('base64');
+  const server = createHmac('sha256', key).update('Server Key').digest('base64');
+  return 'SCRAM-SHA-256$4096:' + salt.toString('base64') + '$' + stored + ':' + server;
+}
 
 test('native PostgreSQL enforces tenant and billing permissions over TCP', { skip: !nativeTest }, async t => {
   const binaries = execFileSync('pg_config', ['--bindir'], { encoding: 'utf8' }).trim();
@@ -20,8 +29,14 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
   bootstrap.password = password;
   const pgCtl = join(binaries, 'pg_ctl');
   execFileSync(join(binaries, 'initdb'), ['-D', directory, '-U', bootstrap.username,
-    '--auth-local=reject', '--auth-host=scram-sha-256', '--pwfile=/dev/stdin', '--no-locale', '-E', 'UTF8'],
-  { input: password + '\n', timeout: 30_000 });
+    '--auth=reject', '--no-locale', '-E', 'UTF8'], { timeout: 30_000 });
+  const setupPassword = spawnSync(join(binaries, 'postgres'), ['--single', '-D', directory, 'postgres'], {
+    input: `alter role ${bootstrap.username} password '${scramVerifier(password)}';\n`,
+    encoding: 'utf8', timeout: 30_000,
+  });
+  assert.ok(setupPassword.status === 0 && !/\b(?:ERROR|FATAL|PANIC):/.test(setupPassword.stdout + setupPassword.stderr),
+    'Could not initialize the temporary PostgreSQL login');
+  writeFileSync(join(directory, 'pg_hba.conf'), 'host all all 127.0.0.1/32 scram-sha-256\n');
   execFileSync(pgCtl, ['-D', directory, '-l', join(directory, 'server.log'),
     '-o', '-h 127.0.0.1 -p ' + port + ' -c log_min_error_statement=panic', '-w', 'start'], { timeout: 30_000 });
   const database = 'lkz_vnext_stage_ci';
@@ -47,7 +62,7 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
   const passwords = new Map(logins.map(login => [login, randomBytes(32).toString('hex')]));
   for (const [login, password] of passwords) {
     const flags = login === migrator ? 'createrole noinherit' : login === runtime ? 'noinherit' : 'inherit';
-    await admin.query(`create role ${login} login ${flags} password '${password}'`);
+    await admin.query(`create role ${login} login ${flags} password '${scramVerifier(password)}'`);
   }
   await admin.query('create role anon nologin; create role authenticated nologin');
   await admin.query(`create database ${database} owner ${migrator}`);
