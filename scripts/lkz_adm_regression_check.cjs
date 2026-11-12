@@ -97,7 +97,7 @@ check('Comunicação não confunde legado com consentimento atual',!require('nod
 check('OCA pré-despacho sem transporte vinculado à prévia aprovada',app.includes('LKZCrmPreviews.mount')&&html.includes('oca-dispatch-preflight.js?v=20261112-1')&&html.includes('oca-dispatch-preflight.css?v=20261112-1'));
 check('Pré-despacho usa módulos isolados',require('node:fs').readFileSync('admin/crm-previews.js','utf8').includes('window.LKZOcaPreflight.mount'));
 
-check('Produtos múltiplos carregados na ficha',app.includes('LKZClientServices.mountForm')&&app.includes('LKZClientServices.mountDetail'));
+check('Produtos múltiplos carregados na ficha',app.includes('LKZClientServices?.mountForm')&&app.includes('LKZClientServices.mountDetail'));
 check('Criação e edição de minuta transacional',app.includes('lkz_adm_create_client_with_draft')&&app.includes('lkz_adm_edit_client_with_draft'));
 check('Resumo financeiro distingue minuta de cobrança',app.includes('LKZClientServices.mountFinance'));
 check('Módulo de serviços e estilos carregados',html.includes('client-services.js?v=20261112-1')&&html.includes('client-services.css?v=20261112-1'));
