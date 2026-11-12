@@ -54,5 +54,8 @@ jobs:
           node --check assets/oca-turnstile.js
           node --test scripts/test_oca_turnstile.cjs
 
+      - name: Testar regressões do LKZ ADM
+        run: node scripts/lkz_adm_regression_check.cjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py

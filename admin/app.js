@@ -9,6 +9,8 @@ let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
 const CONVERSATION_POLL_MS=20000;
 let currentView='overview',conversationPollTimer=null,conversationPollBusy=false;
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
+let followupFilter='pending',followupFocus=null,leadFocus=null;
+let trashBusy=false;
 let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
@@ -75,21 +77,22 @@ el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=tr
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
 async function loadCommercial(){
-  const [lr,cr,vr,fr,ar,folders]=await Promise.all([
+  const [lr,cr,vr,fr,ar,folders,trash]=await Promise.all([
     sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
     sb.from('contacts').select('id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact').order('created_at',{ascending:false}).limit(200),
     sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
     sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
     sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100),
-    sb.rpc('lkz_adm_list_conversation_folders')
+    sb.rpc('lkz_adm_list_conversation_folders'),
+    sb.rpc('lkz_adm_trash_stats')
   ]);
-  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error;
+  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error||trash.error;
   if(err)throw err;
   const contacts=cr.data||[],cm=new Map(contacts.map(c=>[c.id,c])),lm=new Map();
   const folderMap=new Map((folders.data||[]).map(entry=>[entry.conversation_id,entry.folder]));
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
-    contacts,leads:[...lm.values()],
+    contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
     threads:(vr.data||[]).map(c=>({
   id:c.id,
   lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
@@ -106,6 +109,7 @@ function threadStampKey(items){
   return JSON.stringify(items.map(item=>[item.id,item.last]));
 }
 function conversationRefreshBlocked(){
+  if(typeof trashBusy!=='undefined'&&trashBusy)return true;
   const root=el('chatWorkspace'),pane=el('messagePane');
   return !root?.isConnected ||
     document.activeElement===el('threadFilter') ||
@@ -157,7 +161,8 @@ function stopConversationPolling(){
 }
 
 const titles={
-  overview:['Painel geral','Indicadores e prioridades dos registros comerciais carregados.'],
+  overview:['Central de comando','Ações prioritárias, clientes e operações do CRM interno.'],
+  crm:['CRM · Pipeline','Oportunidades comerciais e trabalho operacional no próprio LKZ ADM.'],
   systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
   clients:['Clientes','Cadastros e contatos comerciais.'],
   finance:['Financeiro','Integração de cobrança pendente.'],
@@ -166,7 +171,7 @@ const titles={
   commercial:['Visão comercial','Resumo dos registros comerciais.'],
   leads:['Oportunidades','Leads e estágios comerciais.'],
   conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
-  followups:['Agenda de retornos','Retornos programados, em modo de consulta.'],
+  followups:['Agenda de retornos','Agende, reagende, conclua e acompanhe seus retornos aqui.'],
   approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
   settings:['Configurações','Sessão e gestão de acesso.']
 };
@@ -180,68 +185,86 @@ sidebarBackdrop?.addEventListener('click',()=>setMenu(false));
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view(b.dataset.view);setMenu(false)});
 function view(v){currentView=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
 function k(l,v,m){return '<article class="kpi"><span>'+l+'</span><strong>'+v+'</strong><small>'+m+'</small></article>'}
-function render(v){return {overview,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
-function dailyBrief(data, now = Date.now()) {
-  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Bahia', dateStyle: 'short' });
-  const today = day.format(now);
-  const inactive = new Set(data.leads.filter(lead => ['lost', 'archived'].includes(lead.status)).map(lead => lead.id));
-  const actions = [];
-  const add = (item, priority, view, reason, dueAt) => {
-    if (inactive.has(item.lead_id)) return;
-    actions.push({
-      key: item.lead_id || view + ':' + item.id,
-      name: item.lead,
-      priority, view, reason, dueAt: Number.isFinite(dueAt) ? dueAt : Infinity
-    });
+function render(v){return {overview,crm,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
+
+function dailyBrief(data, now=Date.now()){
+  const dates=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Bahia',dateStyle:'short'});
+  const today=dates.format(now);
+  const actions=[];
+  const inactive=new Set(data.leads.filter(l=>['won','lost','archived'].includes(l.status)).map(l=>l.id));
+  const add=(item,priority,target,reason,stamp)=>{
+    if(item.lead_id&&inactive.has(item.lead_id))return;
+    actions.push({key:item.lead_id||target+':'+item.id,name:item.lead||item.name||'Oportunidade',
+      leadId:item.lead_id||item.id,target,followupId:target==='followups'?item.id:null,
+      approvalId:target==='approvals'?item.id:null,
+      priority,reason,dueAt:Number.isFinite(stamp)?stamp:Infinity});
   };
-  for (const item of data.followups) {
-    if (item.status !== 'pending') continue;
-    const dueAt = Date.parse(item.due_at);
-    if (dueAt < now) add(item, 0, 'followups', 'Retorno atrasado', dueAt);
-    else if (Number.isFinite(dueAt) && day.format(dueAt) === today) add(item, 2, 'followups', 'Retorno hoje', dueAt);
+  for(const f of data.followups){
+    if(f.status!=='pending')continue;
+    const due=Date.parse(f.due_at);
+    if(due<now)add(f,0,'followups','Retorno atrasado',due);
+    else if(Number.isFinite(due)&&dates.format(due)===today)add(f,2,'followups','Retorno hoje',due);
   }
-  for (const item of data.approvals) {
-    if (item.status === 'pending') add(item, 1, 'approvals', 'Aprovação pendente', Date.parse(item.requested_at));
+  for(const a of data.approvals){
+    if(a.status==='pending')add(a,1,'approvals','Aprovação pendente',Date.parse(a.requested_at));
   }
-  for (const lead of data.leads) {
-    if (lead.status !== 'won' && (lead.status === 'human_review' || lead.needs_human_review === true)) {
-      add({ lead_id: lead.id, lead: lead.name }, 3, 'leads', 'Escopo para revisar', Date.parse(lead.updated_at));
-    }
+  for(const l of data.leads){
+    if(l.status==='human_review'||l.needs_human_review)
+      add({id:l.id,lead_id:l.id,lead:l.name},3,'leads','Necessita revisão comercial',Date.parse(l.updated_at));
   }
-  actions.sort((a, b) => a.priority - b.priority || a.dueAt - b.dueAt || a.key.localeCompare(b.key));
-  const grouped = new Map();
-  for (const action of actions) {
-    if (!grouped.has(action.key)) grouped.set(action.key, { ...action, reasons: new Set() });
+  actions.sort((a,b)=>a.priority-b.priority||a.dueAt-b.dueAt||a.key.localeCompare(b.key));
+  const grouped=new Map();
+  for(const action of actions){
+    if(!grouped.has(action.key))grouped.set(action.key,{...action,reasons:new Set()});
     grouped.get(action.key).reasons.add(action.reason);
   }
-  return {
-    overdue: actions.filter(action => action.priority === 0).length,
-    dueToday: actions.filter(action => action.priority === 2).length,
-    approvals: actions.filter(action => action.priority === 1).length,
-    priorities: [...grouped.values()]
-  };
+  return {overdue:actions.filter(a=>a.priority===0).length,
+    dueToday:actions.filter(a=>a.priority===2).length,
+    approvals:actions.filter(a=>a.priority===1).length,
+    priorities:[...grouped.values()]};
 }
+function navigatePriority(target,followupId,leadId){
+  if(target==='followups'){
+    followupFocus=followupId||null;followupFilter='all';view('followups');
 
-function overview() {
-  const { overdue, dueToday, approvals, priorities } = dailyBrief(state);
-  const list = priorities.slice(0, 12).map(item =>
-    '<div class="row"><span><strong>' + esc(item.name || 'Oportunidade') + '</strong><br>' +
-    esc([...item.reasons].join(' · ')) + '</span><button type="button" class="cta" data-brief-view="' +
-    item.view + '">Abrir</button></div>'
-  ).join('');
-  el('content').innerHTML = '<div class="grid">' +
-    k('Retornos atrasados', overdue, 'Prazo vencido') +
-    k('Retornos de hoje', dueToday, 'Ainda no prazo') +
-    k('Aprovações', approvals, 'Decisões pendentes') +
-    '</div><div class="layout"><section class="panel"><h2>Prioridades do dia</h2>' +
-    '<p>' + priorities.length + ' prioridades nos registros carregados.</p>' +
-    (list || '<p>Nenhuma prioridade encontrada nos registros carregados.</p>') +
-    '</section><section class="panel"><h2>Operação da Lacrose</h2>' +
-    '<p>Acompanhe as prioridades aqui e abra o CRM para operar clientes, tarefas e conversas.</p>' +
-    '<a class="cta" href="https://lcrm.lacrosetecnologia.com.br/app/">Abrir LCRM</a>' +
-    '</section></div>';
-  el('content').querySelectorAll('[data-brief-view]').forEach(button => {
-    button.addEventListener('click', () => view(button.dataset.briefView));
+  }else if(target==='leads'||target==='approvals'){
+    if(target==='approvals'&&!leadId){view('approvals');return}
+    openOpportunity(leadId);
+  }else view('crm');
+}
+function overview(){
+  const info=dailyBrief(state);
+  const list=info.priorities.slice(0,12).map(item=>
+    '<article class="priority-item"><span class="priority-dot'+(item.priority===0?' overdue':'')+'"></span>'+
+      '<div><strong>'+esc(item.name)+'</strong><small>'+esc([...item.reasons].join(' · '))+'</small></div>'+
+      '<button class="cta secondary" type="button" data-priority="'+esc(item.key)+'">Abrir ficha</button></article>').join('');
+  const pending=state.followups.filter(f=>f.status==='pending').length;
+  el('content').innerHTML=
+    '<section class="welcome-strip"><div><span class="eyebrow">OPERAÇÃO COMERCIAL</span>'+
+    '<h2>Seu negócio, em uma única central.</h2>'+
+    '<p>Clientes, conversas, oportunidades e agenda trabalhando juntos — sem depender de outro CRM.</p></div>'+
+    '<div class="welcome-actions"><button type="button" class="cta" data-overview="crm">Abrir CRM</button>'+
+    '<button type="button" class="cta secondary" data-overview="followups">Agenda</button></div></section>'+
+    '<div class="grid dashboard-kpis">'+
+      k('Oportunidades',state.leads.length,'Registros comerciais')+
+      k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada')+
+      k('Retornos pendentes',pending,'Aguardando ação')+
+      k('Clientes',state.contacts.length,'Cadastros disponíveis')+
+    '</div><div class="dashboard-lower">'+
+      '<section class="panel priorities-panel"><div class="panel-head"><div><span class="eyebrow">O QUE FAZER AGORA</span>'+
+      '<h2>Prioridades do dia</h2></div><span class="mini-count">'+info.priorities.length+' pendência(s)</span></div>'+
+      (list||'<div class="empty-state"><strong>Tudo em dia por aqui.</strong><p>Nenhum retorno ou aprovação pendente nesta consulta.</p></div>')+
+      '</section><section class="panel next-actions"><span class="eyebrow">ACESSO RÁPIDO</span>'+
+      '<h2>Trabalho operacional</h2>'+
+      '<button type="button" data-overview="conversations"><span>Atendimentos</span><small>Conversas, histórico e lixeiras</small></button>'+
+      '<button type="button" data-overview="leads"><span>Oportunidades</span><small>Negociação, notas e histórico</small></button>'+
+      '<button type="button" data-overview="followups"><span>Agenda de retornos</span><small>Agendar, reagendar e concluir</small></button>'+
+      '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+
+      '</section></div>';
+  el('content').querySelectorAll('[data-overview]').forEach(b=>b.onclick=()=>view(b.dataset.overview));
+  el('content').querySelectorAll('[data-priority]').forEach(b=>b.onclick=()=>{
+    const p=info.priorities.find(a=>a.key===b.dataset.priority);
+    if(p)navigatePriority(p.target,p.followupId,p.leadId);
   });
 }
 function commercial(){
@@ -273,22 +296,147 @@ function commercial(){
     '</section><section class="panel commercial-panel"><h2>Ferramentas comerciais</h2><div class="commercial-tools">'+
     tools.map(([viewId,title,description])=>'<article><h3>'+title+'</h3><p>'+description+
       '</p><button class="cta" type="button" data-commercial-view="'+viewId+'">Abrir '+title+'</button></article>').join('')+
-    '<article><h3>LCRM</h3><p>Clientes, tarefas, oportunidades e canais do CRM.</p><a class="cta" href="'+
-    systemCatalog.find(item=>item.code==='LCRM').url+'">Abrir LCRM</a></article></div></section>';
+    '<article><h3>CRM do LKZ ADM</h3><p>Pipeline e operações comerciais no painel.</p>'+
+    '<button class="cta" type="button" data-commercial-view="crm">Abrir CRM</button></article></div></section>';
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
 }
-function leads(){
-  const q=(el('search')?.value||'').trim().toLowerCase();
- const filtered=q?state.leads.filter(l=>[l.name,l.contact,l.intent,l.category,l.suggested_solution].some(v=>String(v||'').toLowerCase().includes(q))):state.leads;
- const body=filtered.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
-  el('content').innerHTML='<p class="result-count">'+filtered.length+' oportunidade(s) encontrada(s)</p><div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
-  el('content').querySelectorAll('[data-lead]').forEach(button=>button.onclick=()=>{
-    const lead=state.leads.find(item=>item.id===button.dataset.lead);
-    el('leadDetails').innerHTML='<section class="panel form-panel"><h2>'+esc(lead.name)+'</h2>'+
-      '<p>'+esc(lead.problem||lead.suggested_solution||lead.intent||'Sem detalhes adicionais.')+'</p>'+
-      '<p>'+esc(lead.contact)+' · '+tag(lead.status)+'</p></section>';
-    el('leadDetails').scrollIntoView({block:'nearest'});
+
+const crmStages=[
+  ['new','Novos'],['diagnosing','Diagnóstico'],['qualified','Qualificados'],
+  ['human_review','Revisão'],['contacted','Contato feito'],['proposal','Propostas'],['won','Fechados']
+];
+function openOpportunity(id){
+  leadFocus=id;el('search').value='';view('leads');
+}
+function crm(){
+  const active=state.leads.filter(l=>!['archived','lost'].includes(l.status));
+  const closed=state.leads.filter(l=>['archived','lost'].includes(l.status)).length;
+  const cols=crmStages.map(([status,title])=>{
+    const matches=active.filter(l=>l.status===status);
+    return '<section class="pipeline-column"><div class="pipeline-col-head"><span>'+esc(title)+'</span>'+
+      '<b>'+matches.length+'</b></div><div class="pipeline-col-body">'+
+      (matches.map(l=>
+        '<button type="button" class="pipeline-card" data-crm-lead="'+esc(l.id)+'">'+
+        '<strong>'+esc(l.name)+'</strong><small>'+esc(l.suggested_solution||l.intent||'Interesse não informado')+'</small>'+
+        '<span>'+esc(dateLabel(l.updated_at))+'</span></button>').join('')||
+        '<p class="pipeline-empty">Sem oportunidades</p>')+'</div></section>';
+  }).join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">CRM LACROSE</span>'+
+    '<h2>Funil comercial</h2><p>Etapas e registros reais do banco — movimentação com autorização e histórico.</p></div>'+
+    '<div><button type="button" class="cta" data-crm-goto="leads">Gerenciar oportunidades</button>'+
+    '<button type="button" class="cta secondary" data-crm-goto="followups">Nova atividade</button></div></section>'+
+    '<div class="grid crm-mini-stats">'+k('Oportunidades abertas',active.length,'Em atendimento')+
+      k('Retornos pendentes',state.followups.filter(f=>f.status==='pending').length,'Na agenda')+
+      k('Encerrados / arquivados',closed,'Histórico preservado')+'</div>'+
+    '<div class="pipeline-board" aria-label="Funil comercial">'+cols+'</div>'+
+    '<p class="support-note">Negociação, notas, mudanças de etapa e agendamento são feitos na ficha de cada oportunidade.</p>';
+  el('content').querySelectorAll('[data-crm-lead]').forEach(b=>b.onclick=()=>openOpportunity(b.dataset.crmLead));
+  el('content').querySelectorAll('[data-crm-goto]').forEach(b=>b.onclick=()=>{
+    view(b.dataset.crmGoto);
+    if(b.dataset.crmGoto==='followups')openFollowupEditor('create');
   });
+}
+
+function leads(){
+  const query=(el('search')?.value||'').trim().toLowerCase();
+  const records=query?state.leads.filter(l=>
+    [l.name,l.contact,l.intent,l.category,l.suggested_solution,l.problem]
+      .some(v=>String(v||'').toLowerCase().includes(query))):state.leads;
+  const table=records.map(l=>
+    '<tr><td><div class="client-name-cell"><strong>'+esc(l.name)+'</strong>'+
+      '<small>'+esc(l.source||'Origem não informada')+'</small></div></td>'+
+    '<td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td>'+
+    '<td>'+tag(l.status)+'</td><td>'+esc(dateLabel(l.updated_at))+'</td>'+
+    '<td><button class="cta secondary" type="button" data-lead="'+esc(l.id)+'">Abrir ficha</button></td></tr>').join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">RELACIONAMENTO</span><h2>Oportunidades</h2>'+
+    '<p>Registre a evolução comercial, acompanhe o histórico e programe retornos.</p></div>'+
+    '<button class="cta secondary" type="button" data-go-pipeline>Ver pipeline</button></section>'+
+    '<p class="result-count">'+records.length+' oportunidade(s) encontrada(s)</p>'+
+    '<div id="leadDetails"></div><div class="table opportunity-table"><table>'+
+    '<thead><tr><th>Oportunidade</th><th>Contato</th><th>Interesse</th><th>Etapa</th><th>Atualização</th><th>Ação</th></tr></thead>'+
+    '<tbody>'+table+'</tbody></table></div>';
+  el('content').querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>showOpportunity(b.dataset.lead));
+  el('content').querySelector('[data-go-pipeline]').onclick=()=>view('crm');
+  if(leadFocus&&records.some(l=>l.id===leadFocus))showOpportunity(leadFocus);
+}
+async function showOpportunity(id,feedback=''){
+  const lead=state.leads.find(l=>l.id===id),container=el('leadDetails');
+  if(!lead||!container)return;
+  leadFocus=id;
+  const current=lead.status;
+  const statuses=[['new','Novo'],['diagnosing','Diagnóstico'],['qualified','Qualificado'],
+    ['human_review','Revisão humana'],['contacted','Contatado'],['lost','Perdido'],['archived','Arquivado']];
+  const locked=['proposal','won'].includes(current);
+  const options=locked
+    ?'<option value="'+esc(current)+'">'+esc(label(current))+' (fluxo protegido)</option>'
+    :statuses.map(([value,text])=>'<option value="'+value+'"'+(value===current?' selected':'')+'>'+text+'</option>').join('');
+  container.innerHTML=
+    '<section class="panel opportunity-profile"><div class="client-panel-head"><div>'+
+      '<span class="eyebrow">FICHA COMERCIAL</span><h2>'+esc(lead.name)+'</h2>'+
+      '<p>'+tag(lead.status)+' · '+esc(lead.contact)+'</p></div>'+
+      '<div class="action-row"><button class="cta secondary" type="button" data-lead-followup>Agendar retorno</button>'+
+        '<button class="cta secondary" type="button" data-close-lead>Fechar</button></div></div>'+
+      '<div class="lead-detail-grid">'+
+        '<article><span>Necessidade identificada</span><strong>'+esc(lead.problem||lead.intent||'Não informada')+'</strong></article>'+
+        '<article><span>Solução sugerida</span><strong>'+esc(lead.suggested_solution||'Não definida')+'</strong></article>'+
+        '<article><span>Segmento</span><strong>'+esc(lead.category||'Não informado')+'</strong></article>'+
+        '<article><span>Prioridade / pontuação</span><strong>'+esc(lead.priority||'normal')+' · '+esc(lead.score??'—')+'</strong></article>'+
+      '</div>'+
+      '<form id="leadManagementForm" class="lead-management-form">'+
+        '<h3>Registrar atividade comercial</h3><p>Notas e mudanças de etapa são registradas no histórico, sem disparar mensagens externas.</p>'+
+        '<div class="lead-form-grid"><label>Etapa<select name="status">'+options+'</select></label>'+
+        '<label>Anotação interna<textarea name="note" rows="3" maxlength="2000" placeholder="Resumo do contato, próximo passo ou motivo da perda..."></textarea></label></div>'+
+        '<div class="action-row"><button type="submit" class="cta">Salvar atividade</button>'+
+          '<span role="status" data-lead-status>'+esc(feedback)+'</span></div>'+
+      '</form><div class="lead-history"><h3>Histórico da oportunidade</h3>'+
+        '<div data-lead-events role="status">Carregando histórico...</div></div></section>';
+  const panel=container.querySelector('.opportunity-profile');
+  panel.querySelector('[data-close-lead]').onclick=()=>{container.replaceChildren();leadFocus=null};
+  panel.querySelector('[data-lead-followup]').onclick=()=>{
+    followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
+  };
+  const form=panel.querySelector('#leadManagementForm');
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    const target=form.querySelector('[data-lead-status]'),
+      status=form.querySelector('[name=status]').value,
+      note=form.querySelector('[name=note]').value.trim();
+    if(status===lead.status&&!note){target.textContent='Informe uma anotação ou altere a etapa.';return}
+    const controls=[...form.querySelectorAll('button,select,textarea')];
+    controls.forEach(control=>control.disabled=true);
+    target.textContent='Registrando atividade...';
+    let result;
+    try{result=await sb.rpc('lkz_adm_update_lead',
+      {p_id:id,p_expected_status:lead.status,p_status:status,p_note:note});}
+    catch{result={error:{code:'REDE'}}}
+    if(!form.isConnected||!user)return;
+    if(result.error||!result.data?.id){
+      target.textContent='Não foi possível salvar: '+(result.error?.code||'SEM_CONFIRMACAO')+'. Recarregue os dados.';
+      controls.forEach(control=>control.disabled=false);
+      return;
+    }
+    const current=state.leads.find(l=>l.id===id);
+    if(current)Object.assign(current,result.data);
+    try{await loadCommercial();}catch{}
+    view('leads');
+    const feedback=el('leadDetails')?.querySelector('[data-lead-status]');
+    if(feedback)feedback.textContent='Atividade registrada e auditada.';
+  };
+  const history=panel.querySelector('[data-lead-events]');
+  let result;
+  try{result=await sb.rpc('lkz_adm_lead_history',{p_id:id});}
+  catch{result={error:{code:'REDE'}}}
+  if(!history.isConnected||!user)return;
+  if(result.error){history.textContent='Histórico indisponível. Código: '+(result.error.code||'DESCONHECIDO');return}
+  const events=Array.isArray(result.data)?result.data:[];
+  history.innerHTML=events.length?events.map(e=>
+    '<div class="timeline-event"><div class="timeline-point"></div>'+
+    '<div><strong>'+esc(e.event_type||'Atividade')+'</strong>'+
+      '<small>'+esc(dateLabel(e.created_at))+' · '+esc(e.actor_type||'sistema')+'</small>'+
+      (e.note?'<p>'+esc(e.note)+'</p>':'')+'</div></div>').join(''):
+    '<p class="support-note">Nenhum evento registrado nesta oportunidade.</p>';
 }
 const dateLabel=value=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(value)):'—';
 function conversations(folder=conversationFolder,selectId=null){
@@ -301,6 +449,11 @@ function conversations(folder=conversationFolder,selectId=null){
       '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span>'+
     '</button>').join('');
   el('content').innerHTML=
+    (folder==='deleted'&&profile?.role==='master'
+      ?'<div class="trash-toolbar"><div><strong>Lixeira de atendimentos</strong>'+
+        '<span>'+Number(state.trashStats?.conversations||0)+' atendimento(s) excluído(s)</span></div>'+
+        '<button class="cta danger-outline" type="button" data-empty-conversations>Esvaziar Lixeira de atendimentos</button></div>'
+      :'')+
     '<div class="chat" id="chatWorkspace">'+
       '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2><p>'+threads.length+' nessa pasta</p>'+
         '<div class="conversation-folder-tabs" role="group" aria-label="Pastas de atendimentos">'+
@@ -313,6 +466,7 @@ function conversations(folder=conversationFolder,selectId=null){
         '<strong>Selecione um atendimento</strong><span>Gerencie histórico, mensagens e o atendimento completo.</span></div></div>'+
     '</div>';
   const root=el('chatWorkspace');
+  el('content').querySelector('[data-empty-conversations]')?.addEventListener('click',()=>emptyTrash('conversations'));
   root.querySelectorAll('[data-workfolder]').forEach(button=>button.onclick=()=>{
     conversationFocus=null;conversationFlash='';conversations(button.dataset.workfolder);
   });
@@ -336,12 +490,54 @@ function conversations(folder=conversationFolder,selectId=null){
   if(selectId&&threads.some(t=>t.id===selectId))openThread(selectId);
 }
 
-const messageFolders={active:'Caixa de entrada',archived:'Arquivados',deleted:'Lixeira'};
+const messageFolders={active:'Caixa de entrada',archived:'Arquivados',deleted:'Lixeira de atendimentos'};
 const messageActions={
   active:{archived:'Arquivar mensagens',deleted:'Excluir mensagens'},
   archived:{active:'Restaurar mensagens',deleted:'Excluir mensagens'},
   deleted:{active:'Restaurar mensagens',purge:'Apagar definitivamente'}
 };
+async function emptyTrash(kind,selectedConversation=null){
+  if(trashBusy||profile?.role!=='master')return;
+  trashBusy=true;
+  try{
+    const {data:stats,error:statsError}=await sb.rpc('lkz_adm_trash_stats');
+    if(statsError||!stats)throw new Error('CONTAGEM_INDISPONIVEL');
+    const count=Number(kind==='messages'?stats.messages:stats.conversations);
+    if(!Number.isInteger(count)||count<=0){
+      conversationFlash='A lixeira já está vazia.';
+      if(currentView==='conversations')conversations(conversationFolder);
+      return;
+    }
+    const noun=kind==='messages'?'mensagem(ns)':'atendimento(s)';
+    const answer=window.prompt('ATENÇÃO: apagar DEFINITIVAMENTE '+count+' '+noun+
+      ' de todas as conversas. Não será possível desfazer. Digite ESVAZIAR para confirmar:');
+    if(answer!=='ESVAZIAR')return;
+    let result;
+    try{result=await sb.rpc('lkz_adm_empty_trash',
+      {p_kind:kind,p_conversation:null,p_expected_count:count})}
+    catch{result={error:{code:'REDE'}}}
+    if(result.error||Number(result.data?.deleted)!==count){
+      throw new Error(result.error?.code||'CONFERIR_RESULTADO');
+    }
+    await loadCommercial();
+    conversationFlash='Lixeira esvaziada: '+count+' '+noun+' apagados definitivamente.';
+    if(currentView==='conversations'){
+      const folder=conversationFolder;
+      conversations(folder);
+      if(kind==='messages'&&selectedConversation&&state.threads.some(t=>t.id===selectedConversation)){
+        await openThread(selectedConversation,'deleted',null,conversationFlash);
+        conversationFlash='';
+      }
+    }
+  }catch(error){
+    const notice=el('messagePane')?.querySelector('[data-notice]');
+    const message='Falha ao esvaziar a lixeira. Código: '+(error?.message||'INDEFINIDO')+
+      '. Recarregue para conferir o estado antes de tentar novamente.';
+    if(notice)notice.textContent=message;
+    else {conversationFlash=message;if(currentView==='conversations')conversations(conversationFolder)}
+  }finally{trashBusy=false}
+}
+
 async function conversationAction(id,action){
   const t=state.threads.find(item=>item.id===id);
   if(!t)return;
@@ -441,6 +637,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
       '<div class="message-tools">'+Object.entries(messageActions[folder]).map(([key,title])=>
         '<button class="cta'+(key==='purge'?' danger':'')+'" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+'</div>'+
     '</div>'+
+    (folder==='deleted'&&profile?.role==='master'
+      ?'<div class="trash-message-bar"><span>Lixeira global: '+Number(state.trashStats?.messages||0)+
+       ' mensagem(ns) aguardando exclusão definitiva.</span>'+
+       '<button class="cta danger-outline" type="button" data-empty-messages>'+
+       'Esvaziar todas as lixeiras de mensagens</button></div>':'')+
     '<p class="message-status" data-notice role="status">'+esc(feedback)+'</p>'+
     '<div class="message-stream">'+(items||'<p class="empty">Nenhuma mensagem nesta pasta.</p>')+'</div>'+
     '<div class="message-pagination">'+
@@ -448,6 +649,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       (before?'<button type="button" class="cta" data-recent>Voltar às recentes</button>':'')+
     '</div>';
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
+  page.querySelector('[data-empty-messages]')?.addEventListener('click',()=>emptyTrash('messages',id));
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
   page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
     let lead=state.leads.find(l=>l.id===thread.lead_id);
@@ -508,6 +710,12 @@ async function openThread(id,folder='active',before=null,feedback=''){
   page.querySelectorAll('[data-message-select]').forEach(input=>input.onchange=updateButtons);
   async function move(destination,ids){
     if(!ids.length||ids.length>50)return;
+    const numericIds=ids.map(Number);
+    if(numericIds.some(value=>!Number.isSafeInteger(value)||value<=0)){
+      const status=page.querySelector('[data-notice]');
+      if(status)status.textContent='Identificador inválido. Atualize a conversa antes de excluir.';
+      return;
+    }
     if(destination==='purge'){
       const answer=window.prompt('Apagar definitivamente '+ids.length+' mensagem(ns)? Digite EXCLUIR para confirmar:');
       if(answer!=='EXCLUIR')return;
@@ -518,8 +726,8 @@ async function openThread(id,folder='active',before=null,feedback=''){
     let result;
     try{
       result=destination==='purge'
-        ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:ids})
-        :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:ids,p_from:folder,p_to:destination});
+        ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:numericIds})
+        :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:numericIds,p_from:folder,p_to:destination});
     }catch{result={error:{code:'REDE'}}}
     if(!page.isConnected||!user)return;
     if(result.error||Number(result.data)!==ids.length){
@@ -536,7 +744,164 @@ async function openThread(id,folder='active',before=null,feedback=''){
   bulk.forEach(button=>button.onclick=()=>move(button.dataset.move,checked()));
   page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
 }
-function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div><p class="notice">Consulta de retornos. Reagendamento e contato são feitos pelo LCRM, até existir integração operacional homologada.</p>'}
+
+const dateTimeInput=value=>{
+  if(!value)return '';
+  const d=new Date(value);
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+    'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+};
+function followups(feedback=''){
+  const all=state.followups;
+  const pending=all.filter(f=>f.status==='pending').length;
+  const overdue=all.filter(f=>f.status==='pending'&&f.due_at&&Date.parse(f.due_at)<Date.now()).length;
+  const filtered=all.filter(f=>followupFilter==='all'||(followupFilter==='pending'?f.status==='pending':f.status===followupFilter));
+  const cards=filtered.map(f=>{
+    const isOverdue=f.status==='pending'&&f.due_at&&Date.parse(f.due_at)<Date.now();
+    return '<article class="return-card'+(isOverdue?' is-overdue':'')+'">'+
+      '<div class="return-icon" aria-hidden="true">'+(isOverdue?'!':'✓')+'</div>'+
+      '<div class="return-content"><strong>'+esc(f.lead)+'</strong>'+
+      '<div class="return-meta"><span>'+esc(dateLabel(f.due_at))+'</span><span>'+esc(f.channel||'Canal não definido')+'</span></div>'+
+      (f.draft_message?'<p>'+esc(f.draft_message)+'</p>':'')+'</div>'+
+      '<div class="return-side">'+tag(f.status)+
+        '<button type="button" class="cta secondary" data-return="'+esc(f.id)+'">Abrir</button></div></article>';
+  }).join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">CRM · ATIVIDADES</span>'+
+      '<h2>Agenda de retornos</h2><p>Controle seus contatos sem depender de outra plataforma.</p></div>'+
+      '<button type="button" class="cta" data-return-create>+ Agendar retorno</button></section>'+
+    '<div class="grid crm-mini-stats">'+
+      k('Pendentes',pending,'Aguardando atendimento')+
+      k('Atrasados',overdue,'Necessitam priorização')+
+      k('Total registrado',all.length,'Nesta consulta')+'</div>'+
+    '<div class="return-filters" role="group" aria-label="Filtrar retornos">'+
+      [['pending','Pendentes'],['done','Concluídos'],['cancelled','Cancelados'],['all','Todos']].map(([v,title])=>
+        '<button type="button" data-return-filter="'+v+'" aria-pressed="'+(v===followupFilter)+'">'+title+'</button>').join('')+'</div>'+
+    '<p data-return-feedback class="operation-feedback" role="status">'+esc(feedback)+'</p>'+
+    '<div class="return-layout"><section class="panel return-list">'+
+      (cards||'<div class="empty-state"><strong>Nenhum retorno nesta visualização.</strong><p>Use “Agendar retorno” para criar uma atividade vinculada à oportunidade.</p></div>')+
+      '</section><div id="followupEditor"><section class="panel return-placeholder">'+
+      '<h2>Escolha uma atividade</h2><p>Abra um retorno para reagendar, concluir ou cancelar. Nenhuma mensagem é enviada automaticamente.</p>'+
+      '</section></div></div>';
+  el('content').querySelector('[data-return-create]').onclick=()=>openFollowupEditor('create');
+  el('content').querySelectorAll('[data-return-filter]').forEach(b=>b.onclick=()=>{
+    followupFilter=b.dataset.returnFilter;followupFocus=null;followups();
+  });
+  el('content').querySelectorAll('[data-return]').forEach(b=>b.onclick=()=>openFollowupEditor('detail',b.dataset.return));
+  if(followupFocus&&all.some(f=>f.id===followupFocus))openFollowupEditor('detail',followupFocus);
+}
+function openFollowupEditor(mode,id=null,leadId=null){
+  const target=el('followupEditor');
+  if(!target)return;
+  const followup=state.followups.find(f=>f.id===id);
+  if(mode!=='create'&&!followup)return;
+  followupFocus=mode==='create'?null:id;
+  const lead=followup?state.leads.find(l=>l.id===followup.lead_id):
+    state.leads.find(l=>l.id===leadId);
+  if(mode==='detail'){
+    const editable=followup.status==='pending';
+    target.innerHTML='<section class="panel return-detail"><span class="eyebrow">DETALHES DO RETORNO</span>'+
+      '<h2>'+esc(followup.lead)+'</h2><p>'+tag(followup.status)+'</p>'+
+      '<dl class="return-facts"><dt>Quando</dt><dd>'+esc(dateLabel(followup.due_at))+'</dd>'+
+      '<dt>Canal</dt><dd>'+esc(followup.channel||'Não informado')+'</dd>'+
+      '<dt>Mensagem / orientação</dt><dd>'+esc(followup.draft_message||'Sem texto definido')+'</dd></dl>'+
+      '<p class="support-note">Concluir um retorno registra a atividade como feita; não envia mensagens.</p>'+
+      '<div class="return-actions">'+
+        (editable?'<button type="button" class="cta" data-return-action="edit">Reagendar</button>'+
+          '<button type="button" class="cta secondary" data-return-action="complete">Concluir</button>'+
+          '<button type="button" class="cta danger-outline" data-return-action="cancel">Cancelar</button>':'')+
+        '<button type="button" class="cta secondary" data-return-action="lead">Abrir oportunidade</button></div>'+
+      '<p role="status" data-return-status></p></section>';
+    target.querySelectorAll('[data-return-action]').forEach(b=>b.onclick=async()=>{
+      const action=b.dataset.returnAction;
+      if(action==='edit'){openFollowupEditor('edit',id);return}
+      if(action==='lead'){openOpportunity(followup.lead_id);return}
+      if(!['complete','cancel'].includes(action))return;
+      if(!window.confirm(action==='complete'?
+        'Confirmar que este retorno foi realizado? Não será enviada mensagem.':
+        'Cancelar este retorno? Esta decisão será registrada.'))return;
+      const msg=target.querySelector('[data-return-status]');
+      target.querySelectorAll('button').forEach(x=>x.disabled=true);
+      msg.textContent='Registrando...';
+      let result;
+      try{result=await sb.rpc('lkz_adm_manage_followup',{
+        p_id:id,p_lead_id:followup.lead_id,p_action:action,
+        p_due_at:null,p_channel:null,p_message:null
+      })}catch{result={error:{code:'REDE'}}}
+      if(!target.isConnected||!user)return;
+      if(result.error||!result.data?.id){
+        msg.textContent='Falha ao atualizar: '+(result.error?.code||'SEM_CONFIRMACAO');
+        target.querySelectorAll('button').forEach(x=>x.disabled=false);return;
+      }
+      await reloadFollowups(action==='complete'?'Retorno concluído.':'Retorno cancelado.');
+    });
+    return;
+  }
+  const isNew=mode==='create';
+  const selectedLead=isNew?(lead?.id||''):(followup?.lead_id||'');
+  const choices=state.leads.filter(l=>!['archived','lost','won'].includes(l.status)||
+      l.id===selectedLead).map(l=>
+    '<option value="'+esc(l.id)+'"'+(selectedLead===l.id?' selected':'')+'>'+esc(l.name)+'</option>').join('');
+  target.innerHTML='<section class="panel return-detail"><span class="eyebrow">'+(isNew?'NOVA ATIVIDADE':'REAGENDAR')+'</span>'+
+    '<h2>'+(isNew?'Agendar retorno':esc(followup.lead))+'</h2>'+
+    '<form id="returnForm" class="entry-form">'+
+      '<label>Oportunidade<select name="lead_id" '+(isNew?'required':'disabled')+'>'+
+        '<option value="">Selecione a oportunidade</option>'+choices+'</select></label>'+
+      '<label>Data e hora<input type="datetime-local" name="due" required value="'+
+        esc(isNew?'':dateTimeInput(followup.due_at))+'"></label>'+
+      '<label>Canal<select name="channel" required>'+
+        [['whatsapp','WhatsApp'],['email','E-mail'],['phone','Telefone'],['other','Outro']].map(([v,title])=>
+        '<option value="'+v+'"'+(!isNew&&followup.channel===v?' selected':'')+'>'+title+'</option>').join('')+'</select></label>'+
+      '<label>Orientação / mensagem de referência<textarea name="message" maxlength="1500" rows="4" placeholder="Anotação interna para a atividade. Não será enviada automaticamente.">'+
+        esc(isNew?'':followup.draft_message||'')+'</textarea></label>'+
+      '<div class="action-row"><button class="cta" type="submit">'+(isNew?'Criar retorno':'Salvar agendamento')+'</button>'+
+      '<button type="button" class="cta secondary" data-return-cancel>Cancelar</button></div>'+
+      '<p role="status" data-return-status></p></form></section>';
+  const form=target.querySelector('#returnForm');
+  target.querySelector('[data-return-cancel]').onclick=()=>{
+    if(!isNew)openFollowupEditor('detail',id);
+    else {followupFocus=null;followups()}
+  };
+  let requestId=crypto.randomUUID();
+  form.oninput=()=>{if(isNew)requestId=crypto.randomUUID()};
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const data=new FormData(form);
+    const leadIdToUse=String(data.get('lead_id')||selectedLead);
+    const dateStr=String(data.get('due')||'');
+    const due=new Date(dateStr);
+    const status=form.querySelector('[data-return-status]');
+    if(!leadIdToUse||!dateStr||Number.isNaN(due.getTime())){
+      status.textContent='Selecione oportunidade e data válida.';return;
+    }
+    if(due.getTime()<Date.now()-86400000){
+      status.textContent='Informe uma data atual ou futura.';return;
+    }
+    const controls=[...form.querySelectorAll('button,input,select,textarea')];
+    controls.forEach(x=>x.disabled=true);
+    status.textContent='Salvando agendamento...';
+    let result;
+    try{result=await sb.rpc('lkz_adm_manage_followup',{
+      p_id:isNew?requestId:id,p_lead_id:leadIdToUse,
+      p_action:isNew?'create':'reschedule',p_due_at:due.toISOString(),
+      p_channel:String(data.get('channel')||'other'),
+      p_message:String(data.get('message')||'')
+    })}catch{result={error:{code:'REDE'}}}
+    if(!form.isConnected||!user)return;
+    if(result.error||!result.data?.id){
+      status.textContent='Não foi possível salvar: '+(result.error?.code||'SEM_CONFIRMACAO')+
+        '. Confira os dados e atualize se necessário.';
+      controls.forEach(x=>x.disabled=false);return;
+    }
+    followupFocus=result.data.id;followupFilter='all';
+    await reloadFollowups(isNew?'Retorno agendado.':'Retorno reagendado.');
+  };
+}
+async function reloadFollowups(feedback=''){
+  try{await loadCommercial();followups(feedback)}
+  catch{followups('Operação processada, mas não foi possível atualizar a lista. Reabra a agenda para conferir.')}
+}
 function approvals(feedback=''){
   const body=state.approvals.map(a=>{
     const action={contact:'Contato',proposal:'Proposta'}[a.action_type]||a.action_type;
@@ -738,11 +1103,15 @@ function usage(){el('content').innerHTML='<div class="grid">'+k('Leads',state.le
   k('Conversas',state.threads.length,'Registros carregados')+k('Contatos',state.contacts.length,'Registros carregados')+'</div>'}
 function tasks(){
   const items=dailyBrief(state).priorities;
-  el('content').innerHTML='<section class="panel"><h2>Prioridades comerciais</h2>'+(items.map(item=>
-    '<div class="row"><span><strong>'+esc(item.name)+'</strong><br>'+esc([...item.reasons].join(' · '))+'</span>'+
-    '<button type="button" class="cta" data-task-view="'+item.view+'">Abrir</button></div>'
-  ).join('')||'<p>Nenhuma demanda prioritária encontrada.</p>')+'</section>';
-  el('content').querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>view(button.dataset.taskView));
+  el('content').innerHTML='<section class="panel"><h2>Prioridades comerciais</h2>'+
+    (items.map(item=>'<div class="row"><span><strong>'+esc(item.name)+'</strong><br>'+
+      esc([...item.reasons].join(' · '))+'</span>'+
+      '<button type="button" class="cta" data-task-key="'+esc(item.key)+'">Abrir ficha</button></div>'
+    ).join('')||'<p>Nenhuma demanda prioritária encontrada.</p>')+'</section>';
+  el('content').querySelectorAll('[data-task-key]').forEach(button=>button.onclick=()=>{
+    const item=items.find(x=>x.key===button.dataset.taskKey);
+    if(item)navigatePriority(item.target,item.followupId,item.leadId);
+  });
 }
 function settings(){
   el('content').innerHTML='<section class="panel form-panel"><h2>Sessão administrativa</h2>'+
@@ -790,5 +1159,17 @@ async function loadUsers(target,feedback=''){
     await loadUsers(target,'Acesso atualizado.');
   });
 }
-el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();view('leads')}}; 
+el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();leadFocus=null;view('leads')}};
+el('refreshData').onclick=async()=>{
+  if(!user)return;
+  const button=el('refreshData');
+  button.disabled=true;button.textContent='Atualizando...';
+  try{
+    await loadCommercial();
+    if(user)view(currentView);
+  }catch(error){
+    console.warn('lkz_adm_refresh_failed',error?.code||'NETWORK');
+    button.textContent='Falha. Tentar novamente';
+  }finally{button.disabled=false;if(button.textContent==='Atualizando...')button.textContent='Atualizar'}
+}; 
 (async()=>{const {data:{user:u}}=await sb.auth.getUser();if(!u)return showLogin();try{const p=await authorize(u);if(!p){await sb.auth.signOut();return showLogin('Conta sem permissão administrativa.')}await enforceMfa(p,u)}catch(e){console.error(e);await sb.auth.signOut();showLogin('Não foi possível validar a sessão.')}})();
