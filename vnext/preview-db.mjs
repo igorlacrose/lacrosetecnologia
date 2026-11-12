@@ -1,5 +1,4 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { PGlite } from '@electric-sql/pglite';
 
 export const fixture = Object.freeze({
   tenant: '00000000-0000-4000-8000-000000000001',
@@ -10,6 +9,7 @@ export const fixture = Object.freeze({
 });
 
 export async function createPreviewDatabase() {
+  const { PGlite } = await import('@electric-sql/pglite');
   const db = new PGlite();
   try {
     await db.exec(`
