@@ -75,5 +75,10 @@ jobs:
           node --check admin/contact-consent.js
           node --test scripts/test_lkz_contact_consents.mjs
 
+      - name: Testar pré-despacho seguro do OCA
+        run: |
+          node --check admin/oca-dispatch-preflight.js
+          node --test scripts/test_oca_dispatch_preflight.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
