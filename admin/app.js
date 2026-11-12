@@ -10,6 +10,7 @@ const CONVERSATION_POLL_MS=20000;
 let currentView='overview',conversationPollTimer=null,conversationPollBusy=false;
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
 let followupFilter='pending',followupFocus=null,leadFocus=null;
+let trashBusy=false;
 let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
@@ -76,21 +77,22 @@ el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=tr
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
 async function loadCommercial(){
-  const [lr,cr,vr,fr,ar,folders]=await Promise.all([
+  const [lr,cr,vr,fr,ar,folders,trash]=await Promise.all([
     sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
     sb.from('contacts').select('id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact').order('created_at',{ascending:false}).limit(200),
     sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
     sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
     sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100),
-    sb.rpc('lkz_adm_list_conversation_folders')
+    sb.rpc('lkz_adm_list_conversation_folders'),
+    sb.rpc('lkz_adm_trash_stats')
   ]);
-  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error;
+  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error||trash.error;
   if(err)throw err;
   const contacts=cr.data||[],cm=new Map(contacts.map(c=>[c.id,c])),lm=new Map();
   const folderMap=new Map((folders.data||[]).map(entry=>[entry.conversation_id,entry.folder]));
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
-    contacts,leads:[...lm.values()],
+    contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
     threads:(vr.data||[]).map(c=>({
   id:c.id,
   lead:(lm.get(c.lead_id)?.name&&!['Contato sem nome','Conversa sem lead'].includes(lm.get(c.lead_id)?.name))?lm.get(c.lead_id).name:'Atendimento '+c.id.slice(0,8).toUpperCase(),
@@ -107,6 +109,7 @@ function threadStampKey(items){
   return JSON.stringify(items.map(item=>[item.id,item.last]));
 }
 function conversationRefreshBlocked(){
+  if(trashBusy)return true;
   const root=el('chatWorkspace'),pane=el('messagePane');
   return !root?.isConnected ||
     document.activeElement===el('threadFilter') ||
@@ -480,7 +483,7 @@ function conversations(folder=conversationFolder,selectId=null){
   if(selectId&&threads.some(t=>t.id===selectId))openThread(selectId);
 }
 
-const messageFolders={active:'Caixa de entrada',archived:'Arquivados',deleted:'Lixeira'};
+const messageFolders={active:'Caixa de entrada',archived:'Arquivados',deleted:'Lixeira de atendimentos'};
 const messageActions={
   active:{archived:'Arquivar mensagens',deleted:'Excluir mensagens'},
   archived:{active:'Restaurar mensagens',deleted:'Excluir mensagens'},
