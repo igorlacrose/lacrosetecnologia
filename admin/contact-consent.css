@@ -1,0 +1,38 @@
+/* LKZ ADM • autorizações comerciais por canal, sem transporte. */
+.contact-consents{margin-top:22px;padding:21px;border:1px solid #cddfe9;border-radius:14px;
+  background:linear-gradient(155deg,#f6fbfd,#fff);box-shadow:0 8px 21px rgba(12,52,73,.04)}
+.contact-consents h3{font-size:19px;color:#133a4c;letter-spacing:-.02em;margin:6px 0}
+.contact-consents h4{font-size:15px;color:#21495b;margin:0 0 8px}
+.consent-description{font-size:13px;color:#537586;line-height:1.55;margin:4px 0 13px}
+.consent-transport{font-size:12px;color:#845521;background:#fff4e5;border:1px solid #efd3a2;
+  padding:10px 12px;border-radius:10px;margin:8px 0 14px}
+.consent-channel-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.consent-channel-card{background:#fff;border:1px solid #d9e6ed;padding:15px;border-radius:12px;
+  display:flex;align-items:start;flex-direction:column;gap:7px}
+.consent-channel-card>strong{color:#193e50;font-size:14px}
+.consent-channel-card span{font-size:12px;font-weight:770}
+.consent-active{color:#23795a}.consent-revoked{color:#a24550}.consent-unknown{color:#7b6872}
+.consent-channel-card small,.consent-channel-card p{font-size:12px;color:#607f8d;line-height:1.45;margin:0}
+.consent-channel-card textarea{min-height:62px;width:100%;resize:vertical;padding:10px;border:1px solid #cedde6;
+  border-radius:9px;font-size:12.5px;color:#274a5c}
+.consent-channel-card button{min-height:38px}
+.consent-feedback{font-size:12.5px;color:#356b7e;margin:10px 0;overflow-wrap:anywhere}
+.consent-grant{border-top:1px solid #d7e7ed;margin:18px 0;padding:17px 0 0}
+.consent-grant>p{color:#5e7d8b;font-size:12.5px;line-height:1.5;margin:0 0 12px}
+.consent-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;align-items:end}
+.consent-field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:720;color:#426276}
+.consent-field select,.consent-field input{border:1px solid #bfd4df;background:#fff;color:#1b4457;
+  font-size:13px;border-radius:10px;min-height:41px;padding:8px 10px;width:100%}
+.consent-check{grid-column:1/-1;display:flex;align-items:flex-start;gap:9px;
+  background:#f3f8fa;border:1px solid #d6e4eb;border-radius:10px;padding:11px 12px;
+  font-size:12.5px;color:#2a5669;line-height:1.5}
+.consent-check input{flex-shrink:0;margin-top:3px;accent-color:#0b7b96}
+.consent-form>button{justify-self:start}
+.consent-history{border-top:1px solid #dce9ee;margin-top:18px;padding-top:16px}
+.consent-history-list{display:grid;gap:8px}
+.consent-history-item{border:1px solid #e0eaf0;border-radius:10px;background:#fff;padding:11px;
+  display:grid;gap:4px}
+.consent-history-item strong{color:#184357;font-size:12.5px}
+.consent-history-item small{color:#607e8f;font-size:11.5px;overflow-wrap:anywhere}
+@media(max-width:760px){.consent-channel-list,.consent-form{grid-template-columns:1fr}}
+@media(max-width:560px){.contact-consents{padding:14px}.consent-form>button,.consent-channel-card button{width:100%}}
