@@ -2,7 +2,7 @@
 -- Run ONLY against an EMPTY, SEPARATE staging project with 16 VNext migrations.
 -- No production use, no credentials, no HTTP/API calls and no persistent fixtures.
 -- This file deliberately runs BEGIN...ROLLBACK, including auth.users and all writes.
-\set ON_ERROR_STOP on
+-- For psql: psql -X -v ON_ERROR_STOP=1 -f scripts/test_vnext_hosted_rls.sql
 BEGIN;
 SET LOCAL statement_timeout = '30s';
 
