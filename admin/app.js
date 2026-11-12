@@ -680,7 +680,164 @@ async function openThread(id,folder='active',before=null,feedback=''){
   bulk.forEach(button=>button.onclick=()=>move(button.dataset.move,checked()));
   page.querySelectorAll('[data-single]').forEach(button=>button.onclick=()=>move(button.dataset.target,[button.dataset.single]));
 }
-function followups(){const body=state.followups.map(f=>'<tr><td><b>'+esc(f.lead)+'</b></td><td>'+esc(f.channel||'—')+'</td><td>'+esc(f.due_at?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(f.due_at)):'—')+'</td><td>'+tag(f.status)+'</td></tr>').join('');el('content').innerHTML='<div class="table"><table><thead><tr><th>Lead</th><th>Canal</th><th>Prazo</th><th>Status</th></tr></thead><tbody>'+body+'</tbody></table></div><p class="notice">Consulta de retornos. Reagendamento e contato são feitos pelo LCRM, até existir integração operacional homologada.</p>'}
+
+const dateTimeInput=value=>{
+  if(!value)return '';
+  const d=new Date(value);
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
+    'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+};
+function followups(feedback=''){
+  const all=state.followups;
+  const pending=all.filter(f=>f.status==='pending').length;
+  const overdue=all.filter(f=>f.status==='pending'&&f.due_at&&Date.parse(f.due_at)<Date.now()).length;
+  const filtered=all.filter(f=>followupFilter==='all'||(followupFilter==='pending'?f.status==='pending':f.status===followupFilter));
+  const cards=filtered.map(f=>{
+    const isOverdue=f.status==='pending'&&f.due_at&&Date.parse(f.due_at)<Date.now();
+    return '<article class="return-card'+(isOverdue?' is-overdue':'')+'">'+
+      '<div class="return-icon" aria-hidden="true">'+(isOverdue?'!':'✓')+'</div>'+
+      '<div class="return-content"><strong>'+esc(f.lead)+'</strong>'+
+      '<div class="return-meta"><span>'+esc(dateLabel(f.due_at))+'</span><span>'+esc(f.channel||'Canal não definido')+'</span></div>'+
+      (f.draft_message?'<p>'+esc(f.draft_message)+'</p>':'')+'</div>'+
+      '<div class="return-side">'+tag(f.status)+
+        '<button type="button" class="cta secondary" data-return="'+esc(f.id)+'">Abrir</button></div></article>';
+  }).join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">CRM · ATIVIDADES</span>'+
+      '<h2>Agenda de retornos</h2><p>Controle seus contatos sem depender de outra plataforma.</p></div>'+
+      '<button type="button" class="cta" data-return-create>+ Agendar retorno</button></section>'+
+    '<div class="grid crm-mini-stats">'+
+      k('Pendentes',pending,'Aguardando atendimento')+
+      k('Atrasados',overdue,'Necessitam priorização')+
+      k('Total registrado',all.length,'Nesta consulta')+'</div>'+
+    '<div class="return-filters" role="group" aria-label="Filtrar retornos">'+
+      [['pending','Pendentes'],['done','Concluídos'],['cancelled','Cancelados'],['all','Todos']].map(([v,title])=>
+        '<button type="button" data-return-filter="'+v+'" aria-pressed="'+(v===followupFilter)+'">'+title+'</button>').join('')+'</div>'+
+    '<p data-return-feedback class="operation-feedback" role="status">'+esc(feedback)+'</p>'+
+    '<div class="return-layout"><section class="panel return-list">'+
+      (cards||'<div class="empty-state"><strong>Nenhum retorno nesta visualização.</strong><p>Use “Agendar retorno” para criar uma atividade vinculada à oportunidade.</p></div>')+
+      '</section><div id="followupEditor"><section class="panel return-placeholder">'+
+      '<h2>Escolha uma atividade</h2><p>Abra um retorno para reagendar, concluir ou cancelar. Nenhuma mensagem é enviada automaticamente.</p>'+
+      '</section></div></div>';
+  el('content').querySelector('[data-return-create]').onclick=()=>openFollowupEditor('create');
+  el('content').querySelectorAll('[data-return-filter]').forEach(b=>b.onclick=()=>{
+    followupFilter=b.dataset.returnFilter;followupFocus=null;followups();
+  });
+  el('content').querySelectorAll('[data-return]').forEach(b=>b.onclick=()=>openFollowupEditor('detail',b.dataset.return));
+  if(followupFocus&&all.some(f=>f.id===followupFocus))openFollowupEditor('detail',followupFocus);
+}
+function openFollowupEditor(mode,id=null,leadId=null){
+  const target=el('followupEditor');
+  if(!target)return;
+  const followup=state.followups.find(f=>f.id===id);
+  if(mode!=='create'&&!followup)return;
+  followupFocus=mode==='create'?null:id;
+  const lead=followup?state.leads.find(l=>l.id===followup.lead_id):
+    state.leads.find(l=>l.id===leadId);
+  if(mode==='detail'){
+    const editable=followup.status==='pending';
+    target.innerHTML='<section class="panel return-detail"><span class="eyebrow">DETALHES DO RETORNO</span>'+
+      '<h2>'+esc(followup.lead)+'</h2><p>'+tag(followup.status)+'</p>'+
+      '<dl class="return-facts"><dt>Quando</dt><dd>'+esc(dateLabel(followup.due_at))+'</dd>'+
+      '<dt>Canal</dt><dd>'+esc(followup.channel||'Não informado')+'</dd>'+
+      '<dt>Mensagem / orientação</dt><dd>'+esc(followup.draft_message||'Sem texto definido')+'</dd></dl>'+
+      '<p class="support-note">Concluir um retorno registra a atividade como feita; não envia mensagens.</p>'+
+      '<div class="return-actions">'+
+        (editable?'<button type="button" class="cta" data-return-action="edit">Reagendar</button>'+
+          '<button type="button" class="cta secondary" data-return-action="complete">Concluir</button>'+
+          '<button type="button" class="cta danger-outline" data-return-action="cancel">Cancelar</button>':'')+
+        '<button type="button" class="cta secondary" data-return-action="lead">Abrir oportunidade</button></div>'+
+      '<p role="status" data-return-status></p></section>';
+    target.querySelectorAll('[data-return-action]').forEach(b=>b.onclick=async()=>{
+      const action=b.dataset.returnAction;
+      if(action==='edit'){openFollowupEditor('edit',id);return}
+      if(action==='lead'){openOpportunity(followup.lead_id);return}
+      if(!['complete','cancel'].includes(action))return;
+      if(!window.confirm(action==='complete'?
+        'Confirmar que este retorno foi realizado? Não será enviada mensagem.':
+        'Cancelar este retorno? Esta decisão será registrada.'))return;
+      const msg=target.querySelector('[data-return-status]');
+      target.querySelectorAll('button').forEach(x=>x.disabled=true);
+      msg.textContent='Registrando...';
+      let result;
+      try{result=await sb.rpc('lkz_adm_manage_followup',{
+        p_id:id,p_lead_id:followup.lead_id,p_action:action,
+        p_due_at:null,p_channel:null,p_message:null
+      })}catch{result={error:{code:'REDE'}}}
+      if(!target.isConnected||!user)return;
+      if(result.error||!result.data?.id){
+        msg.textContent='Falha ao atualizar: '+(result.error?.code||'SEM_CONFIRMACAO');
+        target.querySelectorAll('button').forEach(x=>x.disabled=false);return;
+      }
+      await reloadFollowups(action==='complete'?'Retorno concluído.':'Retorno cancelado.');
+    });
+    return;
+  }
+  const isNew=mode==='create';
+  const selectedLead=isNew?(lead?.id||''):(followup?.lead_id||'');
+  const choices=state.leads.filter(l=>!['archived','lost','won'].includes(l.status)||
+      l.id===selectedLead).map(l=>
+    '<option value="'+esc(l.id)+'"'+(selectedLead===l.id?' selected':'')+'>'+esc(l.name)+'</option>').join('');
+  target.innerHTML='<section class="panel return-detail"><span class="eyebrow">'+(isNew?'NOVA ATIVIDADE':'REAGENDAR')+'</span>'+
+    '<h2>'+(isNew?'Agendar retorno':esc(followup.lead))+'</h2>'+
+    '<form id="returnForm" class="entry-form">'+
+      '<label>Oportunidade<select name="lead_id" '+(isNew?'required':'disabled')+'>'+
+        '<option value="">Selecione a oportunidade</option>'+choices+'</select></label>'+
+      '<label>Data e hora<input type="datetime-local" name="due" required value="'+
+        esc(isNew?'':dateTimeInput(followup.due_at))+'"></label>'+
+      '<label>Canal<select name="channel" required>'+
+        [['whatsapp','WhatsApp'],['email','E-mail'],['phone','Telefone'],['other','Outro']].map(([v,title])=>
+        '<option value="'+v+'"'+(!isNew&&followup.channel===v?' selected':'')+'>'+title+'</option>').join('')+'</select></label>'+
+      '<label>Orientação / mensagem de referência<textarea name="message" maxlength="1500" rows="4" placeholder="Anotação interna para a atividade. Não será enviada automaticamente.">'+
+        esc(isNew?'':followup.draft_message||'')+'</textarea></label>'+
+      '<div class="action-row"><button class="cta" type="submit">'+(isNew?'Criar retorno':'Salvar agendamento')+'</button>'+
+      '<button type="button" class="cta secondary" data-return-cancel>Cancelar</button></div>'+
+      '<p role="status" data-return-status></p></form></section>';
+  const form=target.querySelector('#returnForm');
+  target.querySelector('[data-return-cancel]').onclick=()=>{
+    if(!isNew)openFollowupEditor('detail',id);
+    else {followupFocus=null;followups()}
+  };
+  let requestId=crypto.randomUUID();
+  form.oninput=()=>{if(isNew)requestId=crypto.randomUUID()};
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const data=new FormData(form);
+    const leadIdToUse=String(data.get('lead_id')||selectedLead);
+    const dateStr=String(data.get('due')||'');
+    const due=new Date(dateStr);
+    const status=form.querySelector('[data-return-status]');
+    if(!leadIdToUse||!dateStr||Number.isNaN(due.getTime())){
+      status.textContent='Selecione oportunidade e data válida.';return;
+    }
+    if(due.getTime()<Date.now()-86400000){
+      status.textContent='Informe uma data atual ou futura.';return;
+    }
+    const controls=[...form.querySelectorAll('button,input,select,textarea')];
+    controls.forEach(x=>x.disabled=true);
+    status.textContent='Salvando agendamento...';
+    let result;
+    try{result=await sb.rpc('lkz_adm_manage_followup',{
+      p_id:isNew?requestId:id,p_lead_id:leadIdToUse,
+      p_action:isNew?'create':'reschedule',p_due_at:due.toISOString(),
+      p_channel:String(data.get('channel')||'other'),
+      p_message:String(data.get('message')||'')
+    })}catch{result={error:{code:'REDE'}}}
+    if(!form.isConnected||!user)return;
+    if(result.error||!result.data?.id){
+      status.textContent='Não foi possível salvar: '+(result.error?.code||'SEM_CONFIRMACAO')+
+        '. Confira os dados e atualize se necessário.';
+      controls.forEach(x=>x.disabled=false);return;
+    }
+    followupFocus=result.data.id;followupFilter='all';
+    await reloadFollowups(isNew?'Retorno agendado.':'Retorno reagendado.');
+  };
+}
+async function reloadFollowups(feedback=''){
+  try{await loadCommercial();followups(feedback)}
+  catch{followups('Operação processada, mas não foi possível atualizar a lista. Reabra a agenda para conferir.')}
+}
 function approvals(feedback=''){
   const body=state.approvals.map(a=>{
     const action={contact:'Contato',proposal:'Proposta'}[a.action_type]||a.action_type;
