@@ -1,6 +1,6 @@
 # CHECKPOINT — retomada pelo chat na Darkstar
 
-**Gerado:** 2026-11-11, horário de Brasília/Bahia (23:29 UTC? conferir relógio local ao retomar).  
+**Preparado a partir do comando enviado em:** 2026-11-11, 21h29 (Bahia/BRT), equivalente a 2026-11-12, 00h29 UTC.  
 **Comando de retomada:** `continue já de Darkstar`.  
 **Execução interrompida por solicitação:** não iniciar nova implementação até esse comando.
 
