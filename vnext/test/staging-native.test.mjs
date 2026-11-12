@@ -1,23 +1,38 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import pg from 'pg';
 import { fixture, withIdentity } from '../preview-db.mjs';
 import { assertIntegrationRole, assertWorkspaceRole, migrateStaging, openStagingDatabase } from '../staging-db.mjs';
 
-const bootstrapUrl = process.env.VNEXT_NATIVE_TEST_ADMIN_URL;
+const nativeTest = process.env.VNEXT_TEST_NATIVE_POSTGRES === '1';
 
-test('native PostgreSQL enforces tenant and billing permissions over TCP', { skip: !bootstrapUrl }, async t => {
-  const bootstrap = new URL(bootstrapUrl);
-  assert.equal(bootstrap.hostname, '127.0.0.1');
-  assert.equal(bootstrap.pathname, '/postgres');
-  assert.equal(bootstrap.username, 'lkz_native_test_bootstrap');
+test('native PostgreSQL enforces tenant and billing permissions over TCP', { skip: !nativeTest }, async t => {
+  const binaries = execFileSync('pg_config', ['--bindir'], { encoding: 'utf8' }).trim();
+  const directory = mkdtempSync(join(tmpdir(), 'lkz-native-postgres-'));
+  const password = randomBytes(32).toString('hex');
+  const port = 55437;
+  const bootstrap = new URL('postgresql://lkz_native_test_bootstrap@127.0.0.1:' + port + '/postgres');
+  bootstrap.password = password;
+  const pgCtl = join(binaries, 'pg_ctl');
+  execFileSync(join(binaries, 'initdb'), ['-D', directory, '-U', bootstrap.username,
+    '--auth-local=reject', '--auth-host=scram-sha-256', '--pwfile=/dev/stdin', '--no-locale', '-E', 'UTF8'],
+  { input: password + '\n', timeout: 30_000 });
+  execFileSync(pgCtl, ['-D', directory, '-l', join(directory, 'server.log'),
+    '-o', '-h 127.0.0.1 -p ' + port + ' -c log_min_error_statement=panic', '-w', 'start'], { timeout: 30_000 });
   const database = 'lkz_vnext_stage_ci';
   const admin = new pg.Client({ connectionString: bootstrap.href });
   const pools = [];
   t.after(async () => {
-    await Promise.all(pools.map(db => db.close()));
-    await admin.end();
+    try {
+      await Promise.all([admin.end(), ...pools.map(db => db.close())]);
+    } finally {
+      execFileSync(pgCtl, ['-D', directory, '-m', 'fast', '-w', 'stop'], { timeout: 30_000 });
+    }
   });
   await admin.connect();
 

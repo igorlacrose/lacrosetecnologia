@@ -63,14 +63,6 @@ jobs:
 
       - name: Validar RLS em PostgreSQL nativo
         working-directory: vnext
-        run: |
-          pg_bin="$(pg_config --bindir)"
-          pg_data="$(mktemp -d)"
-          pg_password="$(openssl rand -hex 32)"
-          printf '%s\n' "$pg_password" | "$pg_bin/initdb" -D "$pg_data" -U lkz_native_test_bootstrap \
-            --auth-local=reject --auth-host=scram-sha-256 --pwfile=/dev/stdin --no-locale -E UTF8
-          trap '"$pg_bin/pg_ctl" -D "$pg_data" -m fast -w stop' EXIT
-          "$pg_bin/pg_ctl" -D "$pg_data" -l "$pg_data/server.log" \
-            -o "-h 127.0.0.1 -p 55437 -c log_min_error_statement=panic" -w start
-          export VNEXT_NATIVE_TEST_ADMIN_URL="postgresql://lkz_native_test_bootstrap:$pg_password@127.0.0.1:55437/postgres"
-          node --test test/staging-native.test.mjs
+        env:
+          VNEXT_TEST_NATIVE_POSTGRES: '1'
+        run: node --test test/staging-native.test.mjs
