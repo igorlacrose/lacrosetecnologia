@@ -197,7 +197,7 @@ function dataScopeNotice(){
 async function loadCommercial(){
   const [lr,cr,vr,fr,ar,folders,trash,ocaTasks,ocaStatus]=await Promise.all([
     loadPaged('leads','*','updated_at'),
-    loadPaged('contacts','id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact','created_at'),
+    loadPaged('contacts','id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact,consent_at','created_at'),
     loadPaged('conversations','id,lead_id,last_message_at,started_at,status,channel','last_message_at'),
     loadPaged('followups','*','due_at',true),
     loadPaged('approvals','*','requested_at'),
@@ -728,8 +728,13 @@ async function showOpportunity(id,feedback=''){
   }else crmUnavailable();
   if(window.LKZCrmPreviews?.mount){
     void window.LKZCrmPreviews.mount({
-      panel,lead,sb,confirm:askConfirmation,isMaster:profile?.role==='master',
-      isSessionActive:()=>Boolean(user),formatDate:dateLabel
+      panel,lead,contact:state.contacts.find(c=>c.id===lead.contact_id)||null,
+      sb,confirm:askConfirmation,isMaster:profile?.role==='master',
+      isSessionActive:()=>Boolean(user),formatDate:dateLabel,
+      openClient:()=>{
+        clientFocus=lead.contact_id||null;clientMode='detail';view('clients');
+        el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+      }
     }).catch(()=>{
       if(!panel.isConnected||panel.querySelector('[data-preview-failure]'))return;
       const warning=document.createElement('p');
