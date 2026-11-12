@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { readBoundedJson } from './bounded-json.mjs';
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
@@ -30,26 +31,38 @@ export function createStagingAuth({ url, publishableKey, clientFactory = createC
   }
 
   async function send(path, { method = 'POST', token, body } = {}) {
-    const response = await request(issuer + path, {
-      method,
-      headers: {
-        apikey: publishableKey,
-        'content-type': 'application/json',
-        ...(token ? { authorization: 'Bearer ' + token } : {}),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      redirect: 'error',
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) return null;
-    return response.status === 204 ? {} : response.json();
+    try {
+      const response = await request(issuer + path, {
+        method,
+        headers: {
+          apikey: publishableKey,
+          'content-type': 'application/json',
+          ...(token ? { authorization: 'Bearer ' + token } : {}),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        redirect: 'error',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        try { await response.body?.cancel(); } catch { /* Already consumed. */ }
+        return null;
+      }
+      return response.status === 204 ? {} :
+        await readBoundedJson(response, 64 * 1024, 'Supabase Auth');
+    } catch {
+      // Oversize, malformed JSON, network errors and provider outages deny a
+      // session without exposing the token or propagating unhandled errors.
+      return null;
+    }
   }
 
   async function handle(request) {
     if (request.method !== 'POST') return Response.json({}, { status: 405 });
-    const data = await request.json().catch(() => null);
-    const action = new URL(request.url).pathname;
     const denied = () => Response.json({ error: 'Sessão ou verificação inválida.' }, { status: 401 });
+    let data;
+    try { data = await readBoundedJson(request, 8 * 1024, 'Auth request'); }
+    catch { return denied(); }
+    const action = new URL(request.url).pathname;
     if (action === '/auth/login') {
       if (typeof data?.email !== 'string' || data.email.length > 254
         || typeof data.password !== 'string' || !data.password || data.password.length > 1024) return denied();
