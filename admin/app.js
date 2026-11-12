@@ -1653,6 +1653,18 @@ function clients(feedback=''){
         panel.append(issue);
       });
     }
+    if(panel&&window.LKZContractTexts?.mount){
+      void window.LKZContractTexts.mount({
+        panel,contact:selected,sb,confirm:askConfirmation,
+        isMaster:profile?.role==='master',isSessionActive:()=>Boolean(user)
+      }).catch(()=>{
+        if(!panel.isConnected||panel.querySelector('[data-contract-texts]'))return;
+        const issue=document.createElement('p');
+        issue.className='operation-feedback error';issue.setAttribute('role','alert');
+        issue.textContent='Minutas contratuais indisponíveis. Atualize a ficha.';
+        panel.append(issue);
+      });
+    }
     if(panel&&window.LKZSignatureDossiers?.mount){
       void window.LKZSignatureDossiers.mount({
         panel,contact:selected,sb,confirm:askConfirmation,
