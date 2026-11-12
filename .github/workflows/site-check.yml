@@ -107,6 +107,7 @@ jobs:
     name: Documento único por proposta (PostgreSQL 17)
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    container: postgres:17.11
 
     services:
       postgres:
@@ -115,8 +116,6 @@ jobs:
           POSTGRES_DB: lkz_contract_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ephemeral-pg17-ci-only
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres -d lkz_contract_test"
           --health-interval=10s
@@ -126,14 +125,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Instalar cliente PostgreSQL
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
-      - name: Testar migração real com duas classes de documento
+      - name: Testar migração real e concorrência de documentos
         env:
+          PGHOST: postgres
+          PGUSER: postgres
+          PGDATABASE: lkz_contract_test
           PGPASSWORD: ephemeral-pg17-ci-only
         run: |
-          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres \
-            -d lkz_contract_test -f scripts/test_lkz_document_exclusivity_pg17.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/test_lkz_document_exclusivity_pg17.sql
           bash scripts/test_lkz_document_exclusivity_race.sh
