@@ -117,5 +117,12 @@ test('autorização não é estado global nem envio automático',()=>{
  assert.match(migration,/revoke all on table lkz_adm_private\.contact_consent_events from public,anon,authenticated/i);
  assert.match(migration,/e\.contact_id=p\.contact_id and e\.channel=p\.channel/);
  assert.match(migration,/delivery_enabled',false/);
+ const scoped=fs.readFileSync(new URL('../supabase/migrations/20261112201250_lkz_adm_consentimento_vinculado_destino.sql',import.meta.url),'utf8');
+ const newer=fs.readFileSync(new URL('../supabase/migrations/20261112201451_lkz_adm_nova_prova_apos_troca_destino.sql',import.meta.url),'utf8');
+ assert.match(scoped,/recipient_snapshot/);
+ assert.match(scoped,/v_consent_recipient is distinct from v_current/);
+ assert.match(scoped,/then 'stale'/);
+ assert.match(newer,/p_observed_at<=v_contact.updated_at/);
+ assert.match(script,/Desatualizada após alteração do destino/);
  assert.doesNotMatch(script,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(|\blocalStorage\b/);
 });
