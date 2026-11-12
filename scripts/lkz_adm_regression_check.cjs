@@ -109,3 +109,6 @@ check('Proposta não confunde aceite com cobrança',require('node:fs').readFileS
 
 check('Dossiê sem aceite disponível na ficha do cliente',app.includes('window.LKZSignatureDossiers.mount')&&html.includes('client-signature-dossiers.js?v=20261112-1')&&html.includes('client-signature-dossiers.css?v=20261112-1'));
 check('Dossiê não habilita assinatura por UI',require('node:fs').readFileSync('admin/client-signature-dossiers.js','utf8').includes('customer_accepted!==false')&&require('node:fs').readFileSync('admin/client-signature-dossiers.js','utf8').includes('signature_enabled!==false'));
+
+check('Minuta contratual privada disponível na ficha',app.includes('LKZContractTexts.mount')&&html.includes('client-contract-texts.js?v=20261112-1')&&html.includes('client-contract-texts.css?v=20261112-1'));
+check('Minuta interna sem aceite nem cobrança',require('node:fs').readFileSync('admin/client-contract-texts.js','utf8').includes('legal_approved!==false')&&require('node:fs').readFileSync('admin/client-contract-texts.js','utf8').includes('signature_enabled!==false'));
