@@ -10,6 +10,7 @@ Objetivo: ir além das fixtures em PGlite e detectar incompatibilidades nas migr
 - Identidades PostgreSQL exclusivas de web e do serviço de lembretes (sem superuser, BYPASSRLS ou acesso cruzado).
 - Reserva de cota sintética em transação e segundo processamento idempotente.
 - Testes de leitura agregada permitida ao admin com MFA simulado, leitura direta do ledger negada e consulta cruzada de tenant rejeitada.
+- Integração sintética adicional: agendas de BarbarOS e LibertyOS enviam eventos HMAC ao receptor real em PostgreSQL 17; webhook Meta de opt-out com assinatura simulada cancela os lembretes do tenant correto, mantendo a segunda empresa isolada; replay e assinatura falsa são rejeitados.
 
 Esse gate não é teste de webhook Meta, método de pagamento, hospedagem de produção ou agenda real. A migração, credenciais e dados ficam dentro da máquina temporária do runner; não habilitar as notificações reais por causa de CI verde.
 
