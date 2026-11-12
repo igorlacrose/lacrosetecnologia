@@ -66,6 +66,7 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
   const existing=panel.querySelector('.lead-history');
   if(existing)existing.before(shell);else panel.append(shell);
   let busy=false,loaded=false,drafts=new Map(),items=[],requestToken=null;
+  let authorizationStatus={},authorizationLoaded=false;
   const destination=ch=>{
     if(!contact)return '';
     return ch==='email'?String(contact.email||'').trim().toLowerCase():
@@ -77,7 +78,7 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
       /^[0-9]{10,13}$/.test(value);
   };
   const linked=()=>Boolean(lead.contact_id&&contact?.id===lead.contact_id);
-  const consentReady=()=>Boolean(contact?.consent_contact&&contact?.consent_at);
+  const consentReady=()=>authorizationLoaded&&authorizationStatus[channel.value]?.status==='grant';
   const pending=()=>items.some(item=>item.status==='pending'&&item.channel===channel.value);
   const active=()=>shell.isConnected&&isSessionActive();
   const canSubmit=()=>loaded&&linked()&&validDestination(channel.value)&&
@@ -141,10 +142,15 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
       row(guidance,'p','','Pronto para solicitar a análise do texto salvo e do destino cadastrado.');
     }
     const legal=consentReady()?
-      'Consentimento com data consta no cadastro (o servidor revalidará na aprovação).':
-      'Aprovação exigirá autorização de contato documentada com data. Não registre consentimento sem evidência.';
-    row(guidance,'p',consentReady()?'crm-preview-legal-ok':'crm-preview-legal-warning',
-      legal);
+      'Autorização documentada neste canal. O servidor validará novamente na aprovação.':
+      authorizationLoaded?'Não há autorização válida neste canal. Registre evidência no cadastro do cliente.':
+        'Ainda não foi possível verificar as autorizações deste canal. Consulte a ficha do cliente.';
+    row(guidance,'p',consentReady()?'crm-preview-legal-ok':'crm-preview-legal-warning',legal);
+    if(!consentReady()&&typeof openClient==='function'&&hasLinked){
+      const access=btn('Abrir autorizações do cliente','secondary');
+      access.onclick=()=>{if(active())openClient()};
+      guidance.append(access);
+    }
     readiness.append(guidance);
   }
   function display(){
@@ -240,14 +246,16 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
     try{
       results=await readWithDeadline([
         sb.rpc('lkz_adm_crm_list_message_previews',{p_lead:lead.id}),
-        sb.rpc('lkz_adm_crm_list_reply_drafts',{p_lead:lead.id})
+        sb.rpc('lkz_adm_crm_list_reply_drafts',{p_lead:lead.id}),
+        linked()?sb.rpc('lkz_adm_list_contact_consents',{p_contact:contact.id}):
+          Promise.resolve({data:{current:{}}})
       ]);
     }catch(error){
       const code=error?.code==='TIMEOUT'?'TIMEOUT':'NETWORK';
-      results=[{error:{code}},{error:{code}}];
+      results=[{error:{code}},{error:{code}},{error:{code}}];
     }
     if(!active())return;
-    const [previews,resultDrafts]=results;
+    const [previews,resultDrafts,consents]=results;
     if(previews.error||resultDrafts.error||
        !Array.isArray(previews.data)||!Array.isArray(resultDrafts.data)){
       loaded=false;
@@ -258,6 +266,8 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
       setBusy(false);return;
     }
     items=previews.data;drafts=new Map(resultDrafts.data.map(d=>[d.channel,d]));
+    authorizationLoaded=!consents?.error&&!!consents?.data?.current;
+    authorizationStatus=authorizationLoaded?consents.data.current:{};
     loaded=true;
     display();
     feedback.textContent=message||(canSubmit()?
