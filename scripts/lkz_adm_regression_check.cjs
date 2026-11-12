@@ -8,12 +8,12 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
-check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-1'));
+check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-2'));
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));
 check('Lixeira de mensagens e atendimentos',app.includes("data-empty-messages")&&app.includes("data-empty-conversations"));
-check('Exclusão definitiva confirma e usa API autorizada',app.includes('p_expected_count:count')&&app.includes('Digite ESVAZIAR'));
+check('Exclusão definitiva confirma e usa API autorizada',app.includes('p_expected_count:count')&&app.includes("keyword:'ESVAZIAR'"));
 check('Sem acesso a service role no frontend',!app.includes('service_role')&&!app.includes('sb_secret_'));
 check('Banco exige autorização por MFA',sql.includes('lkz_adm_private.is_operator()')&&sql.includes('lkz_adm_private.is_master()'));
 check('Backend audita esvaziamento',sql.includes('trash.empty_')&&sql.includes('operator_audit'));
@@ -34,3 +34,24 @@ assert.equal(brief.priorities[0].target,'followups');
 assert.equal(brief.priorities[0].followupId,'followup-1');
 assert.equal(brief.priorities[0].leadId,'lead-1');
 console.log('OK: Prioridades apontam para o retorno específico');
+
+const contactSql=fs.readFileSync('supabase/migrations/20261112161747_lkz_adm_link_contato_existente.sql','utf8');
+check('Sem diálogos nativos bloqueados',!/window\.(?:prompt|confirm)\s*\(/.test(app));
+check('Confirmação própria e acessível',app.includes('function askConfirmation(')&&app.includes("setAttribute('aria-modal','true')"));
+check('Vinculação usa RPC auditada',app.includes('lkz_adm_link_existing_contact')&&contactSql.includes('is_operator()')&&contactSql.includes('operator_audit'));
+check('Cadastro evita duplicidade acidental',app.includes('Possível duplicidade com ')&&app.includes('normalizedPhone(val('));
+check('Contatos encontrados continuam como sugestão',app.includes('Possível: ')&&app.includes('Confirme o cadastro sugerido'));
+const contactStart=app.indexOf('function normalizedPhone(');
+const contactEnd=app.indexOf('const label=',contactStart);
+check('Reconhecimento determinístico isolável',contactStart>=0&&contactEnd>contactStart);
+const contactScope=vm.createContext({String});
+vm.runInContext(app.slice(contactStart,contactEnd),contactScope);
+const matched=vm.runInContext('recognizedContactCandidates',contactScope)(
+  {structured_data:{contact_email:'teste@example.com',contact_phone:'+55 (73) 99999-0000'}},
+  [{id:'a',person_name:'Cliente conhecido',email:'teste@example.com',phone:null},
+   {id:'b',person_name:'Outro',email:null,phone:'73 99999-0000'},
+   {id:'c',person_name:'Desconhecido',email:'outra@example.com',phone:'73 88888-1111'}]
+);
+assert.equal(matched.length,2);
+assert.equal(vm.runInContext('normalizedPhone',contactScope)('+55 (73) 99999-0000'),'73999990000');
+console.log('OK: Sugestões por coincidência exata, sem atribuir nome arbitrário');
