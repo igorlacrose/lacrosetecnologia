@@ -4,11 +4,19 @@ import pg from 'pg';
 
 const { Pool } = pg;
 const productionRef = 'icrtewhazpfauuroswri';
+const managedStagingHost = 'db.nijsafzwxzcfqdevlsxe.supabase.co';
+const managedStagingConnections = new WeakSet();
 
 export function openStagingDatabase(connectionString) {
   const target = new URL(connectionString);
+  // The dedicated managed Supabase staging project has the standard
+  // "postgres" database name. Accept it only on the pinned staging host,
+  // never on arbitrary Supabase projects, poolers, or the production project.
+  const standaloneDatabase = /^\/lkz_vnext_stage(?:_[a-z0-9]+)?$/.test(target.pathname);
+  const managedStaging = target.hostname === managedStagingHost
+    && target.pathname === '/postgres' && (!target.port || target.port === '5432');
   if (!['postgres:', 'postgresql:'].includes(target.protocol)
-    || !/^\/lkz_vnext_stage(?:_[a-z0-9]+)?$/.test(target.pathname)
+    || (!standaloneDatabase && !managedStaging)
     || decodeURIComponent(connectionString).toLowerCase().includes(productionRef)
     || target.search || target.hash) {
     throw new Error('Expected a dedicated LKZ VNext staging database URL without query options');
@@ -23,7 +31,7 @@ export function openStagingDatabase(connectionString) {
     idle_in_transaction_session_timeout: 15000,
   });
   pool.on('error', () => console.error('Idle PostgreSQL connection closed'));
-  return {
+  const connection = {
     async transaction(operation) {
       const client = await pool.connect();
       let discard = false;
@@ -44,6 +52,8 @@ export function openStagingDatabase(connectionString) {
     },
     close: () => pool.end(),
   };
+  if (managedStaging) managedStagingConnections.add(connection);
+  return connection;
 }
 
 async function assertRowSecurity(tx, schemas) {
@@ -103,6 +113,9 @@ export async function assertIntegrationRole(db, expected) {
 }
 
 export async function migrateStaging(db) {
+  if (managedStagingConnections.has(db)) {
+    throw new Error('Managed Supabase staging already uses Supabase migrations; never rerun standalone migrations');
+  }
   const directory = new URL('./db/', import.meta.url);
   const files = (await readdir(directory)).filter(file => /^\d{3}-[a-z0-9-]+\.sql$/.test(file)).sort();
   await db.transaction(async tx => {
