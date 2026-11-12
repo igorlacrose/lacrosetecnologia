@@ -726,6 +726,19 @@ async function showOpportunity(id,feedback=''){
       sb,confirm:askConfirmation,isSessionActive:()=>Boolean(user),formatDate:dateLabel
     }).catch(crmUnavailable);
   }else crmUnavailable();
+  if(window.LKZCrmPreviews?.mount){
+    void window.LKZCrmPreviews.mount({
+      panel,lead,sb,confirm:askConfirmation,isMaster:profile?.role==='master',
+      isSessionActive:()=>Boolean(user),formatDate:dateLabel
+    }).catch(()=>{
+      if(!panel.isConnected||panel.querySelector('[data-preview-failure]'))return;
+      const warning=document.createElement('p');
+      warning.dataset.previewFailure='';
+      warning.className='operation-feedback error';warning.setAttribute('role','alert');
+      warning.textContent='Não foi possível iniciar a revisão de pré-envio. Atualize a ficha e confira sua sessão.';
+      panel.querySelector('.lead-history')?.before(warning);
+    });
+  }
   panel.querySelector('[data-close-lead]').onclick=()=>{container.replaceChildren();leadFocus=null};
   panel.querySelector('[data-lead-followup]').onclick=()=>{
     followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
