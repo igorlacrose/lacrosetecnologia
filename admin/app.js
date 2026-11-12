@@ -20,7 +20,75 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const label=s=>({new:'Novo',diagnosing:'Diagnóstico',qualified:'Qualificado',human_review:'Revisão humana',contacted:'Contato realizado',proposal:'Proposta',won:'Fechado',lost:'Perdido',archived:'Arquivado',pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado',done:'Concluído',cancelled:'Cancelado'})[s]||s;
 const tag=s=>{const t=label(s),c=['Fechado','Aprovado','Concluído'].includes(t)?'ok':['Perdido','Rejeitado'].includes(t)?'err':['Pendente','Revisão humana','Proposta'].includes(t)?'warn':'info';return '<span class="tag '+c+'">'+esc(t)+'</span>'};
 function msg(node,text){node.textContent=text||''}
-function showLogin(text=''){stopConversationPolling();setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
+
+let activeDialogCancel=null;
+/* Confirmações internas: navegadores incorporados podem bloquear window.prompt/confirm. */
+function askConfirmation({title,message,keyword='',destructive=false}){
+  if(activeDialogCancel)return Promise.resolve(false);
+  return new Promise(resolve=>{
+    const previous=document.activeElement;
+    const overlay=document.createElement('div');
+    overlay.className='lkz-modal-overlay';
+    const dialog=document.createElement('section');
+    dialog.className='lkz-modal';
+    dialog.setAttribute('role','alertdialog');
+    dialog.setAttribute('aria-modal','true');
+    const heading=document.createElement('h2');
+    heading.id='lkz-dialog-heading';
+    heading.textContent=title;
+    dialog.setAttribute('aria-labelledby',heading.id);
+    const body=document.createElement('p');
+    body.textContent=message;
+    dialog.append(heading,body);
+    let input=null;
+    if(keyword){
+      const label=document.createElement('label');
+      label.textContent='Digite '+keyword+' para confirmar:';
+      input=document.createElement('input');
+      input.type='text';input.autocomplete='off';input.spellcheck=false;
+      input.maxLength=32;label.append(input);dialog.append(label);
+    }
+    const actions=document.createElement('div');
+    actions.className='lkz-modal-actions';
+    const cancel=document.createElement('button');
+    cancel.type='button';cancel.className='cta secondary';cancel.textContent='Cancelar';
+    const confirm=document.createElement('button');
+    confirm.type='button';confirm.className=destructive?'cta danger':'cta';
+    confirm.textContent=destructive?'Confirmar exclusão':'Confirmar';
+    if(input)confirm.disabled=true;
+    actions.append(cancel,confirm);dialog.append(actions);
+    overlay.append(dialog);
+    let finished=false;
+    const close=value=>{
+      if(finished)return;
+      finished=true;activeDialogCancel=null;
+      document.removeEventListener('keydown',onKey,true);
+      overlay.remove();
+      if(previous?.isConnected)previous.focus();
+      resolve(value);
+    };
+    const onKey=event=>{
+      if(event.key==='Escape'){event.preventDefault();close(false);}
+      if(event.key==='Tab'){
+        const focusables=[...(input?[input]:[]),cancel,confirm].filter(el=>!el.disabled);
+        if(!focusables.length)return;
+        const first=focusables[0],last=focusables[focusables.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+      }
+    };
+    activeDialogCancel=()=>close(false);
+    document.body.append(overlay);
+    cancel.onclick=()=>close(false);
+    confirm.onclick=()=>close(!input||input.value===keyword);
+    overlay.onclick=event=>{if(event.target===overlay)close(false)};
+    input?.addEventListener('input',()=>{confirm.disabled=input.value!==keyword});
+    document.addEventListener('keydown',onKey,true);
+    (input||cancel).focus();
+  });
+}
+
+function showLogin(text=''){activeDialogCancel?.();stopConversationPolling();setMenu(false);clearTimeout(idleTimer);el('app').hidden=true;el('content').replaceChildren();el('mfaScreen').hidden=true;el('auth').hidden=false;msg(el('authMsg'),text);el('password').value=''}
 async function authorize(u){const {data,error}=await sb.from('profiles').select('full_name,role,active').eq('id',u.id).maybeSingle();if(error)throw error;return data&&data.active&&['master','admin'].includes(data.role)?data:null}
 async function enforceMfa(p,u){const {data:aal,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;if(aal?.currentLevel==='aal2')return enter(p,u);const {data:factors,error:fe}=await sb.auth.mfa.listFactors();if(fe)throw fe;let factor=factors?.totp?.[0];if(!factor){const {data:en,error:ee}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'LKZ ADM'});if(ee)throw ee;factor=en;el('enroll').hidden=false;el('qr').src=en.totp?.qr_code||'';el('secret').textContent=en.totp?.secret||'';el('mfaIntro').textContent='Configure o autenticador e confirme o código.'}else{el('enroll').hidden=true;el('mfaIntro').textContent='Digite o código atual do autenticador.'}const {data:ch,error:ce}=await sb.auth.mfa.challenge({factorId:factor.id});if(ce)throw ce;profile=p;user=u;factorId=factor.id;challengeId=ch.id;el('auth').hidden=true;el('mfaScreen').hidden=false;el('code').value='';setTimeout(()=>el('code').focus(),40)}
 async function expireIdleSession(){
