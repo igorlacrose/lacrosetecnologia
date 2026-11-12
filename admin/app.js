@@ -335,18 +335,104 @@ function crm(){
     if(b.dataset.crmGoto==='followups')openFollowupEditor('create');
   });
 }
+
 function leads(){
-  const q=(el('search')?.value||'').trim().toLowerCase();
- const filtered=q?state.leads.filter(l=>[l.name,l.contact,l.intent,l.category,l.suggested_solution].some(v=>String(v||'').toLowerCase().includes(q))):state.leads;
- const body=filtered.map(l=>'<tr><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td><td>'+tag(l.status)+'</td><td>'+esc(l.source||'—')+'</td><td><button class="cta" data-lead="'+esc(l.id)+'">Ver detalhes</button></td></tr>').join('');
-  el('content').innerHTML='<p class="result-count">'+filtered.length+' oportunidade(s) encontrada(s)</p><div id="leadDetails"></div><div class="table"><table><thead><tr><th>Lead</th><th>Contato</th><th>Interesse</th><th>Status</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+body+'</tbody></table></div>';
-  el('content').querySelectorAll('[data-lead]').forEach(button=>button.onclick=()=>{
-    const lead=state.leads.find(item=>item.id===button.dataset.lead);
-    el('leadDetails').innerHTML='<section class="panel form-panel"><h2>'+esc(lead.name)+'</h2>'+
-      '<p>'+esc(lead.problem||lead.suggested_solution||lead.intent||'Sem detalhes adicionais.')+'</p>'+
-      '<p>'+esc(lead.contact)+' · '+tag(lead.status)+'</p></section>';
-    el('leadDetails').scrollIntoView({block:'nearest'});
-  });
+  const query=(el('search')?.value||'').trim().toLowerCase();
+  const records=query?state.leads.filter(l=>
+    [l.name,l.contact,l.intent,l.category,l.suggested_solution,l.problem]
+      .some(v=>String(v||'').toLowerCase().includes(query))):state.leads;
+  const table=records.map(l=>
+    '<tr><td><div class="client-name-cell"><strong>'+esc(l.name)+'</strong>'+
+      '<small>'+esc(l.source||'Origem não informada')+'</small></div></td>'+
+    '<td>'+esc(l.contact)+'</td><td>'+esc(l.suggested_solution||l.intent||l.category||'—')+'</td>'+
+    '<td>'+tag(l.status)+'</td><td>'+esc(dateLabel(l.updated_at))+'</td>'+
+    '<td><button class="cta secondary" type="button" data-lead="'+esc(l.id)+'">Abrir ficha</button></td></tr>').join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">RELACIONAMENTO</span><h2>Oportunidades</h2>'+
+    '<p>Registre a evolução comercial, acompanhe o histórico e programe retornos.</p></div>'+
+    '<button class="cta secondary" type="button" data-go-pipeline>Ver pipeline</button></section>'+
+    '<p class="result-count">'+records.length+' oportunidade(s) encontrada(s)</p>'+
+    '<div id="leadDetails"></div><div class="table opportunity-table"><table>'+
+    '<thead><tr><th>Oportunidade</th><th>Contato</th><th>Interesse</th><th>Etapa</th><th>Atualização</th><th>Ação</th></tr></thead>'+
+    '<tbody>'+table+'</tbody></table></div>';
+  el('content').querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>showOpportunity(b.dataset.lead));
+  el('content').querySelector('[data-go-pipeline]').onclick=()=>view('crm');
+  if(leadFocus&&records.some(l=>l.id===leadFocus))showOpportunity(leadFocus);
+}
+async function showOpportunity(id,feedback=''){
+  const lead=state.leads.find(l=>l.id===id),container=el('leadDetails');
+  if(!lead||!container)return;
+  leadFocus=id;
+  const current=lead.status;
+  const statuses=[['new','Novo'],['diagnosing','Diagnóstico'],['qualified','Qualificado'],
+    ['human_review','Revisão humana'],['contacted','Contatado'],['lost','Perdido'],['archived','Arquivado']];
+  const locked=['proposal','won'].includes(current);
+  const options=locked
+    ?'<option value="'+esc(current)+'">'+esc(label(current))+' (fluxo protegido)</option>'
+    :statuses.map(([value,text])=>'<option value="'+value+'"'+(value===current?' selected':'')+'>'+text+'</option>').join('');
+  container.innerHTML=
+    '<section class="panel opportunity-profile"><div class="client-panel-head"><div>'+
+      '<span class="eyebrow">FICHA COMERCIAL</span><h2>'+esc(lead.name)+'</h2>'+
+      '<p>'+tag(lead.status)+' · '+esc(lead.contact)+'</p></div>'+
+      '<div class="action-row"><button class="cta secondary" type="button" data-lead-followup>Agendar retorno</button>'+
+        '<button class="cta secondary" type="button" data-close-lead>Fechar</button></div></div>'+
+      '<div class="lead-detail-grid">'+
+        '<article><span>Necessidade identificada</span><strong>'+esc(lead.problem||lead.intent||'Não informada')+'</strong></article>'+
+        '<article><span>Solução sugerida</span><strong>'+esc(lead.suggested_solution||'Não definida')+'</strong></article>'+
+        '<article><span>Segmento</span><strong>'+esc(lead.category||'Não informado')+'</strong></article>'+
+        '<article><span>Prioridade / pontuação</span><strong>'+esc(lead.priority||'normal')+' · '+esc(lead.score??'—')+'</strong></article>'+
+      '</div>'+
+      '<form id="leadManagementForm" class="lead-management-form">'+
+        '<h3>Registrar atividade comercial</h3><p>Notas e mudanças de etapa são registradas no histórico, sem disparar mensagens externas.</p>'+
+        '<div class="lead-form-grid"><label>Etapa<select name="status">'+options+'</select></label>'+
+        '<label>Anotação interna<textarea name="note" rows="3" maxlength="2000" placeholder="Resumo do contato, próximo passo ou motivo da perda..."></textarea></label></div>'+
+        '<div class="action-row"><button type="submit" class="cta">Salvar atividade</button>'+
+          '<span role="status" data-lead-status>'+esc(feedback)+'</span></div>'+
+      '</form><div class="lead-history"><h3>Histórico da oportunidade</h3>'+
+        '<div data-lead-events role="status">Carregando histórico...</div></div></section>';
+  const panel=container.querySelector('.opportunity-profile');
+  panel.querySelector('[data-close-lead]').onclick=()=>{container.replaceChildren();leadFocus=null};
+  panel.querySelector('[data-lead-followup]').onclick=()=>{
+    followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
+  };
+  const form=panel.querySelector('#leadManagementForm');
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    const target=form.querySelector('[data-lead-status]'),
+      status=form.querySelector('[name=status]').value,
+      note=form.querySelector('[name=note]').value.trim();
+    if(status===lead.status&&!note){target.textContent='Informe uma anotação ou altere a etapa.';return}
+    const controls=[...form.querySelectorAll('button,select,textarea')];
+    controls.forEach(control=>control.disabled=true);
+    target.textContent='Registrando atividade...';
+    let result;
+    try{result=await sb.rpc('lkz_adm_update_lead',
+      {p_id:id,p_expected_status:lead.status,p_status:status,p_note:note});}
+    catch{result={error:{code:'REDE'}}}
+    if(!form.isConnected||!user)return;
+    if(result.error||!result.data?.id){
+      target.textContent='Não foi possível salvar: '+(result.error?.code||'SEM_CONFIRMACAO')+'. Recarregue os dados.';
+      controls.forEach(control=>control.disabled=false);
+      return;
+    }
+    try{await loadCommercial();}catch{}
+    view('leads');
+    const visible=state.leads.find(l=>l.id===id);
+    if(visible)showOpportunity(id,'Atividade registrada e auditada.');
+  };
+  const history=panel.querySelector('[data-lead-events]');
+  let result;
+  try{result=await sb.rpc('lkz_adm_lead_history',{p_id:id});}
+  catch{result={error:{code:'REDE'}}}
+  if(!history.isConnected||!user)return;
+  if(result.error){history.textContent='Histórico indisponível. Código: '+(result.error.code||'DESCONHECIDO');return}
+  const events=Array.isArray(result.data)?result.data:[];
+  history.innerHTML=events.length?events.map(e=>
+    '<div class="timeline-event"><div class="timeline-point"></div>'+
+    '<div><strong>'+esc(e.event_type||'Atividade')+'</strong>'+
+      '<small>'+esc(dateLabel(e.created_at))+' · '+esc(e.actor_type||'sistema')+'</small>'+
+      (e.note?'<p>'+esc(e.note)+'</p>':'')+'</div></div>').join(''):
+    '<p class="support-note">Nenhum evento registrado nesta oportunidade.</p>';
 }
 const dateLabel=value=>value?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bahia'}).format(new Date(value)):'—';
 function conversations(folder=conversationFolder,selectId=null){
