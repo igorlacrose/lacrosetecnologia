@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source=fs.readFileSync(new URL('../admin/client-quotes.js',import.meta.url),'utf8');
-const sql=fs.readFileSync(new URL('../supabase/migrations/20261112220200_lkz_adm_propostas_versionadas_sem_cobranca.sql',import.meta.url),'utf8');
+const sql=fs.readFileSync(new URL('../supabase/migrations/20261112214448_lkz_adm_propostas_versionadas_sem_cobranca.sql',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../admin/app.js',import.meta.url),'utf8');
 class Node{
  constructor(tag){this.tagName=tag;this.children=[];this.parent=null;this.className='';
