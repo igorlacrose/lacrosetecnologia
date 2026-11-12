@@ -48,13 +48,15 @@ async function mount({panel,contact,sb,confirm,isMaster=false,isSessionActive}){
   root.append(createArea,history);
   panel.append(root);
   const active=()=>root.isConnected&&isSessionActive();
-  let busy=false,request=null,voidRequest=null,items=[],loaded=false;
+  let busy=false,items=[],loaded=false,updatePrepareControls=null;
   const setBusy=value=>{
     busy=value;refresh.disabled=value;
     for(const e of createArea.querySelectorAll('input,select,button'))e.disabled=value;
     for(const e of history.querySelectorAll('textarea,button'))e.disabled=value;
+    if(!value&&updatePrepareControls)updatePrepareControls();
   };
   function render(){
+    updatePrepareControls=null;
     createArea.replaceChildren();history.replaceChildren();
     const eligible=items.filter(q=>q.eligible===true);
     if(isMaster&&eligible.length){
@@ -106,6 +108,7 @@ async function mount({panel,contact,sb,confirm,isMaster=false,isSessionActive}){
       };
       send.disabled=true;
       const update=()=>{send.disabled=busy||!validate()};
+      updatePrepareControls=update;
       for(const e of [select,version,reference,digest])e.oninput=update;
       check.onchange=update;
       send.onclick=async()=>{
