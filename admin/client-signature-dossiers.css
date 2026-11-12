@@ -1,0 +1,37 @@
+/* LKZ ADM: documentação pré-assinatura sem entrega */
+.signature-dossiers{display:grid;gap:12px;margin-top:21px;padding:18px;
+ background:linear-gradient(145deg,#f6fbfd,#fff);
+ border:1px solid #d4e5ed;border-radius:13px}
+.signature-dossiers h3{font-size:17px;color:#173c50;margin:0}
+.signature-dossiers h4{font-size:14px;color:#224b60;margin:0 0 9px}
+.signature-description,.signature-feedback{font-size:12.5px;color:#577888;line-height:1.55;margin:0}
+.signature-warning{background:#fff5e7;color:#865d2d;border:1px solid #e9d1ab;
+ border-radius:9px;padding:10px 12px;font-size:12px;line-height:1.55;margin:0}
+.signature-toolbar{display:flex;gap:9px;flex-wrap:wrap}
+.signature-toolbar button{font-size:12px;min-height:38px}
+.signature-create-area{border-top:1px solid #dce9ef;padding-top:14px}
+.signature-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.signature-field{display:grid;gap:6px;font-size:12px;font-weight:700;color:#3b6476}
+.signature-field input,.signature-field select{min-width:0;max-width:100%;width:100%;
+ border:1px solid #bdd4df;background:#fff;color:#244c60;border-radius:9px;
+ min-height:40px;padding:9px;font-size:12px}
+.signature-field input:disabled,.signature-field select:disabled{background:#e8eff3}
+.signature-attestation{grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;
+ font-size:12px;line-height:1.5;background:#f4f9fa;color:#315668;border-radius:9px;
+ padding:11px;border:1px solid #d5e4eb}
+.signature-attestation input{margin-top:3px;flex-shrink:0;accent-color:#107d9e}
+.signature-form button{justify-self:start;font-size:12px}
+.signature-history{border-top:1px solid #dce9ef;padding-top:15px;display:grid;gap:10px}
+.signature-entry{display:grid;gap:7px;border:1px solid #dce8ee;border-radius:10px;
+ background:#fff;padding:13px}
+.signature-entry strong{color:#1d465b;font-size:13px}
+.signature-entry span,.signature-entry small{font-size:12px;color:#526f80}
+.signature-state{font-weight:800;color:#9b5b28!important}
+.signature-hash{overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px!important}
+.signature-empty{font-size:12px;color:#698594;margin:0}
+.signature-notice{font-size:12px;color:#93603b;background:#fff7ec;border-radius:8px;padding:8px;margin:0}
+.signature-entry textarea{border:1px solid #c3d9e3;border-radius:9px;padding:10px;
+ background:#fff;color:#254d5f;min-height:65px;resize:vertical;font-size:12px}
+.signature-entry button{justify-self:start;font-size:12px}
+@media(max-width:650px){.signature-form{grid-template-columns:1fr}}
+@media(max-width:540px){.signature-dossiers{padding:12px}.signature-form button,.signature-entry button{width:100%;justify-self:stretch}}
