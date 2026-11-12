@@ -1,0 +1,36 @@
+/* LKZ ADM | Pré-envio supervisionado — sem transporte externo */
+.crm-preview{margin:21px 0;padding:22px;border:1px solid #d2e2eb;border-radius:15px;
+  background:#fff;box-shadow:0 8px 20px rgba(8,51,74,.045)}
+.crm-preview h3{font-size:20px;color:#173b4d;letter-spacing:-.025em;margin:3px 0}
+.crm-preview-explain{color:#597585;font-size:13px;line-height:1.5;margin:6px 0 14px}
+.crm-preview-disabled{background:#fff4e7;color:#7a4b22;border:1px solid #ebcf9e;
+  border-radius:10px;padding:10px 13px;margin:0 0 14px;font-size:12.5px;font-weight:750}
+.crm-preview-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.crm-preview-toolbar select{background:#fff;border:1px solid #c6dbe5;
+  border-radius:10px;padding:9px 11px;font-size:13px;min-height:41px;color:#244e64}
+.crm-preview-toolbar button{min-height:41px}
+.crm-preview-feedback{font-size:12.5px;color:#285f72;min-height:15px;margin:10px 0}
+.crm-preview-list{display:grid;gap:11px}
+.crm-preview-card{border:1px solid #d9e7ed;background:#f7fbfd;border-radius:12px;padding:15px}
+.crm-preview-title{display:block;color:#163b4e;font-size:14px}
+.crm-preview-meta{display:block;color:#667e8d;margin:4px 0;font-size:11px}
+.crm-preview-destination{color:#365d6f;overflow-wrap:anywhere;font-size:12px;margin:8px 0}
+.crm-preview-message{background:#fff;border:1px solid #e0eaef;border-radius:9px;padding:11px 12px;
+  white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#294b60;line-height:1.5}
+.crm-preview-warning{background:#fff4e8;border:1px solid #ead3b4;border-radius:9px;
+  padding:9px 11px;color:#865226;font-size:12px}
+.crm-preview-decision{margin-top:10px;display:grid;gap:10px}
+.crm-preview-decision textarea{resize:vertical;min-height:58px;border:1px solid #cbdae3;
+  border-radius:9px;padding:10px;color:#234b5e;background:white;font-size:13px}
+.crm-preview-decision-actions{display:flex;gap:8px;flex-wrap:wrap}
+.crm-preview-decision-actions .cta{font-size:12px}
+.crm-preview-final,.crm-preview-note,.crm-preview-empty{font-size:12.5px;color:#637e8c}
+.crm-preview-empty{margin:8px 0}
+@media(max-width:560px){
+  .crm-preview{padding:14px}
+  .crm-preview-toolbar{align-items:stretch}
+  .crm-preview-toolbar select{width:100%}
+  .crm-preview-toolbar button{flex:1}
+  .crm-preview-decision-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .crm-preview-decision-actions .cta{white-space:normal}
+}
