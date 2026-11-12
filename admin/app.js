@@ -700,6 +700,13 @@ async function showOpportunity(id,feedback=''){
       '</form><div class="lead-history"><h3>Histórico da oportunidade</h3>'+
         '<div data-lead-events role="status">Carregando histórico...</div></div></section>';
   const panel=container.querySelector('.opportunity-profile');
+  // Componente isolado: nenhuma mensagem é enviada a serviços externos.
+  if(window.LKZCrmComms?.mount){
+    void window.LKZCrmComms.mount({
+      panel,lead,contact:state.contacts.find(c=>c.id===lead.contact_id)||null,
+      sb,confirm:askConfirmation,isSessionActive:()=>Boolean(user),formatDate:dateLabel
+    }).catch(()=>{ /* Exibição opcional: mantém a ficha principal funcional. */ });
+  }
   panel.querySelector('[data-close-lead]').onclick=()=>{container.replaceChildren();leadFocus=null};
   panel.querySelector('[data-lead-followup]').onclick=()=>{
     followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
