@@ -1,0 +1,131 @@
+import { createHash } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
+import pg from 'pg';
+
+const { Pool } = pg;
+const productionRef = 'icrtewhazpfauuroswri';
+
+export function openStagingDatabase(connectionString) {
+  const target = new URL(connectionString);
+  if (!['postgres:', 'postgresql:'].includes(target.protocol)
+    || !/^\/lkz_vnext_stage(?:_[a-z0-9]+)?$/.test(target.pathname)
+    || decodeURIComponent(connectionString).toLowerCase().includes(productionRef)
+    || target.search || target.hash) {
+    throw new Error('Expected a dedicated LKZ VNext staging database URL without query options');
+  }
+  const local = ['127.0.0.1', '[::1]'].includes(target.hostname);
+  const pool = new Pool({
+    connectionString,
+    ssl: local ? false : { rejectUnauthorized: true },
+    max: 6,
+    connectionTimeoutMillis: 5000,
+    statement_timeout: 10000,
+    idle_in_transaction_session_timeout: 15000,
+  });
+  pool.on('error', () => console.error('Idle PostgreSQL connection closed'));
+  return {
+    async transaction(operation) {
+      const client = await pool.connect();
+      let discard = false;
+      try {
+        await client.query('begin');
+        const result = await operation({
+          query: (sql, values) => client.query(sql, values),
+          exec: (sql) => client.query(sql),
+        });
+        await client.query('commit');
+        return result;
+      } catch (error) {
+        try { await client.query('rollback'); } catch { discard = true; }
+        throw error;
+      } finally {
+        client.release(discard);
+      }
+    },
+    close: () => pool.end(),
+  };
+}
+
+async function assertRowSecurity(tx, schemas) {
+  const { rows: [status] } = await tx.query(`
+    select count(distinct n.nspname) = cardinality($1::text[])
+      and coalesce(bool_and(pg_catalog.row_security_active(c.oid)), false) as enforced
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = any($1::text[]) and c.relkind in ('r','p')
+  `, [schemas]);
+  if (status?.enforced !== true) throw new Error('VNext requires active row-level security');
+}
+
+export async function assertWorkspaceRole(db) {
+  await db.transaction(async tx => {
+    const { rows: [role] } = await tx.query(`
+      select current_user as name, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolinherit,
+        pg_has_role(current_user, 'authenticated', 'MEMBER') as can_auth,
+        pg_has_role(current_user, 'authenticated', 'USAGE') as inherits_auth,
+        exists (select 1 from pg_roles r where r.rolname not in (current_user, 'authenticated')
+          and pg_has_role(current_user,r.oid,'MEMBER')) as other_roles,
+        (select count(*) from pg_namespace n join pg_roles r on r.oid=n.nspowner
+          where n.nspname in ('lkz_vnext', 'lkz_vnext_billing')
+            and pg_has_role(current_user,r.oid,'MEMBER')) as owned_schemas
+      from pg_roles where rolname = current_user
+    `);
+    if (role?.name !== 'lkz_vnext_runtime' || role.rolsuper || role.rolbypassrls
+      || role.rolcreaterole || role.rolcreatedb || role.rolinherit || !role.can_auth || role.inherits_auth
+      || role.other_roles || Number(role.owned_schemas)) {
+      throw new Error('Invalid VNext runtime database role');
+    }
+    await tx.exec('set local role authenticated');
+    await assertRowSecurity(tx, ['lkz_vnext', 'lkz_vnext_billing']);
+  });
+}
+
+export async function assertIntegrationRole(db, expected) {
+  await db.transaction(async tx => {
+    const { rows: [role] } = await tx.query(`
+      select rolsuper or rolbypassrls or rolcreaterole or rolcreatedb as privileged,
+        pg_has_role(current_user, $1::name, 'USAGE') as permitted,
+        exists (select 1 from pg_roles r where r.rolname not in (current_user, $1::name)
+          and pg_has_role(current_user,r.oid,'MEMBER')) as other_roles,
+        (select count(*) from pg_namespace n where n.nspname in ('lkz_vnext','lkz_vnext_billing')
+          and pg_has_role(current_user,n.nspowner,'MEMBER')) as owned_schemas
+      from pg_roles where rolname = current_user
+    `, [expected]);
+    if (!role?.permitted || role.privileged || role.other_roles || Number(role.owned_schemas)) {
+      throw new Error('Invalid VNext integration database role');
+    }
+    const schemas = expected === 'lkz_vnext_asaas_issue'
+      ? ['lkz_vnext', 'lkz_vnext_billing'] : ['lkz_vnext_billing'];
+    await assertRowSecurity(tx, schemas);
+  });
+}
+
+export async function migrateStaging(db) {
+  const directory = new URL('./db/', import.meta.url);
+  const files = (await readdir(directory)).filter(file => /^\d{3}-[a-z0-9-]+\.sql$/.test(file)).sort();
+  await db.transaction(async tx => {
+    await tx.query('select pg_advisory_xact_lock($1)', [6072030]);
+    await tx.exec(`
+      create schema if not exists lkz_vnext_migrations;
+      revoke all on schema lkz_vnext_migrations from public;
+      create table if not exists lkz_vnext_migrations.history (
+        filename text primary key, sha256 text not null, applied_at timestamptz not null default now()
+      );
+    `);
+    const { rows } = await tx.query('select filename, sha256 from lkz_vnext_migrations.history');
+    const prior = new Map(rows.map(row => [row.filename, row.sha256]));
+    if (rows.some(row => !files.includes(row.filename))) throw new Error('Database is ahead of the checkout');
+    for (const file of files) {
+      const source = (await readFile(new URL(file, directory), 'utf8')).replace(/\r\n/g, '\n');
+      const checksum = createHash('sha256').update(source).digest('hex');
+      if (prior.has(file)) {
+        if (prior.get(file) !== checksum) throw new Error('Migration checksum mismatch: ' + file);
+        continue;
+      }
+      const statements = source.trim().match(/^begin;\s*([\s\S]+?)\s*commit;$/i)?.[1];
+      if (!statements) throw new Error('Expected transactional migration: ' + file);
+      await tx.exec(statements);
+      await tx.query('insert into lkz_vnext_migrations.history (filename, sha256) values ($1,$2)', [file, checksum]);
+    }
+  });
+}
