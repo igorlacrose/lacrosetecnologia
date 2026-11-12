@@ -90,22 +90,47 @@ export async function assertWorkspaceRole(db) {
   });
 }
 
+const asaasIntegrationRoles = new Set([
+  'lkz_vnext_asaas_ingest',
+  'lkz_vnext_asaas_issue',
+  'lkz_vnext_asaas_reconcile',
+]);
+
+// Integration work never inherits provider privileges in a session.
+// SET LOCAL ROLE lasts only until this transaction closes.
+export function withAsaasRole(db, role) {
+  if (!asaasIntegrationRoles.has(role)) throw new Error('Unknown Asaas integration role');
+  return {
+    transaction: operation => db.transaction(async tx => {
+      await tx.exec('set local role ' + role);
+      return operation(tx);
+    }),
+  };
+}
+
 export async function assertIntegrationRole(db, expected) {
+  if (!asaasIntegrationRoles.has(expected)) throw new Error('Unknown Asaas integration role');
   await db.transaction(async tx => {
     const { rows: [role] } = await tx.query(`
-      select rolsuper or rolbypassrls or rolcreaterole or rolcreatedb as privileged,
-        pg_has_role(current_user, $1::name, 'USAGE') as permitted,
+      select session_user as name, rolinherit,
+        rolsuper or rolbypassrls or rolcreaterole or rolcreatedb as privileged,
+        pg_has_role(session_user, $1::name, 'MEMBER') as permitted,
+        pg_has_role(session_user, $1::name, 'USAGE') as inherited,
         (select count(*) from pg_roles r where r.rolname <> $1
           and r.rolname in ('authenticated','lkz_vnext_asaas_ingest','lkz_vnext_asaas_reconcile','lkz_vnext_asaas_issue',
+            'lkz_vnext_meta_bridge','lkz_vnext_reminder_bridge',
             'pg_read_all_data','pg_write_all_data','pg_execute_server_program','pg_read_server_files','pg_write_server_files')
-          and pg_has_role(current_user,r.oid,'MEMBER')) as other_roles,
+          and pg_has_role(session_user,r.oid,'MEMBER')) as other_roles,
         (select count(*) from pg_namespace n where n.nspname in ('lkz_vnext','lkz_vnext_billing')
-          and pg_has_role(current_user,n.nspowner,'MEMBER')) as owned_schemas
-      from pg_roles where rolname = current_user
+          and pg_has_role(session_user,n.nspowner,'MEMBER')) as owned_schemas
+      from pg_roles where rolname = session_user
     `, [expected]);
-    if (!role?.permitted || role.privileged || Number(role.other_roles) || Number(role.owned_schemas)) {
+    if (role?.name !== expected + '_runtime' || role.rolinherit || !role.permitted
+      || role.inherited || role.privileged || Number(role.other_roles)
+      || Number(role.owned_schemas)) {
       throw new Error('Invalid VNext integration database role');
     }
+    await tx.exec('set local role ' + expected);
     const schemas = expected === 'lkz_vnext_asaas_issue'
       ? ['lkz_vnext', 'lkz_vnext_billing'] : ['lkz_vnext_billing'];
     await assertRowSecurity(tx, schemas);
