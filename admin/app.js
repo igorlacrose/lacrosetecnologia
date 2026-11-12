@@ -296,8 +296,8 @@ function commercial(){
     '</section><section class="panel commercial-panel"><h2>Ferramentas comerciais</h2><div class="commercial-tools">'+
     tools.map(([viewId,title,description])=>'<article><h3>'+title+'</h3><p>'+description+
       '</p><button class="cta" type="button" data-commercial-view="'+viewId+'">Abrir '+title+'</button></article>').join('')+
-    '<article><h3>LCRM</h3><p>Clientes, tarefas, oportunidades e canais do CRM.</p><a class="cta" href="'+
-    systemCatalog.find(item=>item.code==='LCRM').url+'">Abrir LCRM</a></article></div></section>';
+    '<article><h3>CRM do LKZ ADM</h3><p>Pipeline e operações comerciais no painel.</p>'+
+    '<button class="cta" type="button" data-commercial-view="crm">Abrir CRM</button></article></div></section>';
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
 }
 
