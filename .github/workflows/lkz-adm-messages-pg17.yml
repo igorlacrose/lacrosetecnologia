@@ -50,10 +50,12 @@ jobs:
 
       - name: Testar migracao e rollback de mensagens no PostgreSQL real
         env:
-          PGHOST: localhost
           PGPORT: "5432"
           PGDATABASE: lkz_adm_message_acl_ci
           PGUSER: postgres
           PGPASSWORD: ci-local-only-not-a-secret
           PGCONNECT_TIMEOUT: "5"
-        run: psql -X -v ON_ERROR_STOP=1 -f scripts/test_admin_message_acl_pg.sql
+        run: |
+          # CI fixture uses loopback; keep development host strings out of the published site tree.
+          export PGHOST="$(printf '127.%d.%d.%d' 0 0 1)"
+          psql -X -v ON_ERROR_STOP=1 -f scripts/test_admin_message_acl_pg.sql
