@@ -37,7 +37,7 @@ O LKZ ADM passa a permitir **preparar internamente** uma proposta vinculada à v
 ### Reversão, migração e testes
 
 - Backup de frontend: `backup/lkz-adm-pre-propostas-20261112`.
-- Migração: `supabase/migrations/20261112220200_lkz_adm_propostas_versionadas_sem_cobranca.sql`.
+- Migração: `supabase/migrations/20261112214448_lkz_adm_propostas_versionadas_sem_cobranca.sql`.
 - Testes SQL executados com ROLLBACK: dois sistemas, totais, snapshot, repetição idempotente, concorrência, cancelamento, mudança de minuta, anon/AAL1 e ADMIN não MASTER.
 - CI realiza sintaxe, testes de interface e regressões. O deploy depende do check obrigatório.
 - A reversão do frontend não remove automaticamente a tabela; futuras propostas reais exigirão política de retenção e eventual migração.
