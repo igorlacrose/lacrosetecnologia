@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { readAsaasJson } from './asaas-response.mjs';
 
 const digest = (value) => createHash('sha256').update(value).digest();
 const paymentIdPattern = /^pay_[A-Za-z0-9_-]{1,120}$/;
@@ -78,7 +79,7 @@ export async function fetchAsaasSandboxPayment(paymentId, apiKey, request = fetc
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new Error('Sandbox payment lookup failed');
-  const payment = await response.json();
+  const payment = await readAsaasJson(response);
   if (payment?.id !== paymentId) throw new Error('Unexpected Sandbox payment reference');
   return payment;
 }
