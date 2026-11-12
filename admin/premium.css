@@ -294,3 +294,33 @@ header p{font-size:14px;color:#587384;margin:0}
 @media(max-width:1000px){.oca-triage-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.oca-triage-item{align-items:flex-start;flex-direction:column}
   .oca-triage-item button{width:100%}}
+
+
+/* OCA — fila de tarefas internas de backend (piloto Lacrose, tenant único). */
+.oca-worker-controls{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:17px}
+.oca-worker-controls h2{margin:0 0 6px;color:#153d51}
+.oca-worker-controls p{margin:0;font-size:13px;max-width:660px}
+.oca-worker-controls .support-note{margin-top:8px;font-size:12px}
+.oca-worker-control-buttons{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.oca-worker-control-buttons .cta{white-space:nowrap}
+.oca-worker-list{padding:20px}
+.oca-worker-list>.panel-head{margin-bottom:7px}
+.oca-worker-item{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:14px 4px;border-bottom:1px solid #e2edf2}
+.oca-worker-item:last-child{border-bottom:0}
+.oca-worker-item-body{flex:1;min-width:0}
+.oca-worker-item-body strong{display:block;color:#153e52;font-size:14px}
+.oca-worker-item-body small{display:block;color:#5f7c89;font-size:12px;margin-top:4px}
+.oca-worker-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.oca-worker-actions .cta{font-size:12px;min-height:35px}
+@media(max-width:900px){
+ .oca-worker-controls{align-items:flex-start;flex-direction:column}
+ .oca-worker-control-buttons{width:100%;flex-direction:row;flex-wrap:wrap}
+}
+@media(max-width:560px){
+ .oca-worker-controls{padding:17px}
+ .oca-worker-control-buttons{flex-direction:column}
+ .oca-worker-control-buttons .cta{width:100%}
+ .oca-worker-item{align-items:flex-start;flex-direction:column}
+ .oca-worker-actions{width:100%;justify-content:flex-start}
+ .oca-worker-actions .cta{flex:1}
+}

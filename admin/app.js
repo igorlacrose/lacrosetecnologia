@@ -195,22 +195,25 @@ function dataScopeNotice(){
     ' Use filtros e solicite paginação server-side para volumes maiores.</p>';
 }
 async function loadCommercial(){
-  const [lr,cr,vr,fr,ar,folders,trash]=await Promise.all([
+  const [lr,cr,vr,fr,ar,folders,trash,ocaTasks,ocaStatus]=await Promise.all([
     loadPaged('leads','*','updated_at'),
     loadPaged('contacts','id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact','created_at'),
     loadPaged('conversations','id,lead_id,last_message_at,started_at,status,channel','last_message_at'),
     loadPaged('followups','*','due_at',true),
     loadPaged('approvals','*','requested_at'),
     sb.rpc('lkz_adm_list_conversation_folders'),
-    sb.rpc('lkz_adm_trash_stats')
+    sb.rpc('lkz_adm_trash_stats'),
+    sb.rpc('lkz_adm_oca_list_tasks'),
+    sb.rpc('lkz_adm_oca_status')
   ]);
-  const err=folders.error||trash.error;
+  const err=folders.error||trash.error||ocaTasks.error||ocaStatus.error;
   if(err)throw err;
   const contacts=cr.data||[],cm=new Map(contacts.map(c=>[c.id,c])),lm=new Map();
   const folderMap=new Map((folders.data||[]).map(entry=>[entry.conversation_id,entry.folder]));
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
+    ocaTasks:ocaTasks.data||[],ocaStatus:ocaStatus.data||{enabled:false,open_tasks:0},
     loadMeta:{
       partial:[lr,cr,vr,fr,ar].some(item=>item.partial),
       counts:{leads:lr.count,contacts:cr.count,conversations:vr.count,followups:fr.count,approvals:ar.count},
@@ -298,6 +301,7 @@ function stopConversationPolling(){
 const titles={
   overview:['Central de comando','Ações prioritárias, clientes e operações do CRM interno.'],
   crm:['CRM · Pipeline','Oportunidades comerciais e trabalho operacional no próprio LKZ ADM.'],
+  oca:['OCA · Operações','Tarefas internas criadas automaticamente pelo motor de regras.'],
   systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
   clients:['Clientes','Cadastros e contatos comerciais.'],
   finance:['Financeiro','Integração de cobrança pendente.'],
@@ -320,7 +324,7 @@ sidebarBackdrop?.addEventListener('click',()=>setMenu(false));
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view(b.dataset.view);setMenu(false)});
 function view(v){currentView=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
 function k(l,v,m){return '<article class="kpi"><span>'+l+'</span><strong>'+v+'</strong><small>'+m+'</small></article>'}
-function render(v){return {overview,crm,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
+function render(v){return {overview,crm,oca,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
 
 function dailyBrief(data, now=Date.now()){
   const dates=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Bahia',dateStyle:'short'});
@@ -440,7 +444,8 @@ function overview(){
       '<button type="button" data-overview="conversations"><span>Atendimentos</span><small>Conversas, histórico e lixeiras</small></button>'+
       '<button type="button" data-overview="leads"><span>Oportunidades</span><small>Negociação, notas e histórico</small></button>'+
       '<button type="button" data-overview="followups"><span>Agenda de retornos</span><small>Agendar, reagendar e concluir</small></button>'+
-      '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+
+      '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+ 
+      '<button type="button" data-overview="oca"><span>OCA · Operações</span><small>Tarefas internas automáticas, auditoria e controle</small></button>'+
       '</section></div>'+
       '<section class="panel oca-triage"><div class="panel-head"><div><span class="eyebrow">OCA · TRIAGEM INTERNA</span>'+
         '<h2>Próximas ações sugeridas</h2></div><span class="mini-count">'+suggestions.length+' pendência(s)</span></div>'+
@@ -494,6 +499,111 @@ function commercial(){
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
 }
 
+
+const ocaRuleLabels={
+ human_review:'Revisão comercial pendente',
+ identify_contact:'Identificar o cliente',
+ schedule_followup:'Preparar retorno comercial',
+ stalled_diagnosis:'Diagnóstico parado há mais de 48h',
+ stalled_new:'Novo lead sem análise há mais de 24h'
+};
+const ocaActionForRule=rule=>
+ rule==='identify_contact'?'identify':rule==='schedule_followup'?'schedule':'review';
+function oca(feedback=''){
+ const tasks=state.ocaTasks||[];
+ const status=state.ocaStatus||{};
+ const opens=tasks.filter(t=>t.status==='open');
+ const leadMap=new Map(state.leads.map(l=>[l.id,l]));
+ const count=status.open_tasks??opens.length;
+ const taskRows=opens.map(t=>{
+   const lead=leadMap.get(t.lead_id);
+   return '<article class="oca-worker-item">'+
+      '<div class="oca-worker-item-body"><strong>'+esc(lead?.name||'Oportunidade não carregada')+'</strong>'+
+      '<small>'+esc(ocaRuleLabels[t.rule_code]||t.rule_code)+' · '+esc(dateLabel(t.created_at))+'</small>'+
+      '</div><div class="oca-worker-actions">'+
+      (lead?'<button class="cta secondary" type="button" data-oca-open="'+esc(t.id)+'">Abrir ficha</button>':'')+
+      '<button class="cta secondary" type="button" data-oca-resolve="'+esc(t.id)+'" data-oca-action="done">Concluir</button>'+
+      '<button class="cta danger-outline" type="button" data-oca-resolve="'+esc(t.id)+'" data-oca-action="dismissed">Dispensar</button>'+
+      '</div></article>';
+ }).join('');
+ el('content').innerHTML=
+  '<section class="crm-topbar"><div><span class="eyebrow">OCA · EXECUÇÃO AUTÔNOMA CONTROLADA</span>'+
+   '<h2>Operações internas</h2><p>O motor identifica pendências, cria tarefas e registra decisões sem enviar mensagens ou cobrar clientes.</p></div>'+
+   '<button type="button" class="cta secondary" data-oca-refresh>Atualizar tarefas</button></section>'+
+  '<div class="grid crm-mini-stats">'+
+   k('Motor',status.enabled?'Ativo':'Pausado','Execução programada')+
+   k('Tarefas abertas',count,'Pendências registradas')+
+   k('Última execução',status.last_run_at?dateLabel(status.last_run_at):'Ainda não houve','Motor do banco')+
+  '</div>'+
+  '<section class="panel oca-worker-controls"><div><h2>Controle do motor</h2>'+
+   '<p>Verificação de segunda a sexta, às 11h10 (horário da Bahia). Limite de 25 novas tarefas por execução e uma tarefa aberta por oportunidade.</p>'+
+   '<p class="support-note">As tarefas são internas. Nenhuma ação altera o estágio comercial nem envia WhatsApp, Telegram ou cobrança automaticamente.</p></div>'+
+   (profile?.role==='master'?'<div class="oca-worker-control-buttons">'+
+     '<button class="cta" type="button" data-oca-run>Executar verificação agora</button>'+
+     '<button class="cta secondary" type="button" data-oca-toggle="'+(status.enabled?'off':'on')+'">'+
+      (status.enabled?'Pausar motor':'Ativar motor')+'</button></div>':'')+
+  '</section>'+
+  '<p class="operation-feedback" data-oca-feedback role="status">'+esc(feedback)+'</p>'+
+  dataScopeNotice()+
+  '<section class="panel oca-worker-list"><div class="panel-head"><h2>Fila de tarefas abertas</h2><span class="mini-count">'+count+' no banco</span></div>'+
+   (taskRows||'<p class="empty-state">Nenhuma tarefa aberta. O motor continuará verificando novas oportunidades nos horários programados.</p>')+
+  '</section>';
+ const root=el('content');
+ root.querySelector('[data-oca-refresh]').onclick=()=>reloadOca();
+ root.querySelectorAll('[data-oca-open]').forEach(button=>button.onclick=()=>{
+  const task=opens.find(t=>t.id===button.dataset.ocaOpen);
+  if(task)openTriageAction(task.lead_id,ocaActionForRule(task.rule_code));
+ });
+ root.querySelectorAll('[data-oca-resolve]').forEach(button=>button.onclick=async()=>{
+  const task=opens.find(t=>t.id===button.dataset.ocaResolve);
+  if(!task)return;
+  const action=button.dataset.ocaAction;
+  if(!await askConfirmation({title:action==='done'?'Concluir tarefa':'Dispensar tarefa',
+    message:action==='done'?'Marcar esta ação interna como concluída?':'Dispensar a tarefa? Ela poderá reaparecer em uma semana se a pendência continuar.',
+    destructive:action==='dismissed'}))return;
+  await ocaRpc('lkz_adm_oca_resolve_task',{p_id:task.id,p_action:action},'Tarefa atualizada com auditoria.');
+ });
+ root.querySelector('[data-oca-run]')?.addEventListener('click',async()=>{
+  if(!await askConfirmation({title:'Executar triagem OCA',
+    message:'Criar agora tarefas internas de acordo com as regras. Nenhum contato ou pagamento será enviado.'}))return;
+  await ocaRpc('lkz_adm_oca_run_now',{},'Verificação executada. A fila foi atualizada.');
+ });
+ root.querySelector('[data-oca-toggle]')?.addEventListener('click',async event=>{
+  const enable=event.currentTarget.dataset.ocaToggle==='on';
+  if(!await askConfirmation({title:enable?'Ativar motor':'Pausar motor',
+    message:enable?'Habilitar geração automática de tarefas internas nos dias úteis?':
+      'Pausar a criação de novas tarefas automáticas? As existentes serão mantidas.'}))return;
+  await ocaRpc('lkz_adm_oca_set_enabled',{p_enabled:enable},enable?'Motor ativado.':'Motor pausado.');
+ });
+}
+async function ocaRpc(name,args,message){
+ const root=el('content');
+ root.querySelectorAll('[data-oca-run],[data-oca-toggle],[data-oca-resolve]').forEach(b=>b.disabled=true);
+ let result;
+ try{result=await sb.rpc(name,args)}
+ catch{result={error:{code:'REDE'}}}
+ if(!user||currentView!=='oca')return;
+ if(result.error){
+   oca('Falha na operação. Código: '+esc(result.error?.code||'SEM_RESPOSTA')+'. Atualize para verificar o estado.');
+   return;
+ }
+ await reloadOca(message);
+}
+async function reloadOca(feedback=''){
+ const [tasks,status]=await Promise.all([
+  sb.rpc('lkz_adm_oca_list_tasks'),sb.rpc('lkz_adm_oca_status')
+ ]);
+ if(!user||currentView!=='oca')return;
+ if(tasks.error||status.error){
+  const text='Falha ao atualizar tarefas. Código: '+(tasks.error?.code||status.error?.code||'REDE');
+  const target=el('content').querySelector('[data-oca-feedback]');
+  if(target)target.textContent=text;
+  return;
+ }
+ state.ocaTasks=tasks.data||[];
+ state.ocaStatus=status.data||{enabled:false};
+ oca(feedback);
+}
 const crmStages=[
   ['new','Novos'],['diagnosing','Diagnóstico'],['qualified','Qualificados'],
   ['human_review','Revisão'],['contacted','Contato feito'],['proposal','Propostas'],['won','Fechados']
