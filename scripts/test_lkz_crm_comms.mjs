@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const source=fs.readFileSync(new URL('../admin/crm-comms.js',import.meta.url),'utf8');
 const migration=fs.readFileSync(new URL('../supabase/migrations/20261112175129_lkz_adm_crm_rascunhos_resposta_manual.sql',import.meta.url),'utf8');
+const retryMigration=fs.readFileSync(new URL('../supabase/migrations/20261112190351_lkz_adm_contato_manual_idempotente.sql',import.meta.url),'utf8');
 
 class Node {
   constructor(tag){
@@ -63,7 +64,7 @@ test('componente CRM monta e executa fluxo manual sem envio',async()=>{
   const document={createElement:tag=>{const n=new Node(tag);created.push(n);return n}};
   let clipboard='',sentCalls=0;
   const navigator={clipboard:{writeText:async value=>{clipboard=value}}};
-  vm.runInNewContext(source,{window,document,navigator,console});
+  vm.runInNewContext(source,{window,document,navigator,console,crypto:{randomUUID:()=> '11111111-2222-4333-8444-555555555555'}});
   assert.equal(typeof window.LKZCrmComms.mount,'function');
   const panel=new Node('section');
   const history=new Node('div');history.className='lead-history';
@@ -85,8 +86,10 @@ test('componente CRM monta e executa fluxo manual sem envio',async()=>{
       if(name==='lkz_adm_crm_delete_reply_draft'){
         draftRecords.delete(args.p_channel);return {data:true};
       }
-      if(name==='lkz_adm_crm_log_manual_contact')
-        return {data:{event_id:8,registered:true,sent_by_system:false}};
+      if(name==='lkz_adm_crm_log_manual_contact_once'){
+        assert.equal(args.p_request_id,'11111111-2222-4333-8444-555555555555');
+        return {data:{event_id:8,registered:true,sent_by_system:false,already_recorded:false}};
+      }
       sentCalls++;throw Error('RPC desconhecida: '+name);
     }
   };
@@ -116,7 +119,7 @@ test('componente CRM monta e executa fluxo manual sem envio',async()=>{
   await del.onclick();
   assert.equal(draftRecords.size,0);
   assert.equal(sentCalls,0);
-  assert.ok(seen.includes('lkz_adm_crm_log_manual_contact'));
+  assert.ok(seen.includes('lkz_adm_crm_log_manual_contact_once'));
   assert.ok(!seen.some(x=>/send|dispatch|deliver/i.test(x)));
 });
 
@@ -129,4 +132,53 @@ test('segurança do backend e ausência de APIs de envio externo',()=>{
   assert.match(migration,/operator_audit/);
   assert.doesNotMatch(source,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(|\b(?:localStorage|sessionStorage)\s*\./);
   assert.match(source,/sent_by_system!==false/);
+  assert.match(retryMigration,/uq_lead_events_manual_contact_request/);
+  assert.match(retryMigration,/on conflict do nothing/i);
+  assert.match(retryMigration,/is_operator\(\)/);
+  assert.match(retryMigration,/v_event\.actor_id is distinct from auth\.uid\(\)/);
+  assert.match(retryMigration,/already_recorded/);
+  assert.match(retryMigration,/revoke all on function/i);
+});
+
+
+test('falha de rede seguida de repetição preserva a mesma chave e não duplica a atividade',async()=>{
+  const window={};
+  const document={createElement:tag=>new Node(tag)};
+  const generated=[];
+  const crypto={randomUUID:()=>{const id='aaaa0000-1111-4222-8333-444444444444';generated.push(id);return id;}};
+  const navigator={clipboard:{writeText:async()=>{}}};
+  vm.runInNewContext(source,{window,document,navigator,crypto,console});
+  const panel=new Node('section');
+  const history=new Node('div');history.className='lead-history';
+  const events=new Node('div');events.dataset.leadEvents='';
+  history.append(events);panel.append(history);
+  const calls=[];
+  const fakeRpc={rpc:async(name,args)=>{
+    if(name==='lkz_adm_crm_list_reply_drafts')return {data:[]};
+    if(name==='lkz_adm_crm_log_manual_contact_once'){
+      calls.push(args);
+      if(calls.length===1)return {error:{code:'NETWORK'}};
+      return {data:{event_id:99,lead_id:args.p_lead,channel:args.p_channel,
+        registered:true,sent_by_system:false,already_recorded:true}};
+    }
+    throw Error('Unexpected RPC '+name);
+  }};
+  await window.LKZCrmComms.mount({
+    panel,lead:{id:'lead-2'},contact:null,sb:fakeRpc,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11/2026'
+  });
+  const section=panel.querySelector('[data-crm-reply]');
+  const summary=walk(section,x=>x.tagName==='textarea'&&x.attributes['aria-label']==='Resumo do contato já realizado');
+  const log=walk(section,x=>x.tagName==='button'&&x.textContent==='Registrar contato realizado');
+  summary.value='Contato realizado fora do sistema, retorno combinado.';
+  summary.oninput();
+  await log.onclick();
+  assert.equal(events.children.length,0);
+  assert.equal(summary.value,'Contato realizado fora do sistema, retorno combinado.');
+  await log.onclick();
+  assert.equal(events.children.length,1);
+  assert.equal(calls.length,2);
+  assert.equal(calls[0].p_request_id,calls[1].p_request_id);
+  assert.equal(generated.length,1);
+  assert.equal(summary.value,'');
 });
