@@ -6,8 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import pg from 'pg';
+import { createAsaasSandboxIssuer, issueSandboxRecord } from '../asaas-issuance.mjs';
+import { reconcileBoundSandboxPayment } from '../commercial-reconcile.mjs';
 import { fixture, withIdentity } from '../preview-db.mjs';
+import { openStagingAsaasWebhook } from '../staging-asaas-webhook.mjs';
 import { assertIntegrationRole, assertWorkspaceRole, migrateStaging, openStagingDatabase } from '../staging-db.mjs';
+import { serveWorkspace } from '../workspace.mjs';
 
 const nativeTest = process.env.VNEXT_TEST_NATIVE_POSTGRES === '1';
 
@@ -75,14 +79,18 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
   await admin.query(`create database ${database} owner ${migrator}`);
   await admin.query(`revoke all on database ${database} from public; grant connect on database ${database} to ${logins.join(',')}`);
 
-  function connect(login) {
+  function connectionUrl(login) {
     const url = new URL(bootstrap);
     url.pathname = '/' + database;
     if (login) {
       url.username = login;
       url.password = passwords.get(login);
     }
-    const db = openStagingDatabase(url.href);
+    return url.href;
+  }
+
+  function connect(login) {
+    const db = openStagingDatabase(connectionUrl(login));
     pools.push(db);
     return db;
   }
@@ -126,16 +134,56 @@ test('native PostgreSQL enforces tenant and billing permissions over TCP', { ski
     await owner.transaction(tx => tx.exec('alter table lkz_vnext.tenants enable row level security'));
   }
 
-  const [ingest, , reconcile] = await Promise.all(billing.map(async ([login, role]) => {
+  const [ingest, issuer, reconcile] = await Promise.all(billing.map(async ([login, role]) => {
     const db = connect(login);
     await assertIntegrationRole(db, role);
     return db;
   }));
   await assert.rejects(ingest.transaction(tx => tx.exec('select event_id from lkz_vnext_billing.asaas_sandbox_events')),
     { code: '42501' });
-  const event = "insert into lkz_vnext_billing.asaas_sandbox_events (event_id,event_type,payment_id) "
-    + "values ('evt_native_ci','PAYMENT_RECEIVED','pay_native_ci') on conflict do nothing";
-  await Promise.all([ingest.transaction(tx => tx.exec(event)), ingest.transaction(tx => tx.exec(event))]);
+  await owner.transaction(tx => tx.query('update lkz_vnext.memberships set active=true where user_id=$1', [fixture.admin]));
+  const tenant = fixture.tenant;
+  const identity = { sub: fixture.admin, aal: 'aal2' };
+  const { clientId, draftId } = await withIdentity(workspace, identity, async tx => {
+    const { rows: [client] } = await tx.query(`insert into lkz_vnext.clients (tenant_id,name,email)
+      values ($1,'Fixture','payer@example.test') returning id`, [tenant]);
+    const { rows: [product] } = await tx.query(`insert into lkz_vnext.products (tenant_id,slug,name,kind)
+      values ($1,'fixture','Fixture','service') returning id`, [tenant]);
+    const { rows: [plan] } = await tx.query(`insert into lkz_vnext.plans (tenant_id,product_id,name,amount_brl_cents,interval)
+      values ($1,$2,'Fixture',2500,'once') returning id`, [tenant, product.id]);
+    const { rows: [draft] } = await tx.query(`insert into lkz_vnext.subscription_drafts (tenant_id,client_id,plan_id)
+      values ($1,$2,$3) returning id`, [tenant, client.id, plan.id]);
+    return { clientId: client.id, draftId: draft.id };
+  });
+  const apiKey = randomBytes(32).toString('hex');
+  let payment;
+  const gateway = createAsaasSandboxIssuer({ apiKey, request: async (url, { body }) => {
+    const fields = JSON.parse(body);
+    if (url.endsWith('/customers')) return Response.json({ ...fields, id: 'cus_native_ci' });
+    payment = { ...fields, id: 'pay_native_ci', status: 'RECEIVED' };
+    return Response.json(payment);
+  } });
+  const issue = { db: issuer, gateway, tenant };
+  assert.equal(await issueSandboxRecord({ ...issue, kind: 'customers', subject: clientId,
+    fixtureTaxId: '0'.repeat(11) }), 'linked');
+  assert.equal(await issueSandboxRecord({ ...issue, kind: 'payments', subject: draftId,
+    dueDate: '2030-01-15', billingType: 'PIX' }), 'linked');
+
+  const token = randomBytes(32).toString('hex');
+  const webhook = await openStagingAsaasWebhook({ connection: connectionUrl(billing[0][0]), token });
+  pools.push(webhook);
+  const eventId = 'evt_native_ci';
+  const deliver = async () => (await webhook.handler(new Request('http://127.0.0.1:4177/integrations/asaas-sandbox', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'asaas-access-token': token },
+    body: JSON.stringify({ id: eventId, event: 'PAYMENT_RECEIVED', payment: { id: payment.id } }),
+  }))).status;
+  assert.deepEqual(await Promise.all([deliver(), deliver()]), [200, 200]);
   const observed = await reconcile.transaction(tx => tx.exec('select event_id from lkz_vnext_billing.asaas_sandbox_events'));
-  assert.deepEqual(observed.rows, [{ event_id: 'evt_native_ci' }]);
+  assert.deepEqual(observed.rows, [{ event_id: eventId }]);
+  const observation = { db: reconcile, eventId, apiKey, request: async () => Response.json(payment) };
+  assert.equal(await reconcileBoundSandboxPayment(observation), 'paid');
+  assert.equal(await reconcileBoundSandboxPayment(observation), 'already_processed');
+  const response = await serveWorkspace(new Request('http://127.0.0.1/api/subscription_drafts?tenant=' + tenant), workspace, identity);
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json())[0].sandbox_payments, { paid: 1 });
 });
