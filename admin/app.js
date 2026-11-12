@@ -226,7 +226,7 @@ function dailyBrief(data, now=Date.now()){
 function navigatePriority(target,followupId,leadId){
   if(target==='followups'){
     followupFocus=followupId||null;followupFilter='all';view('followups');
-    if(followupFocus)openFollowupEditor('detail',followupFocus);
+
   }else if(target==='leads'||target==='approvals'){
     if(target==='approvals'&&!leadId){view('approvals');return}
     openOpportunity(leadId);
@@ -307,7 +307,6 @@ const crmStages=[
 ];
 function openOpportunity(id){
   leadFocus=id;el('search').value='';view('leads');
-  showOpportunity(id);
 }
 function crm(){
   const active=state.leads.filter(l=>!['archived','lost'].includes(l.status));
@@ -1148,5 +1147,17 @@ async function loadUsers(target,feedback=''){
     await loadUsers(target,'Acesso atualizado.');
   });
 }
-el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();view('leads')}}; 
+el('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();leadFocus=null;view('leads')}};
+el('refreshData').onclick=async()=>{
+  if(!user)return;
+  const button=el('refreshData');
+  button.disabled=true;button.textContent='Atualizando...';
+  try{
+    await loadCommercial();
+    if(user)view(currentView);
+  }catch(error){
+    console.warn('lkz_adm_refresh_failed',error?.code||'NETWORK');
+    button.textContent='Falha. Tentar novamente';
+  }finally{button.disabled=false;if(button.textContent==='Atualizando...')button.textContent='Atualizar'}
+}; 
 (async()=>{const {data:{user:u}}=await sb.auth.getUser();if(!u)return showLogin();try{const p=await authorize(u);if(!p){await sb.auth.signOut();return showLogin('Conta sem permissão administrativa.')}await enforceMfa(p,u)}catch(e){console.error(e);await sb.auth.signOut();showLogin('Não foi possível validar a sessão.')}})();
