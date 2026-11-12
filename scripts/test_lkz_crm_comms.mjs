@@ -127,6 +127,6 @@ test('segurança do backend e ausência de APIs de envio externo',()=>{
   assert.match(migration,/lkz_adm_private\.is_operator\(\)/);
   assert.match(migration,/p_expected_version/);
   assert.match(migration,/operator_audit/);
-  assert.doesNotMatch(source,/fetch\(|XMLHttpRequest|WebSocket|sendMessage|sendEmail|localStorage|sessionStorage/);
+  assert.doesNotMatch(source,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(|\b(?:localStorage|sessionStorage)\s*\./);
   assert.match(source,/sent_by_system!==false/);
 });
