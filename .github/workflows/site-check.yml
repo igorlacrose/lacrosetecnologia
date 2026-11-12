@@ -95,5 +95,10 @@ jobs:
           node --check admin/client-signature-dossiers.js
           node --test scripts/test_lkz_signature_dossiers.mjs
 
+      - name: Testar minutas contratuais privadas
+        run: |
+          node --check admin/client-contract-texts.js
+          node --test scripts/test_lkz_contract_texts.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
