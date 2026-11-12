@@ -75,6 +75,10 @@ function setup({isMaster,consent,drafts,stall=false}){
     if(stall&&name==='lkz_adm_crm_list_message_previews')
       return new Promise(()=>{});
     if(name==='lkz_adm_crm_list_reply_drafts')return {data:saved};
+    if(name==='lkz_adm_list_contact_consents')return {data:{
+      current:consent?{whatsapp:{status:'grant',method:'signed_document'}}:{},
+      history:[],delivery_enabled:false
+    }};
     if(name==='lkz_adm_crm_list_message_previews')return {data:previews};
     if(name==='lkz_adm_crm_submit_message_preview'){
       if(!previews.length)previews=[{id:args.p_id,channel:'whatsapp',
@@ -197,4 +201,16 @@ test('timeout encerra estado Atualizando e oferece nova tentativa',async()=>{
   assert.ok(!feedback.textContent.includes('Atualizando'));
   assert.equal(locate(box,'Atualizar revisões').disabled,false);
   assert.equal(locate(box,'Solicitar revisão').disabled,true);
+});
+
+
+test('status de autorização depende do canal e do registro auditável, não do booleano legado',async()=>{
+  const t=setup({isMaster:true,consent:true});
+  t.contact.consent_contact=false;t.contact.consent_at=null;
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
+  const box=t.panel.querySelector('[data-crm-preview]');
+  assert.ok(find(box,x=>x.className==='crm-preview-legal-ok'&&
+    x.textContent.includes('Autorização documentada neste canal')));
+  assert.ok(t.calls.includes('lkz_adm_list_contact_consents'));
 });

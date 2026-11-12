@@ -12,9 +12,22 @@
 - Operador `master/admin` com MFA pode solicitar revisão de um rascunho **salvo** por WhatsApp ou e-mail, vinculado a oportunidade e contato reais.
 - Apenas MASTER com MFA pode **aprovar ou rejeitar**.
 - Cancelamento é permitido ao solicitante ou MASTER com MFA.
-- Rejeição exige motivo. Aprovação exige consentimento com data, destino inalterado, rascunho inalterado e vínculo ativo.
+- Rejeição exige motivo. Aprovação exige autorização documentada ativa **no canal específico**, destino inalterado, rascunho inalterado e vínculo ativo.
 - Retentativa com mesmo UUID não duplica solicitação nem auditoria.
 - A solicitação usa no máximo uma prévia pendente por oportunidade e canal.
+
+## Registro de autorização e revogação por canal — 12/11/2026
+
+- O histórico agora utiliza `lkz_adm_private.contact_consent_events`, separado por **WhatsApp** e **e-mail**. Não foi realizada migração automática do campo legado `contacts.consent_contact`.
+- MASTER com MFA pode registrar **somente uma manifestação comprovada**, após conferir a evidência real. Deve informar canal, método da manifestação, referência de comprovante e data/hora da manifestação. O banco registra a data/hora efetiva da inserção e o responsável.
+- A **referência de comprovante não é o comprovante**. O arquivo ou mensagem original deve ser armazenado de forma segura, com acesso restrito, retenção apropriada e recuperação para auditoria. Nunca cole dados pessoais, links sensíveis, tokens ou conteúdo de conversas no campo de referência.
+- Operador autorizado com MFA pode registrar revogação/oposição em cada canal, inclusive se não houver autorização anterior. O evento é auditado, sem exigir nova evidência para interromper abordagens.
+- A aprovação de prévia é autorizada pelo histórico específico do canal consultado diretamente no banco, sem confiar em um booleano no navegador. Revogação desabilita a prontidão de prévias já aprovadas, **mas não altera retroativamente os registros de decisão**.
+- Um UUID por operação impede dupla gravação ao repetir uma mesma solicitação após falha de rede. A mesma chave com outros dados é rejeitada.
+- O módulo é **monocliente** na implantação atual. Para reutilizar em um SaaS multiempresa é bloqueador adicionar tenant_id, verificar isolamento/RLS/autorização por tenant e revisar rotas administrativas.
+- Cada autorização salva de forma privada uma referência canônica ao **destino exato** (telefone ou e-mail). Se esse campo mudar, a autorização aparece como **desatualizada** e não pode liberar aprovações. A nova comprovação deve ser posterior à alteração cadastral.
+- A mera declaração do operador não torna um consentimento legalmente válido. O controlador deve possuir evidência de manifestação livre, informada, inequívoca e vinculada a finalidade, conforme orientação da ANPD.
+- **Não existe disparo de mensagens.** Uma autorização registrada não deve ser interpretada como habilitação de transporte.
 
 ## Exigências BLOQUEADORAS antes de criar qualquer envio real
 1. Identificar provedor e canal oficial homologados. Segredos ficam exclusivamente em vault/variáveis protegidas de backend.

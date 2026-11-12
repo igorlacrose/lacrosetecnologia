@@ -53,9 +53,8 @@ async function mount({panel,lead,contact,sb,confirm,isSessionActive,formatDate})
     ?[contact.person_name||contact.company_name,contact.email,contact.phone].filter(Boolean).join(' · ')
     :'Cliente ainda não vinculado a um cadastro';
   const context=element('p','crm-reply-context','Contato: '+person);
-  const consent=element('p',contact?.consent_contact?'crm-reply-consent':'crm-reply-warning',
-    contact?.consent_contact?'Consentimento para contato registrado no cadastro.':
-      'Consentimento não registrado; confira a base legal antes de qualquer abordagem.');
+  const consent=element('p','crm-reply-warning',
+    'A autorização é registrada por canal na ficha do cliente. Confira a comprovação e a situação atual antes de qualquer abordagem.');
   const channel=document.createElement('select');
   channel.setAttribute('aria-label','Canal do rascunho');
   for(const [value,name] of channels){

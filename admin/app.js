@@ -1517,7 +1517,7 @@ function clients(feedback=''){
       '<div class="client-stats">'+
         '<div><span>Oportunidades</span><strong>'+selectedLeads.length+'</strong></div>'+
         '<div><span>Atendimentos vinculados</span><strong>'+countThreads+'</strong></div>'+
-        '<div><span>Consentimento de contato</span><strong>'+(selected.consent_contact?'Registrado':'Não registrado')+'</strong></div>'+
+        '<div><span>Autorização comercial</span><strong>Consultar por canal abaixo</strong></div>'+
       '</div><div class="client-history"><h3>Histórico comercial</h3>'+
       (history||'<p>Nenhuma oportunidade vinculada a este cadastro.</p>')+
       '</div></section>';
@@ -1560,6 +1560,21 @@ function clients(feedback=''){
       row.hidden=!norm(row.dataset.search).includes(norm(search.value.trim()));
     });
   };
+  if(selected&&!editMode&&!newMode){
+    const panel=el('clientDetail')?.querySelector('.client-profile');
+    if(panel&&window.LKZContactConsents?.mount){
+      void window.LKZContactConsents.mount({
+        panel,contact:selected,sb,isMaster:profile?.role==='master',
+        confirm:askConfirmation,isSessionActive:()=>Boolean(user),formatDate:dateLabel
+      }).catch(()=>{
+        if(!panel.isConnected)return;
+        const warning=document.createElement('p');
+        warning.setAttribute('role','alert');warning.className='operation-feedback error';
+        warning.textContent='Não foi possível abrir autorizações de contato. Recarregue a ficha.';
+        panel.append(warning);
+      });
+    }
+  }
   const form=el('professionalClientForm');
   if(!form)return;
   let requestId=crypto.randomUUID();

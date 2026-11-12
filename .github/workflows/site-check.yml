@@ -70,5 +70,10 @@ jobs:
           node --check admin/crm-previews.js
           node --test scripts/test_lkz_crm_previews.mjs
 
+      - name: Testar autorizações e revogações por canal
+        run: |
+          node --check admin/contact-consent.js
+          node --test scripts/test_lkz_contact_consents.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
