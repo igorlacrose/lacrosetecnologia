@@ -58,7 +58,7 @@ Os workers Asaas selecionam o papel correspondente com `SET LOCAL ROLE` **dentro
 
 No PostgreSQL 17 descartável da CI, apenas os testes habilitam logins com credenciais sintéticas. **Não habilitar LOGIN no projeto Supabase** como parte desta migração.
 
-O projeto Supabase de homologação `nijsafzwxzcfqdevlsxe` usa migrações gerenciadas: aplicar o arquivo 017 somente pelo mecanismo do Supabase, nunca por `npm run migrate:staging`. Não conceder `service_role`, não usar credenciais de produção e não alterar os papéis existentes fora da homologação. Uma futura ativação exige segredo protegido, TLS, revisão de privilégios e teste de Auth real.
+**Status em 12/11/2026:** a migração 017 foi aplicada com sucesso **somente** no Supabase de homologação `nijsafzwxzcfqdevlsxe`, pelo mecanismo gerenciado do Supabase. Confirmados seis papéis sem LOGIN, associação única, `MEMBER=true`, `USAGE=false`, `SET=true` e ausência de privilégio herdado. O projeto possui 17 migrações, 26 tabelas com RLS ativo e nenhum tenant/usuário/cobrança real. O operador SQL gerenciado `postgres` **não** possui `SET ROLE` para esses papéis: a tentativa foi recusada (`42501`), sem alteração de privilégios. Por isso, a execução funcional com logins reais ainda exige provisionamento isolado e revisão; a CI PostgreSQL 17 descartável testou a troca de papel. **Nunca** usar `npm run migrate:staging` para reaplicar migrações no projeto gerenciado, conceder `service_role`, usar credenciais de produção ou alterar papéis fora da homologação. Ativação futura exige segredo protegido, TLS, revisão dos privilégios e Auth real.
 
 ### Integração OCA
 
