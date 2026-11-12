@@ -82,3 +82,6 @@ check('Nenhuma chave privada de API introduzida',!app.includes('sb_secret_')&&!h
 
 check('Registro manual usa RPC idempotente',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('lkz_adm_crm_log_manual_contact_once'));
 check('Chave de retentativa preservada por conteúdo',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('requestForManualContact(note,currentChannel)'));
+
+check('Pré-envio revisado sem transporte',html.includes('crm-previews.js?v=20261112-1')&&html.includes('crm-previews.css?v=20261112-1'));
+check('Módulo de aprovação integrado à ficha',app.includes('LKZCrmPreviews.mount')&&app.includes("profile?.role==='master'"));
