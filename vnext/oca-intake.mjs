@@ -5,6 +5,36 @@ import { normalizeOcaEvent, ocaBodyLimit } from './oca-envelope.mjs';
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const reply = (status) => new Response(null, { status });
 
+async function readBoundedBody(request) {
+  // Reject advertised oversized bodies early, but never trust Content-Length:
+  // clients can omit it or send more bytes than declared.
+  const declared = request.headers.get('content-length');
+  if (declared !== null && /^\d+$/.test(declared)
+    && BigInt(declared) > BigInt(ocaBodyLimit)) {
+    throw new RangeError('OCA payload too large');
+  }
+  if (!request.body) throw new SyntaxError('Missing OCA body');
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new TypeError('Invalid OCA body chunk');
+      if (value.byteLength > ocaBodyLimit - size) {
+        try { await reader.cancel(); } catch { /* Connection is already gone. */ }
+        throw new RangeError('OCA payload too large');
+      }
+      chunks.push(value);
+      size += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
+}
+
 export function createOcaIntake({ db, tenant, actor, secret, now = Date.now }) {
   if (!uuid.test(tenant ?? '') || !uuid.test(actor ?? '') || typeof secret !== 'string' || !/^[a-f0-9]{64}$/i.test(secret)) {
     throw new Error('OCA requires tenant, technical actor and a 32-byte hexadecimal signing key');
@@ -17,8 +47,9 @@ export function createOcaIntake({ db, tenant, actor, secret, now = Date.now }) {
     if (!/^\d{10}$/.test(timestamp ?? '') || !/^[0-9a-f]{64}$/.test(signature ?? '')
       || Math.abs(Math.floor(now() / 1000) - Number(timestamp)) > 300) return reply(401);
     if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return reply(415);
-    const body = Buffer.from(await request.arrayBuffer());
-    if (body.length > ocaBodyLimit) return reply(413);
+    let body;
+    try { body = await readBoundedBody(request); }
+    catch (error) { return reply(error instanceof RangeError ? 413 : 400); }
     const expected = createHmac('sha256', Buffer.from(secret, 'hex')).update(timestamp + '.').update(body).digest();
     if (!timingSafeEqual(Buffer.from(signature, 'hex'), expected)) return reply(401);
 

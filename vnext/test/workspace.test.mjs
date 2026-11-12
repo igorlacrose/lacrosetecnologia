@@ -81,7 +81,7 @@ test('CRM, OCA and commercial drafts work through the workspace API with tenant 
 
 test('loopback server serves the interface and rejects foreign origins on writes', async (t) => {
   const db = await createPreviewDatabase();
-  const server = createPreviewServer(db);
+  const server = createPreviewServer(db, { allowSyntheticIdentity: true });
   t.after(async () => {
     await new Promise(resolve => server.close(resolve));
     await db.close();
@@ -111,7 +111,7 @@ test('the staging HTTP routes deliver signed OCA events and persist authenticate
       return tx.query(sql, args);
     }) },
   });
-  const server = createPreviewServer(db, { oca, asaasWebhook });
+  const server = createPreviewServer(db, { oca, asaasWebhook, allowSyntheticIdentity: true });
   t.after(async () => {
     await new Promise(resolve => server.close(resolve));
     await db.close();

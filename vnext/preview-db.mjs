@@ -1,6 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
+// Only generated, in-memory preview fixtures may activate a synthetic admin.
+const syntheticPreviewDatabases = new WeakSet();
+export const isSyntheticPreviewDatabase = db => syntheticPreviewDatabases.has(db);
+
 export const fixture = Object.freeze({
   tenant: '00000000-0000-4000-8000-000000000001',
   secondTenant: '00000000-0000-4000-8000-000000000002',
@@ -37,6 +41,7 @@ export async function createPreviewDatabase() {
       await tx.query(`insert into lkz_vnext.products (tenant_id,slug,name,kind) values
         ($1,'barbaros','BarbarOS','saas'), ($1,'libertyos','LibertyOS','saas')`, [fixture.tenant]);
     });
+    syntheticPreviewDatabases.add(db);
     return db;
   } catch (error) {
     await db.close();

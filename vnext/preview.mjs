@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { createPreviewDatabase, fixture } from './preview-db.mjs';
+import { createPreviewDatabase, fixture, isSyntheticPreviewDatabase } from './preview-db.mjs';
 import { serveWorkspace } from './workspace.mjs';
 import { ocaBodyLimit } from './oca-envelope.mjs';
 
@@ -11,9 +11,20 @@ const assets = new Map([
   ['/whatsapp-signup.mjs', ['whatsapp-signup.mjs', 'text/javascript']],
 ]);
 
-export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant, metaProvider = null, appointmentWebhook = null } = {}) {
+export function createPreviewServer(db, {
+  auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant,
+  metaProvider = null, appointmentWebhook = null, allowSyntheticIdentity = false,
+} = {}) {
   if (webhookOnly && !asaasWebhook) throw new Error('A webhook handler is required');
-  const limits = webhookOnly ? { requestTimeout: 15_000, headersTimeout: 10_000 } : {};
+  // Synthetic administrators are never available to persistent workspaces.
+  if (allowSyntheticIdentity && (auth || webhookOnly || !isSyntheticPreviewDatabase(db))) {
+    throw new Error('Synthetic identity is permitted only with a local preview fixture');
+  }
+  if (!webhookOnly && !allowSyntheticIdentity
+    && (typeof auth?.verify !== 'function' || typeof auth?.handle !== 'function')) {
+    throw new Error('A verified authentication provider is required for VNext workspace');
+  }
+  const limits = { requestTimeout: 15_000, headersTimeout: 10_000 };
   return createServer(limits, async (incoming, outgoing) => {
     try {
       const port = outgoing.socket.localPort;
@@ -98,7 +109,8 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
         response = auth ? await auth.handle(request) : Response.json({}, { status: 404 });
       } else {
         const token = incoming.headers.authorization?.match(/^Bearer ([\w.-]+)$/)?.[1];
-        const claims = auth ? await auth.verify(token) : { sub: fixture.admin, aal: 'aal2' };
+        const claims = auth ? await auth.verify(token)
+          : allowSyntheticIdentity ? { sub: fixture.admin, aal: 'aal2' } : null;
         response = await serveWorkspace(request, db, claims, { lacroseTenant, metaProvider });
       }
       outgoing.writeHead(response.status, { ...headers, 'content-type': 'application/json; charset=utf-8' })
@@ -111,7 +123,7 @@ export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly =
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const db = await createPreviewDatabase();
-  const server = createPreviewServer(db);
+  const server = createPreviewServer(db, { allowSyntheticIdentity: true });
   server.listen(4176, '127.0.0.1', () => console.log('LKZ ADM VNext • http://127.0.0.1:4176'));
   process.once('SIGINT', () => server.close(() => db.close()));
 }
