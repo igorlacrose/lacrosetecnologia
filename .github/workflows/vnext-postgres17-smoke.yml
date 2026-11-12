@@ -39,5 +39,5 @@ jobs:
       - name: Migrar duas vezes, simular quota e testar acesso negado
         working-directory: vnext
         env:
-          CI_PG17_TEST_URL: postgresql://postgres:ci-local-only-not-a-secret@127.0.0.1:5432/lkz_vnext_stage_ci
+          CI_PG17_LOCAL_TEST: "1"
         run: node --test pg17-staging.smoke.mjs
