@@ -51,7 +51,7 @@ function find(root,pred){
 }
 const locate=(root,label)=>find(root,node=>node.tagName==='button'&&node.textContent===label);
 
-function setup({isMaster,consent,drafts}){
+function setup({isMaster,consent,drafts,stall=false}){
   const lead={id:'lead-test',contact_id:'contact-test'};
   const contact={id:'contact-test',person_name:'Cliente teste',email:'cliente@example.com',
     phone:'73 99999-9999',consent_contact:consent,
@@ -59,7 +59,11 @@ function setup({isMaster,consent,drafts}){
   const window={};
   const document={createElement:tag=>new Node(tag)};
   const crypto={randomUUID:()=> 'a0000000-bbbb-4333-8555-666666666666'};
-  vm.runInNewContext(source,{window,document,crypto,console});
+  const timing=stall?{
+    setTimeout:callback=>{queueMicrotask(callback);return 1;},
+    clearTimeout:()=>{}
+  }:{};
+  vm.runInNewContext(source,{window,document,crypto,console,...timing});
   const panel=new Node('section');
   const history=new Node('section');history.className='lead-history';
   panel.append(history);
@@ -68,6 +72,8 @@ function setup({isMaster,consent,drafts}){
   let previews=[];
   const sb={rpc:async(name,args)=>{
     calls.push(name);
+    if(stall&&name==='lkz_adm_crm_list_message_previews')
+      return new Promise(()=>{});
     if(name==='lkz_adm_crm_list_reply_drafts')return {data:saved};
     if(name==='lkz_adm_crm_list_message_previews')return {data:previews};
     if(name==='lkz_adm_crm_submit_message_preview'){
@@ -177,4 +183,18 @@ test('um rascunho salvo habilita solicitação mesmo sem consentimento, mas não
   await request.onclick();
   assert.equal(request.disabled,true);
   assert.equal(locate(box,'Aprovar sem enviar').disabled,true);
+});
+
+
+test('timeout encerra estado Atualizando e oferece nova tentativa',async()=>{
+  const t=setup({isMaster:true,consent:false,stall:true});
+  await t.mount({panel:t.panel,lead:t.lead,contact:t.contact,sb:t.sb,isMaster:true,
+    confirm:async()=>true,isSessionActive:()=>true,formatDate:()=> '12/11'});
+  const box=t.panel.querySelector('[data-crm-preview]');
+  const feedback=find(box,x=>x.className==='crm-preview-feedback');
+  assert.ok(feedback);
+  assert.ok(feedback.textContent.includes('TIMEOUT'));
+  assert.ok(!feedback.textContent.includes('Atualizando'));
+  assert.equal(locate(box,'Atualizar revisões').disabled,false);
+  assert.equal(locate(box,'Solicitar revisão').disabled,true);
 });
