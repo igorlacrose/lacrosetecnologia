@@ -22,6 +22,21 @@ const titles={pending:'Pendente de revisão',approved:'Aprovada — NÃO enviada
   rejected:'Rejeitada',cancelled:'Cancelada'};
 const channelTitle={whatsapp:'WhatsApp',email:'E-mail'};
 
+async function readWithDeadline(requests,timeoutMs=15000){
+  if(typeof setTimeout!=='function'||typeof clearTimeout!=='function')
+    return Promise.all(requests);
+  let timer;
+  try{
+    return await Promise.race([
+      Promise.all(requests),
+      new Promise((_,reject)=>{
+        timer=setTimeout(()=>reject(Object.assign(new Error('Timeout'),{code:'TIMEOUT'})),
+          timeoutMs);
+      })
+    ]);
+  }finally{clearTimeout(timer)}
+}
+
 async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessionActive,formatDate,openClient=null}){
   if(!panel?.isConnected||!lead?.id||!sb||!isSessionActive())return;
   if(panel.querySelector('[data-crm-preview]'))return;
@@ -223,11 +238,14 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
     feedback.textContent='Atualizando revisões...';
     let results;
     try{
-      results=await Promise.all([
+      results=await readWithDeadline([
         sb.rpc('lkz_adm_crm_list_message_previews',{p_lead:lead.id}),
         sb.rpc('lkz_adm_crm_list_reply_drafts',{p_lead:lead.id})
       ]);
-    }catch{results=[{error:{code:'NETWORK'}},{error:{code:'NETWORK'}}]}
+    }catch(error){
+      const code=error?.code==='TIMEOUT'?'TIMEOUT':'NETWORK';
+      results=[{error:{code}},{error:{code}}];
+    }
     if(!active())return;
     const [previews,resultDrafts]=results;
     if(previews.error||resultDrafts.error||
