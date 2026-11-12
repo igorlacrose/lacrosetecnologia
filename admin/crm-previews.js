@@ -55,7 +55,8 @@ async function mount({panel,lead,sb,confirm,isMaster=false,isSessionActive,forma
     busy=flag;channel.disabled=flag;
     request.disabled=flag||!canSubmit();
     reload.disabled=flag;
-    for(const el of entries.querySelectorAll('button, textarea'))el.disabled=flag;
+    for(const el of entries.querySelectorAll('button, textarea'))
+      el.disabled=flag||el.dataset.previewApprove==='blocked';
   };
   function display(){
     entries.replaceChildren();
@@ -86,6 +87,7 @@ async function mount({panel,lead,sb,confirm,isMaster=false,isSessionActive,forma
         const approve=btn('Aprovar sem enviar','');
         const reject=btn('Rejeitar','danger-outline');
         const cancel=btn('Cancelar solicitação','secondary');
+        approve.dataset.previewApprove=(!isMaster||warnings.length>0)?'blocked':'ready';
         approve.disabled=!isMaster||warnings.length>0||busy;
         reject.disabled=!isMaster||busy;
         cancel.disabled=busy;
