@@ -74,6 +74,64 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
     for(const el of entries.querySelectorAll('button, textarea'))
       el.disabled=flag||el.dataset.previewApprove==='blocked';
   };
+  function renderReadiness(){
+    readiness.replaceChildren();
+    row(readiness,'h4','','Antes de solicitar revisão');
+    const steps=node('ol','crm-preview-steps');
+    const ch=channel.value;
+    const draft=drafts.get(ch);
+    const hasLinked=linked(),hasDestination=hasLinked&&validDestination(ch);
+    const requirements=[
+      {ok:hasLinked,name:'Cliente vinculado',
+        help:hasLinked?'Cadastro identificado no CRM.':
+          'Vincule a oportunidade a um cliente no atendimento antes de revisar o envio.'},
+      {ok:hasDestination,name:'Destino cadastrado e válido',
+        help:hasDestination?'Destino disponível no cadastro.':
+          'Confira o e-mail ou telefone do cliente no cadastro.'},
+      {ok:!!draft?.version,name:'Rascunho salvo no canal',
+        help:draft?.version?'Versão '+draft.version+' salva.':
+          'Prepare e salve o texto na Central de Contato Manual.'},
+      {ok:!pending(),name:'Nenhuma revisão pendente neste canal',
+        help:pending()?'Resolva ou cancele a solicitação pendente antes de abrir outra.':
+          'Canal liberado para nova solicitação.'}
+    ];
+    requirements.forEach((step,i)=>{
+      const li=node('li',step.ok?'crm-preview-step-ready':'crm-preview-step-missing');
+      row(li,'strong','',String(i+1)+'. '+step.name+(step.ok?' · OK':' · Pendente'));
+      row(li,'small','',step.help);
+      steps.append(li);
+    });
+    readiness.append(steps);
+    const guidance=node('div','crm-preview-next');
+    if(!hasLinked||!hasDestination){
+      row(guidance,'p','','Próximo passo: completar e conferir o cadastro do cliente.');
+      if(typeof openClient==='function'){
+        const button=btn(hasLinked?'Abrir cadastro do cliente':'Ver clientes','secondary');
+        button.onclick=()=>{if(active())openClient()};
+        guidance.append(button);
+      }
+    }else if(!draft?.version){
+      row(guidance,'p','','Próximo passo: salvar uma resposta para este canal.');
+      const button=btn('Ir para rascunhos','secondary');
+      button.onclick=()=>{
+        const reply=panel.querySelector('[data-crm-reply]');
+        if(reply?.scrollIntoView)reply.scrollIntoView({behavior:'smooth',block:'start'});
+        const input=reply?.querySelector('textarea[aria-label="Rascunho da resposta comercial"]');
+        input?.focus();
+      };
+      guidance.append(button);
+    }else if(pending()){
+      row(guidance,'p','','Já existe uma revisão aguardando decisão neste canal.');
+    }else if(loaded){
+      row(guidance,'p','','Pronto para solicitar a análise do texto salvo e do destino cadastrado.');
+    }
+    const legal=consentReady()?
+      'Consentimento com data consta no cadastro (o servidor revalidará na aprovação).':
+      'Aprovação exigirá autorização de contato documentada com data. Não registre consentimento sem evidência.';
+    row(guidance,'p',consentReady()?'crm-preview-legal-ok':'crm-preview-legal-warning',
+      legal);
+    readiness.append(guidance);
+  }
   function display(){
     entries.replaceChildren();
     if(!items.length)row(entries,'p','crm-preview-empty','Nenhuma prévia solicitada nesta oportunidade.');
@@ -157,9 +215,10 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
       }
       entries.append(box);
     }
+    renderReadiness();
     setBusy(false);
   }
-  async function load(){
+  async function load(message=''){
     if(!active())return;
     setBusy(true);
     let results;
