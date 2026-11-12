@@ -100,6 +100,14 @@ async function mount({panel,lead,contact,sb,confirm,isSessionActive,formatDate})
   const drafts=new Map();
   let currentChannel=channel.value;
   let busy=false,loaded=false;
+  // A mesma tentativa usa a mesma chave, inclusive se a resposta se perder na rede.
+  let manualRequest=null;
+  const requestForManualContact=(note,channelName)=>{
+    if(!manualRequest||manualRequest.note!==note||manualRequest.channel!==channelName){
+      manualRequest={note,channel:channelName,id:crypto.randomUUID()};
+    }
+    return manualRequest.id;
+  };
   const active=()=>section.isConnected&&isSessionActive();
   const currentDraft=()=>drafts.get(currentChannel)||null;
   const isDirty=()=>message.value.trim()!==(currentDraft()?.body||'');
@@ -226,20 +234,24 @@ async function mount({panel,lead,contact,sb,confirm,isSessionActive,formatDate})
       message:'Confirme apenas se você realmente entrou em contato por fora do LKZ ADM. Isso não fará nenhum envio.'
     }))return;
     if(!active())return;
+    const requestId=requestForManualContact(note,currentChannel);
     busy=true;toggle();info.textContent='Registrando contato...';
     let result;
-    try{result=await sb.rpc('lkz_adm_crm_log_manual_contact',{
-      p_lead:lead.id,p_channel:currentChannel,p_summary:note
+    try{result=await sb.rpc('lkz_adm_crm_log_manual_contact_once',{
+      p_lead:lead.id,p_channel:currentChannel,p_summary:note,p_request_id:requestId
     })}catch{result={error:{code:'NETWORK'}}}
     busy=false;
     if(!active())return;
     if(result.error||result.data?.registered!==true||result.data?.sent_by_system!==false){
       info.textContent='Registro não confirmado (código '+(result.error?.code||'SEM_RESPOSTA')+
-        '). Confira o histórico antes de tentar de novo.';
+        '). Se repetir sem mudar o resumo, o banco impedirá duplicação.';
       toggle();return;
     }
     summary.value='';
-    info.textContent='Contato manual registrado no histórico. Nenhuma mensagem foi enviada pelo painel.';
+    manualRequest=null;
+    info.textContent=result.data.already_recorded?
+      'Contato já registrado na primeira tentativa. Nenhuma duplicação foi criada.':
+      'Contato manual registrado no histórico. Nenhuma mensagem foi enviada pelo painel.';
     toggle();
     describeEvent(panel,currentChannel,note,formatDate);
   };
