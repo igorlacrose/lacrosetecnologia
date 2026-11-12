@@ -76,15 +76,20 @@ check('Atendimento não agenda para oportunidade fechada',app.includes("!['won',
 check('Polling detecta alterações acima dos primeiros 100',app.includes("count:'exact'")&&app.includes('countChanged'));
 check('Polling preserva diálogo em aberto',app.includes('activeDialogCancel!==')||app.includes("typeof activeDialogCancel!=='undefined'&&activeDialogCancel"));
 
-check('Central manual carregada na ficha de oportunidade',app.includes('LKZCrmComms.mount')&&html.includes('crm-comms.js?v=20261112-2'));
+check('Central manual carregada na ficha de oportunidade',app.includes('LKZCrmComms.mount')&&html.includes('crm-comms.js?v=20261112-3'));
 check('Estilo isolado carregado',html.includes('crm-comms.css?v=20261112-1'));
 check('Nenhuma chave privada de API introduzida',!app.includes('sb_secret_')&&!html.includes('service_role'));
 
 check('Registro manual usa RPC idempotente',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('lkz_adm_crm_log_manual_contact_once'));
 check('Chave de retentativa preservada por conteúdo',require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes('requestForManualContact(note,currentChannel)'));
 
-check('Pré-envio revisado sem transporte',html.includes('crm-previews.js?v=20261112-2')&&html.includes('crm-previews.css?v=20261112-2'));
+check('Pré-envio revisado sem transporte',html.includes('crm-previews.js?v=20261112-3')&&html.includes('crm-previews.css?v=20261112-2'));
 check('Módulo de aprovação integrado à ficha',app.includes('LKZCrmPreviews.mount')&&app.includes("profile?.role==='master'"));
 
 check('Data de consentimento disponível na ficha',app.includes('consent_contact,consent_at'));
 check('Pré-envio recebe o cliente vinculado e atalho ao cadastro',app.includes('openClient:()=>')&&app.includes('contact:state.contacts.find('));
+
+check('Histórico de consentimento por canal exibido na ficha do cliente',app.includes('LKZContactConsents.mount')&&html.includes('contact-consent.js?v=20261112-1'));
+check('Nova folha de estilos carregada',html.includes('contact-consent.css?v=20261112-1'));
+check('Cadastro não presume autorização global',!app.includes("selected.consent_contact?'Registrado':'Não registrado'"));
+check('Comunicação não confunde legado com consentimento atual',!require('node:fs').readFileSync('admin/crm-comms.js','utf8').includes("contact?.consent_contact?"));
