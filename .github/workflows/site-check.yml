@@ -65,5 +65,10 @@ jobs:
           node --check admin/crm-comms.js
           node --test scripts/test_lkz_crm_comms.mjs
 
+      - name: Testar revisão de pré-envio do CRM
+        run: |
+          node --check admin/crm-previews.js
+          node --test scripts/test_lkz_crm_previews.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
