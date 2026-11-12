@@ -54,7 +54,8 @@ async function mountForm({form,contact=null,sb}){
   const section=node('fieldset','services-editor');
   section.append(
     node('legend','','Sistemas e serviços'),
-    node('p','services-intro','Selecione quantos sistemas forem necessários. Os valores são individuais e editáveis; nenhuma cobrança ou instalação será criada.')
+    node('p','services-intro',
+      'Escolha os sistemas na lista. Somente os selecionados terão opções de implantação e recorrência; nenhuma cobrança ou instalação será criada.')
   );
   const info=node('p','services-status','Consultando catálogo...');
   info.setAttribute('role','status');
@@ -66,17 +67,56 @@ async function mountForm({form,contact=null,sb}){
   if(!section.isConnected)throw new Error('Formulário mudou durante o carregamento.');
   const saved=new Map(data.contract.items.map(item=>[item.code,item]));
   const fields=[];
+  const picker=node('details','service-picker');
+  const trigger=node('summary','service-picker-trigger');
+  trigger.setAttribute('aria-label','Selecionar um ou vários sistemas');
+  const triggerTitle=node('span','service-picker-title','Selecionar sistemas');
+  const triggerCount=node('span','service-picker-count','Nenhum sistema selecionado');
+  trigger.append(triggerTitle,triggerCount);
+  const choices=node('div','service-picker-options');
+  const selectedHeader=node('p','service-selected-heading','');
+  const selectedList=node('div','service-selected-list');
+  const selectedEmpty=node('p','service-selected-empty',
+    'Nenhum sistema escolhido. Abra a lista acima para selecionar.');
+  selectedList.append(selectedEmpty);
+  picker.append(trigger,choices);
+  section.append(picker,selectedHeader,selectedList);
+  function updateSelection(){
+    const selected=fields.filter(f=>f.check.checked);
+    triggerCount.textContent=selected.length===0?'Nenhum sistema selecionado':
+      selected.length===1?selected[0].name:selected.length+' sistemas selecionados';
+    selectedHeader.textContent=selected.length?
+      'Valores dos sistemas selecionados':'';
+    selectedHeader.hidden=!selected.length;
+    selectedEmpty.hidden=!!selected.length;
+    for(const f of fields){
+      const enabled=f.check.checked;
+      f.pricesCard.hidden=!enabled;
+      f.pricesCard.classList.toggle('service-selected',enabled);
+      f.setup.disabled=!enabled;
+      f.interval.disabled=!enabled;
+      f.recurring.disabled=!enabled||f.interval.value==='none';
+    }
+  }
   for(const product of data.catalog){
     const savedItem=saved.get(product.code);
-    const box=node('div','service-option');
-    const selector=node('label','service-option-heading');
-    const check=document.createElement('input');check.type='checkbox';
-    check.checked=!!savedItem;
-    check.disabled=!product.selectable;
-    selector.append(check,node('strong','',product.name));
-    const description=node('p','service-description',product.description||'Produto sob análise comercial');
-    const status=node('small','service-availability',
-      product.delivery_state==='unavailable'?'Indisponível para novos pedidos':'Implantação sujeita a análise e aprovação');
+    const choice=node('label','service-picker-option');
+    const check=document.createElement('input');
+    check.type='checkbox';check.checked=!!savedItem;
+    check.disabled=!product.selectable&&!savedItem;
+    check.setAttribute('aria-label','Selecionar '+product.name);
+    const choiceText=node('span','service-picker-option-text');
+    choiceText.append(node('strong','',product.name),
+      node('small','',product.description||'Produto sob análise comercial'));
+    choice.append(check,choiceText);
+    if(!product.selectable)choice.append(node('small','service-picker-unavailable',
+      'Indisponível para nova contratação'));
+    choices.append(choice);
+
+    const pricesCard=node('section','service-option service-price-card');
+    pricesCard.append(node('h4','',product.name),
+      node('p','service-description',
+        'Condições individuais da minuta · implantação sujeita a análise.'));
     const prices=node('div','service-price-grid');
     const setup=inputMoney(savedItem?.setup_cents||0);
     setup.setAttribute('aria-label','Implantação '+product.name);
@@ -89,21 +129,22 @@ async function mountForm({form,contact=null,sb}){
       labeled('Recorrência (R$)',recurring),
       labeled('Periodicidade',interval)
     );
-    box.append(selector,description,status,prices);section.append(box);
-    const update=()=>{
-      box.classList.toggle('service-selected',check.checked);
-      setup.disabled=!check.checked;
-      interval.disabled=!check.checked;
-      recurring.disabled=!check.checked||interval.value==='none';
-      if(!check.checked)box.setAttribute('aria-selected','false');
-      else box.setAttribute('aria-selected','true');
+    pricesCard.append(prices);
+    selectedList.append(pricesCard);
+    const item={code:product.code,name:product.name,check,setup,recurring,interval,pricesCard};
+    fields.push(item);
+    check.onchange=updateSelection;
+    interval.onchange=()=>{
+      if(interval.value==='none')recurring.value='';
+      updateSelection();
     };
-    check.onchange=update;
-    interval.onchange=()=>{if(interval.value==='none')recurring.value='';update()};
-    update();
-    fields.push({code:product.code,check,setup,recurring,interval});
   }
-  info.textContent='Somente minutas comerciais. Serviços não serão ativados, faturados ou provisionados.';
+  const finish=node('button','cta secondary service-picker-done','Concluir seleção');
+  finish.type='button';
+  finish.onclick=()=>{picker.open=false};
+  choices.append(finish);
+  updateSelection();
+  info.textContent='Minuta comercial: valores previstos, sem ativação, faturamento ou provisionamento.';
   return {
     version:Number(data.contract.version)||0,
     snapshot(){

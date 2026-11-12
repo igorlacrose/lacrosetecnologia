@@ -12,6 +12,7 @@ let conversationFolder='active',conversationFocus=null,conversationFlash='';
 let followupFilter='pending',followupFocus=null,leadFocus=null;
 let trashBusy=false;
 let clientFocus=null,clientMode='detail',clientDraft=null;
+let clientSearchTerm='',clientSearchTimer=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
   {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
@@ -1459,7 +1460,7 @@ function clients(feedback=''){
     const active=leads.filter(l=>!['won','lost','archived'].includes(l.status)).length;
     return '<tr data-client-row="'+esc(c.id)+'" data-search="'+esc([c.company_name,c.person_name,c.segment,c.email,c.phone,c.city,c.state]
          .filter(Boolean).join(' ').toLowerCase())+'">'+
-      '<td><div class="client-name-cell"><strong>'+esc(nameOf(c))+'</strong><small>'+esc(c.person_name&&c.company_name?c.person_name:c.segment||'Sem segmento')+'</small></div></td>'+
+      '<td><div class="client-name-cell"><button type="button" class="client-name-link" data-open-client="'+esc(c.id)+'">'+esc(nameOf(c))+'</button><small>'+esc(c.person_name&&c.company_name?c.person_name:c.segment||'Sem segmento')+'</small></div></td>'+
       '<td>'+esc([c.city,c.state].filter(Boolean).join(' / ')||'—')+'</td>'+
       '<td>'+esc(c.email||'—')+'<br>'+esc(c.phone||'—')+'</td>'+
       '<td><strong>'+leads.length+'</strong> registro(s) · '+active+' em andamento</td>'+
@@ -1529,7 +1530,8 @@ function clients(feedback=''){
       k('Para identificar',unidentified,'Cadastros incompletos')+'</div>'+
     '<div class="client-toolbar"><div><h2>Carteira de clientes</h2>'+
       '<p>Consulte, atualize cadastros e acompanhe oportunidades reais.</p></div>'+
-      '<div class="client-toolbar-actions"><input id="clientSearch" type="search" placeholder="Buscar cliente, cidade, segmento...">'+
+      '<div class="client-toolbar-actions"><input id="clientSearch" type="search" list="clientNameSuggestions" autocomplete="off" aria-label="Digite ou selecione o nome do cliente" placeholder="Digite ou escolha um cliente...">'+
+        '<datalist id="clientNameSuggestions">'+contacts.map(c=>'<option value="'+esc(nameOf(c))+'"></option>').join('')+'</datalist>'+
         '<button type="button" class="cta" data-new-client>Novo cliente</button></div></div>'+
     '<p class="operation-feedback" data-client-feedback role="status">'+esc(feedback)+'</p>'+
     '<div class="table client-table"><table><thead><tr>'+
@@ -1537,12 +1539,18 @@ function clients(feedback=''){
       '<th>Oportunidades</th><th>Atualização</th><th>Ação</th></tr></thead>'+
       '<tbody>'+clientRows+'</tbody></table></div>'+
     '<div class="client-detail" id="clientDetail">'+detail+'</div>';
+  const openClientById=(id,{keepSearch=false}={})=>{
+    if(!contacts.some(c=>c.id===id))return;
+    if(clientSearchTimer){clearTimeout(clientSearchTimer);clientSearchTimer=null}
+    if(!keepSearch)clientSearchTerm='';
+    clientFocus=id;clientMode='detail';clients();
+    if(!keepSearch)el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };
   el('content').querySelectorAll('[data-open-client]').forEach(b=>b.onclick=()=>{
-    clientFocus=b.dataset.openClient;clientMode='detail';clients();
-    el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    openClientById(b.dataset.openClient);
   });
   el('content').querySelector('[data-new-client]').onclick=()=>{
-    clientDraft=null;clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+    clientDraft=null;clientSearchTerm='';clientMode='new';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   };
   el('content').querySelector('[data-client-edit]')?.addEventListener('click',()=>{
     clientMode='edit';clients();el('clientDetail')?.scrollIntoView({block:'nearest',behavior:'smooth'});
@@ -1554,11 +1562,65 @@ function clients(feedback=''){
     el('content').querySelector('[data-lead="'+b.dataset.clientLead+'"]')?.click();
   });
   const search=el('clientSearch');
-  search.oninput=()=>{
-    const norm=v=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const findClients=term=>{
+    const query=norm(term);
+    if(!query)return contacts;
+    return contacts.filter(c=>norm([
+      c.company_name,c.person_name,c.segment,c.email,c.phone,c.city,c.state
+    ].filter(Boolean).join(' ')).includes(query));
+  };
+  const filterClientRows=()=>{
+    const query=norm(search.value);
     el('content').querySelectorAll('[data-client-row]').forEach(row=>{
-      row.hidden=!norm(row.dataset.search).includes(norm(search.value.trim()));
+      row.hidden=!!query&&!norm(row.dataset.search).includes(query);
     });
+  };
+  const selectExactName=()=>{
+    const query=norm(search.value);
+    const exact=contacts.filter(c=>query&&(
+      norm(c.company_name)===query||norm(c.person_name)===query));
+    if(exact.length===1){
+      openClientById(exact[0].id);
+      return true;
+    }
+    return false;
+  };
+  search.value=clientSearchTerm;
+  filterClientRows();
+  search.oninput=()=>{
+    clientSearchTerm=search.value;
+    filterClientRows();
+    if(clientSearchTimer){clearTimeout(clientSearchTimer);clientSearchTimer=null}
+    const query=norm(clientSearchTerm);
+    // Autoseleção somente quando um nome completo corresponde exatamente.
+    // Buscas parciais apenas filtram, evitando abrir cadastro incorreto.
+    if(query.length>=3){
+      clientSearchTimer=setTimeout(()=>{
+        if(currentView!=='clients'||search!==el('clientSearch')||!user)return;
+        if(!selectExactName()){
+          const matches=findClients(query);
+          if(matches.length===1&&norm(matches[0].company_name||matches[0].person_name).startsWith(query)){
+            // A ficha abre quando há um único cliente possível, sem interromper a digitação.
+            if(clientFocus!==matches[0].id){
+              clientFocus=matches[0].id;clientMode='detail';clients();
+              const nextSearch=el('clientSearch');
+              nextSearch?.focus();
+              nextSearch?.setSelectionRange(nextSearch.value.length,nextSearch.value.length);
+            }
+          }
+        }
+      },240);
+    }
+  };
+  search.onchange=()=>{clientSearchTerm=search.value;filterClientRows();selectExactName()};
+  search.onkeydown=e=>{
+    if(e.key!=='Enter')return;
+    const found=findClients(search.value);
+    if(selectExactName()||found.length===1){
+      e.preventDefault();
+      if(found.length===1&&clientFocus!==found[0].id)openClientById(found[0].id);
+    }
   };
   if(selected&&!editMode&&!newMode){
     const panel=el('clientDetail')?.querySelector('.client-profile');

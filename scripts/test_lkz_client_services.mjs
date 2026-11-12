@@ -50,11 +50,18 @@ test('permite selecionar dois produtos e preços independentes',async()=>{
  const checks=findAll(t.form,n=>n.tagName==='input'&&n.type==='checkbox');
  assert.equal(checks.length,2);
  assert.equal(f.version,0);
- const oca=checks[0].parent.parent;
- const crm=checks[1].parent.parent;
+ const picker=find(t.form,n=>n.tagName==='details'&&n.className==='service-picker');
+ const cards=findAll(t.form,n=>n.tagName==='section'&&n.className.includes('service-price-card'));
+ assert.ok(picker);
+ assert.equal(cards.length,2);
+ assert.ok(cards.every(n=>n.hidden===true),'Valores devem começar ocultos');
+ const oca=cards[0],crm=cards[1];
  const fields=n=>findAll(n,e=>e.tagName==='input'&&e.type==='text');
  checks[0].checked=true;checks[0].onchange();
+ assert.equal(oca.hidden,false);
+ assert.equal(crm.hidden,true,'Outro sistema sem seleção deve continuar oculto');
  checks[1].checked=true;checks[1].onchange();
+ assert.equal(crm.hidden,false);
  const ocaPrices=fields(oca),crmPrices=fields(crm);
  assert.equal(ocaPrices.length,2);
  ocaPrices[0].value='1890,00';
@@ -78,7 +85,9 @@ test('rejeita preço inválido antes de enviar ao banco',async()=>{
  const t=setup();const f=await t.api.mountForm({form:t.form,sb:t.sb});
  const check=find(t.form,n=>n.tagName==='input'&&n.type==='checkbox');
  check.checked=true;check.onchange();
- const price=find(t.form,n=>n.tagName==='input'&&n.type==='text');
+ const card=find(t.form,n=>n.tagName==='section'&&n.className.includes('service-price-card'));
+ assert.equal(card.hidden,false);
+ const price=find(card,n=>n.tagName==='input'&&n.type==='text');
  price.value='1.900,00';
  assert.throws(()=>f.snapshot(),/Preço inválido/);
  price.value='-4,00';
@@ -96,6 +105,9 @@ test('preserva versão e itens existentes ao editar cadastro',async()=>{
  assert.equal(p.items[0].code,'LCRM');
  assert.equal(p.items[0].recurring_cents,12900);
  assert.equal(t.calls[0].args.p_contact,'uuid-customer');
+ const cards=findAll(t.form,n=>n.tagName==='section'&&n.className.includes('service-price-card'));
+ assert.equal(cards[0].hidden,true);
+ assert.equal(cards[1].hidden,false,'Sistema existente deve aparecer para edição');
 });
 
 test('mostra somente minuta no financeiro, não cobranças realizadas',async()=>{
@@ -126,4 +138,43 @@ test('somente minuta, MFA, bloqueios de faturamento e provisionamento no banco',
  assert.match(app,/lkz_adm_create_client_with_draft/);
  assert.match(app,/lkz_adm_edit_client_with_draft/);
  assert.doesNotMatch(source,/\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|\.sendMessage\s*\(|\.sendEmail\s*\(|\blocalStorage\b/);
+});
+
+test('desmarcar e remarcar sistema esconde e preserva valores durante a edição',async()=>{
+ const t=setup({contract:{version:2,items:[{
+  code:'OCA',setup_cents:123400,recurring_cents:5000,billing_interval:'monthly'
+ }]}});
+ const f=await t.api.mountForm({form:t.form,sb:t.sb,contact:{id:'customer'}});
+ const checkbox=find(t.form,n=>n.tagName==='input'&&n.type==='checkbox');
+ const card=find(t.form,n=>n.tagName==='section'&&n.className.includes('service-price-card'));
+ assert.equal(card.hidden,false);
+ const price=find(card,n=>n.tagName==='input'&&n.type==='text');
+ assert.equal(price.value,'1234,00');
+ checkbox.checked=false;checkbox.onchange();
+ assert.equal(card.hidden,true);
+ assert.equal(f.snapshot().items.length,0);
+ checkbox.checked=true;checkbox.onchange();
+ assert.equal(card.hidden,false);
+ assert.equal(price.value,'1234,00');
+ assert.equal(f.snapshot().items[0].setup_cents,123400);
+});
+test('lista suspensa pode ser fechada e indica quantidade selecionada',async()=>{
+ const t=setup();await t.api.mountForm({form:t.form,sb:t.sb});
+ const picker=find(t.form,n=>n.tagName==='details'&&n.className==='service-picker');
+ const chosen=find(picker,n=>n.className==='service-picker-count');
+ assert.equal(chosen.textContent,'Nenhum sistema selecionado');
+ const check=find(picker,n=>n.tagName==='input'&&n.type==='checkbox');
+ check.checked=true;check.onchange();
+ assert.equal(chosen.textContent,'OCA');
+ const done=find(picker,n=>n.tagName==='button'&&n.textContent==='Concluir seleção');
+ picker.open=true;done.onclick();
+ assert.equal(picker.open,false);
+});
+test('nome do cliente é clicável e campo sugere nomes sem sobrescrever outras fichas',()=>{
+ assert.match(app,/class="client-name-link" data-open-client/);
+ assert.match(app,/id="clientSearch" type="search" list="clientNameSuggestions"/);
+ assert.match(app,/const selectExactName=\(\)=>/);
+ assert.match(app,/exact\.length===1/);
+ assert.match(app,/if\(matches\.length===1/);
+ assert.match(app,/clientSearchTerm=search\.value/);
 });

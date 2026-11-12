@@ -100,4 +100,6 @@ check('Pré-despacho usa módulos isolados',require('node:fs').readFileSync('adm
 check('Produtos múltiplos carregados na ficha',app.includes('LKZClientServices?.mountForm')&&app.includes('LKZClientServices.mountDetail'));
 check('Criação e edição de minuta transacional',app.includes('lkz_adm_create_client_with_draft')&&app.includes('lkz_adm_edit_client_with_draft'));
 check('Resumo financeiro distingue minuta de cobrança',app.includes('LKZClientServices.mountFinance'));
-check('Módulo de serviços e estilos carregados',html.includes('client-services.js?v=20261112-1')&&html.includes('client-services.css?v=20261112-1'));
+check('Módulo de serviços e estilos carregados',html.includes('client-services.js?v=20261112-2')&&html.includes('client-services.css?v=20261112-2'));
+check('Seleção dos sistemas por dropdown com preço condicional',require('node:fs').readFileSync('admin/client-services.js','utf8').includes("node('details','service-picker')")&&require('node:fs').readFileSync('admin/client-services.js','utf8').includes('f.pricesCard.hidden=!enabled'));
+check('Busca de cliente por nome abre ficha sem depender do CRM externo',app.includes('clientNameSuggestions')&&app.includes('client-name-link')&&app.includes('selectExactName'));
