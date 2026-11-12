@@ -1,7 +1,7 @@
 'use strict';
 const sb=window.supabase.createClient('https://icrtewhazpfauuroswri.supabase.co','sb_publishable_6PdAW2f-dpXhsaZXI0lyBg_PcGtuWgs',{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 const el=id=>document.getElementById(id);
-const ADMIN_IDLE_MS=24*60*60*1000; // tolerância máxima em memória, sem persistir refresh token
+const ADMIN_IDLE_MS=30*60*1000; // trava após 30 minutos de inatividade, sem persistir refresh token
 const accessGroups={master:'MASTER',admin:'Administrador',commercial:'Comercial',viewer:'Consulta'};
 let user=null,profile=null,factorId=null,challengeId=null,idleTimer=null;
 let lastInteractionAt=0,endingForIdle=false;
@@ -163,23 +163,59 @@ async function enter(p,u){
 el('loginForm').onsubmit=async e=>{e.preventDefault();el('loginBtn').disabled=true;msg(el('authMsg'),'');try{const {data,error}=await sb.auth.signInWithPassword({email:el('email').value.trim(),password:el('password').value});if(error)throw error;const p=await authorize(data.user);if(!p){await sb.auth.signOut();throw new Error('Conta sem permissão administrativa.')}await enforceMfa(p,data.user)}catch(err){console.error(err);msg(el('authMsg'),err.message||'Falha no login.')}finally{el('loginBtn').disabled=false}};
 el('mfaForm').onsubmit=async e=>{e.preventDefault();el('mfaBtn').disabled=true;try{const {error}=await sb.auth.mfa.verify({factorId,challengeId,code:el('code').value.trim()});if(error)throw error;await enter(profile,user)}catch(err){console.error(err);msg(el('mfaMsg'),'Código inválido ou expirado.')}finally{el('mfaBtn').disabled=false}};
 el('cancelMfa').onclick=async()=>{await sb.auth.signOut();showLogin()};el('logout').onclick=async()=>{setMenu(false);await sb.auth.signOut();user=null;profile=null;showLogin()};
+const LIST_BATCH_SIZE=200;
+const LIST_MAX_ROWS=3000;
+
+/* Paginação com limite explícito para impedir dashboards silenciosamente incompletos. */
+async function loadPaged(table,fields,sort,ascending=false){
+  const data=[];
+  let total=null,lastPageSize=0;
+  for(let offset=0;offset<LIST_MAX_ROWS;offset+=LIST_BATCH_SIZE){
+    const take=Math.min(LIST_BATCH_SIZE,LIST_MAX_ROWS-offset);
+    const result=await sb.from(table)
+      .select(fields,offset===0?{count:'exact'}:{})
+      .order(sort,{ascending})
+      .order('id',{ascending:false})
+      .range(offset,offset+take-1);
+    if(result.error)throw result.error;
+    const page=result.data||[];
+    if(offset===0&&Number.isSafeInteger(result.count))total=result.count;
+    data.push(...page);
+    lastPageSize=page.length;
+    if(page.length<take || (total!==null&&data.length>=total))break;
+  }
+  return {data,count:total,loaded:data.length,
+    partial:total!==null?data.length<total:lastPageSize===LIST_BATCH_SIZE&&data.length===LIST_MAX_ROWS};
+}
+function dataScopeNotice(){
+  if(!state.loadMeta?.partial)return '';
+  return '<p class="operation-feedback" role="status">'+
+    'Consulta parcial: alguns módulos atingiram o limite de '+LIST_MAX_ROWS+
+    ' registros carregados. Os totais são contagens do banco, mas nem todos os itens estão nesta lista.'+
+    ' Use filtros e solicite paginação server-side para volumes maiores.</p>';
+}
 async function loadCommercial(){
   const [lr,cr,vr,fr,ar,folders,trash]=await Promise.all([
-    sb.from('leads').select('*').order('updated_at',{ascending:false}).limit(100),
-    sb.from('contacts').select('id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact').order('created_at',{ascending:false}).limit(200),
-    sb.from('conversations').select('id,lead_id,last_message_at,started_at,status,channel').order('last_message_at',{ascending:false}).limit(100),
-    sb.from('followups').select('*').order('due_at',{ascending:true}).limit(100),
-    sb.from('approvals').select('*').order('requested_at',{ascending:false}).limit(100),
+    loadPaged('leads','*','updated_at'),
+    loadPaged('contacts','id,company_name,person_name,segment,email,phone,city,state,created_at,updated_at,consent_contact','created_at'),
+    loadPaged('conversations','id,lead_id,last_message_at,started_at,status,channel','last_message_at'),
+    loadPaged('followups','*','due_at',true),
+    loadPaged('approvals','*','requested_at'),
     sb.rpc('lkz_adm_list_conversation_folders'),
     sb.rpc('lkz_adm_trash_stats')
   ]);
-  const err=lr.error||cr.error||vr.error||fr.error||ar.error||folders.error||trash.error;
+  const err=folders.error||trash.error;
   if(err)throw err;
   const contacts=cr.data||[],cm=new Map(contacts.map(c=>[c.id,c])),lm=new Map();
   const folderMap=new Map((folders.data||[]).map(entry=>[entry.conversation_id,entry.folder]));
   (lr.data||[]).forEach(l=>{const c=cm.get(l.contact_id)||{};lm.set(l.id,{...l,name:c.company_name||c.person_name||'Contato sem nome',contact:c.phone||c.email||'—'})});
   state={
     contacts,leads:[...lm.values()],trashStats:trash.data||{messages:0,conversations:0},
+    loadMeta:{
+      partial:[lr,cr,vr,fr,ar].some(item=>item.partial),
+      counts:{leads:lr.count,contacts:cr.count,conversations:vr.count,followups:fr.count,approvals:ar.count},
+      loaded:{leads:lr.loaded,contacts:cr.loaded,conversations:vr.loaded,followups:fr.loaded,approvals:ar.loaded}
+    },
     threads:(vr.data||[]).map(c=>{
       const linkedLead=lm.get(c.lead_id);
       const linkedContact=linkedLead?.contact_id?cm.get(linkedLead.contact_id):null;
@@ -227,7 +263,7 @@ async function refreshLiveConversations(){
       .order('last_message_at',{ascending:false}).limit(100);
     if(error||!user||currentView!=='conversations'||conversationRefreshBlocked())return;
     const remoteKey=JSON.stringify((data||[]).map(item=>[item.id,item.last_message_at||item.started_at]));
-    if(remoteKey===threadStampKey(state.threads))return;
+    if(remoteKey===threadStampKey(state.threads.slice(0,100)))return;
 
     const selected=conversationFocus,folder=conversationFolder;
     const messageFolder=el('messagePane')?.querySelector('[data-folder][aria-pressed="true"]')?.dataset.folder||'active';
@@ -344,11 +380,11 @@ function overview(){
     '<p>Clientes, conversas, oportunidades e agenda trabalhando juntos — sem depender de outro CRM.</p></div>'+
     '<div class="welcome-actions"><button type="button" class="cta" data-overview="crm">Abrir CRM</button>'+
     '<button type="button" class="cta secondary" data-overview="followups">Agenda</button></div></section>'+
-    '<div class="grid dashboard-kpis">'+
-      k('Oportunidades',state.leads.length,'Registros comerciais')+
-      k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada')+
+    dataScopeNotice()+'<div class="grid dashboard-kpis">'+
+      k('Oportunidades',state.loadMeta?.counts.leads??state.leads.length,'Registros comerciais')+
+      k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada carregada')+
       k('Retornos pendentes',pending,'Aguardando ação')+
-      k('Clientes',state.contacts.length,'Cadastros disponíveis')+
+      k('Clientes',state.loadMeta?.counts.contacts??state.contacts.length,'Cadastros disponíveis')+
     '</div><div class="dashboard-lower">'+
       '<section class="panel priorities-panel"><div class="panel-head"><div><span class="eyebrow">O QUE FAZER AGORA</span>'+
       '<h2>Prioridades do dia</h2></div><span class="mini-count">'+info.priorities.length+' pendência(s)</span></div>'+
@@ -425,7 +461,7 @@ function crm(){
     '<h2>Funil comercial</h2><p>Etapas e registros reais do banco — movimentação com autorização e histórico.</p></div>'+
     '<div><button type="button" class="cta" data-crm-goto="leads">Gerenciar oportunidades</button>'+
     '<button type="button" class="cta secondary" data-crm-goto="followups">Nova atividade</button></div></section>'+
-    '<div class="grid crm-mini-stats">'+k('Oportunidades abertas',active.length,'Em atendimento')+
+    dataScopeNotice()+'<div class="grid crm-mini-stats">'+k('Oportunidades abertas',active.length,'Carregadas em atendimento')+
       k('Retornos pendentes',state.followups.filter(f=>f.status==='pending').length,'Na agenda')+
       k('Encerrados / arquivados',closed,'Histórico preservado')+'</div>'+
     '<div class="pipeline-board" aria-label="Funil comercial">'+cols+'</div>'+
@@ -452,7 +488,7 @@ function leads(){
     '<section class="crm-topbar"><div><span class="eyebrow">RELACIONAMENTO</span><h2>Oportunidades</h2>'+
     '<p>Registre a evolução comercial, acompanhe o histórico e programe retornos.</p></div>'+
     '<button class="cta secondary" type="button" data-go-pipeline>Ver pipeline</button></section>'+
-    '<p class="result-count">'+records.length+' oportunidade(s) encontrada(s)</p>'+
+    dataScopeNotice()+'<p class="result-count">'+records.length+' oportunidade(s) encontrada(s) nos registros carregados</p>'+
     '<div id="leadDetails"></div><div class="table opportunity-table"><table>'+
     '<thead><tr><th>Oportunidade</th><th>Contato</th><th>Interesse</th><th>Etapa</th><th>Atualização</th><th>Ação</th></tr></thead>'+
     '<tbody>'+table+'</tbody></table></div>';
@@ -1012,10 +1048,10 @@ function followups(feedback=''){
     '<section class="crm-topbar"><div><span class="eyebrow">CRM · ATIVIDADES</span>'+
       '<h2>Agenda de retornos</h2><p>Controle seus contatos sem depender de outra plataforma.</p></div>'+
       '<button type="button" class="cta" data-return-create>+ Agendar retorno</button></section>'+
-    '<div class="grid crm-mini-stats">'+
-      k('Pendentes',pending,'Aguardando atendimento')+
+    dataScopeNotice()+'<div class="grid crm-mini-stats">'+
+      k('Pendentes',pending,'Aguardando atendimento · carregados')+
       k('Atrasados',overdue,'Necessitam priorização')+
-      k('Total registrado',all.length,'Nesta consulta')+'</div>'+
+      k('Total registrado',state.loadMeta?.counts.followups??all.length,'Total no banco')+'</div>'+
     '<div class="return-filters" role="group" aria-label="Filtrar retornos">'+
       [['pending','Pendentes'],['done','Concluídos'],['cancelled','Cancelados'],['all','Todos']].map(([v,title])=>
         '<button type="button" data-return-filter="'+v+'" aria-pressed="'+(v===followupFilter)+'">'+title+'</button>').join('')+'</div>'+
@@ -1258,8 +1294,8 @@ function clients(feedback=''){
       '</div></section>';
   }else detail='<section class="panel client-profile"><p>Nenhum cliente cadastrado.</p></section>';
   el('content').innerHTML=
-    '<div class="grid client-kpis">'+
-      k('Contatos',contacts.length,'Registros carregados')+
+    dataScopeNotice()+'<div class="grid client-kpis">'+
+      k('Contatos',state.loadMeta?.counts.contacts??contacts.length,'Cadastros totais')+
       k('Com oportunidades',withLeads,'Relacionados ao pipeline')+
       k('Para identificar',unidentified,'Cadastros incompletos')+'</div>'+
     '<div class="client-toolbar"><div><h2>Carteira de clientes</h2>'+
@@ -1368,8 +1404,14 @@ function clients(feedback=''){
   };
 }
 function finance(){el('content').innerHTML='<section class="panel"><h2>Cobranças</h2><p>A integração de pagamento ainda está pendente.</p></section>'}
-function usage(){el('content').innerHTML='<div class="grid">'+k('Leads',state.leads.length,'Registros carregados')+
-  k('Conversas',state.threads.length,'Registros carregados')+k('Contatos',state.contacts.length,'Registros carregados')+'</div>'}
+function usage(){
+  const c=state.loadMeta?.counts||{};
+  el('content').innerHTML=dataScopeNotice()+'<div class="grid">'+
+    k('Oportunidades',c.leads??state.leads.length,'Total do banco')+
+    k('Conversas',c.conversations??state.threads.length,'Total do banco')+
+    k('Contatos',c.contacts??state.contacts.length,'Total do banco')+
+    k('Retornos',c.followups??state.followups.length,'Total do banco')+'</div>';
+}
 function tasks(){
   const items=dailyBrief(state).priorities;
   el('content').innerHTML='<section class="panel"><h2>Prioridades comerciais</h2>'+
@@ -1384,7 +1426,7 @@ function tasks(){
 }
 function settings(){
   el('content').innerHTML='<section class="panel form-panel"><h2>Sessão administrativa</h2>'+
-    '<p>O painel verifica inatividade por até 24 horas enquanto esta guia estiver aberta. '+
+    '<p>O painel encerra a sessão após 30 minutos de inatividade enquanto esta guia estiver aberta. '+
     'Ao fechar ou recarregar a página, o login e o MFA serão solicitados novamente.</p>'+
     '<p>Por segurança, nenhuma credencial de renovação é guardada no navegador. '+
     'Persistência segura após fechar a guia exige um backend com cookie HttpOnly; ainda não foi implementada.</p>'+
