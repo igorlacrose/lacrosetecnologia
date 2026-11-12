@@ -417,10 +417,12 @@ async function showOpportunity(id,feedback=''){
       controls.forEach(control=>control.disabled=false);
       return;
     }
+    const current=state.leads.find(l=>l.id===id);
+    if(current)Object.assign(current,result.data);
     try{await loadCommercial();}catch{}
     view('leads');
-    const visible=state.leads.find(l=>l.id===id);
-    if(visible)showOpportunity(id,'Atividade registrada e auditada.');
+    const feedback=el('leadDetails')?.querySelector('[data-lead-status]');
+    if(feedback)feedback.textContent='Atividade registrada e auditada.';
   };
   const history=panel.querySelector('[data-lead-events]');
   let result;
@@ -708,6 +710,12 @@ async function openThread(id,folder='active',before=null,feedback=''){
   page.querySelectorAll('[data-message-select]').forEach(input=>input.onchange=updateButtons);
   async function move(destination,ids){
     if(!ids.length||ids.length>50)return;
+    const numericIds=ids.map(Number);
+    if(numericIds.some(value=>!Number.isSafeInteger(value)||value<=0)){
+      const status=page.querySelector('[data-notice]');
+      if(status)status.textContent='Identificador inválido. Atualize a conversa antes de excluir.';
+      return;
+    }
     if(destination==='purge'){
       const answer=window.prompt('Apagar definitivamente '+ids.length+' mensagem(ns)? Digite EXCLUIR para confirmar:');
       if(answer!=='EXCLUIR')return;
@@ -718,8 +726,8 @@ async function openThread(id,folder='active',before=null,feedback=''){
     let result;
     try{
       result=destination==='purge'
-        ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:ids})
-        :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:ids,p_from:folder,p_to:destination});
+        ?await sb.rpc('lkz_adm_purge_messages',{p_conversation:id,p_ids:numericIds})
+        :await sb.rpc('lkz_adm_move_messages',{p_conversation:id,p_ids:numericIds,p_from:folder,p_to:destination});
     }catch{result={error:{code:'REDE'}}}
     if(!page.isConnected||!user)return;
     if(result.error||Number(result.data)!==ids.length){
@@ -1095,11 +1103,15 @@ function usage(){el('content').innerHTML='<div class="grid">'+k('Leads',state.le
   k('Conversas',state.threads.length,'Registros carregados')+k('Contatos',state.contacts.length,'Registros carregados')+'</div>'}
 function tasks(){
   const items=dailyBrief(state).priorities;
-  el('content').innerHTML='<section class="panel"><h2>Prioridades comerciais</h2>'+(items.map(item=>
-    '<div class="row"><span><strong>'+esc(item.name)+'</strong><br>'+esc([...item.reasons].join(' · '))+'</span>'+
-    '<button type="button" class="cta" data-task-view="'+item.view+'">Abrir</button></div>'
-  ).join('')||'<p>Nenhuma demanda prioritária encontrada.</p>')+'</section>';
-  el('content').querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>view(button.dataset.taskView));
+  el('content').innerHTML='<section class="panel"><h2>Prioridades comerciais</h2>'+
+    (items.map(item=>'<div class="row"><span><strong>'+esc(item.name)+'</strong><br>'+
+      esc([...item.reasons].join(' · '))+'</span>'+
+      '<button type="button" class="cta" data-task-key="'+esc(item.key)+'">Abrir ficha</button></div>'
+    ).join('')||'<p>Nenhuma demanda prioritária encontrada.</p>')+'</section>';
+  el('content').querySelectorAll('[data-task-key]').forEach(button=>button.onclick=()=>{
+    const item=items.find(x=>x.key===button.dataset.taskKey);
+    if(item)navigatePriority(item.target,item.followupId,item.leadId);
+  });
 }
 function settings(){
   el('content').innerHTML='<section class="panel form-panel"><h2>Sessão administrativa</h2>'+
