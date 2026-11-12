@@ -74,6 +74,12 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
             ...(metaProvider?.publicConfig ?? {}) });
         }
         if (request.method === 'GET' && id === 'reminders' &&
+          action === 'simulated' && parts.length === 3) {
+          const { rows: [summary] } = await tx.query(
+            'select * from lkz_vnext.whatsapp_simulation_summary($1)',[tenant]);
+          return json({ ...summary, dryRun:true,canDispatch:false });
+        }
+        if (request.method === 'GET' && id === 'reminders' &&
           action === 'rehearsal' && parts.length === 3) {
           const { rows: [summary] } = await tx.query(
             'select * from lkz_vnext.whatsapp_reminder_rehearsal_summary($1)',[tenant]);
