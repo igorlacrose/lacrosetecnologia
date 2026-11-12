@@ -194,9 +194,8 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
               '). Recarregue antes de repetir.';
             setBusy(false);return;
           }
-          feedback.textContent='Decisão registrada: '+(titles[response.data.status]||response.data.status)+
-            '. Nenhuma mensagem foi enviada.';
-          await load();
+          await load('Decisão registrada: '+(titles[response.data.status]||response.data.status)+
+            '. Nenhuma mensagem foi enviada.');
         };
         approve.onclick=()=>action('approve');
         reject.onclick=()=>action('reject');
@@ -221,6 +220,7 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
   async function load(message=''){
     if(!active())return;
     setBusy(true);
+    feedback.textContent='Atualizando revisões...';
     let results;
     try{
       results=await Promise.all([
@@ -232,17 +232,34 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
     const [previews,resultDrafts]=results;
     if(previews.error||resultDrafts.error||
        !Array.isArray(previews.data)||!Array.isArray(resultDrafts.data)){
+      loaded=false;
       feedback.textContent='Não foi possível consultar revisões ou rascunhos. Código: '+
-        (previews.error?.code||resultDrafts.error?.code||'SEM_RESPOSTA');
+        (previews.error?.code||resultDrafts.error?.code||'SEM_RESPOSTA')+
+        '. Utilize Atualizar revisões para tentar novamente.';
+      renderReadiness();
       setBusy(false);return;
     }
     items=previews.data;drafts=new Map(resultDrafts.data.map(d=>[d.channel,d]));
+    loaded=true;
     display();
+    feedback.textContent=message||(canSubmit()?
+      'Registros atualizados. Pode solicitar a revisão do rascunho salvo.':
+      'Registros atualizados. Consulte os requisitos abaixo para habilitar a revisão.');
   }
-  channel.onchange=()=>{requestToken=null;setBusy(false)};
-  reload.onclick=async()=>{feedback.textContent='Atualizando...';await load()};
+  channel.onchange=()=>{
+    requestToken=null;
+    renderReadiness();setBusy(false);
+    feedback.textContent=canSubmit()?
+      'Canal selecionado. Rascunho salvo disponível para revisão.':
+      'Canal selecionado. Confira os requisitos para solicitar revisão.';
+  };
+  reload.onclick=()=>load('Revisões atualizadas. Confira os requisitos e registros abaixo.');
   request.onclick=async()=>{
     if(busy||!active())return;
+    if(!canSubmit()){
+      feedback.textContent='Solicitação não iniciada. Corrija os requisitos indicados no checklist.';
+      renderReadiness();return;
+    }
     const draft=drafts.get(channel.value);
     if(!draft?.version){
       feedback.textContent='Salve um rascunho neste canal na Central de Contato Manual antes de solicitar revisão.';
@@ -270,11 +287,11 @@ async function mount({panel,lead,contact=null,sb,confirm,isMaster=false,isSessio
       setBusy(false);return;
     }
     requestToken=null;
-    feedback.textContent=result.data.already_recorded
+    await load(result.data.already_recorded
       ?'Solicitação já existente; nenhuma duplicação criada.'
-      :'Prévia criada para revisão. Transporte permanece desabilitado.';
-    await load();
+      :'Prévia criada para revisão. Transporte permanece desabilitado.');
   };
+  renderReadiness();
   await load();
 }
 window.LKZCrmPreviews=Object.freeze({mount});
