@@ -127,7 +127,7 @@ async function mount({panel,contact,sb,confirm,isMaster=false,isSessionActive}){
           ...payload,p_request_id:preparedRequest.id
         }))}catch{result={error:{code:'NETWORK'}}}
         if(!active())return;
-        if(result.error||!result.data?.id||
+        if(result.error||!result.data?.id||result.data?.status!=='prepared'||
             result.data?.signature_enabled!==false||
             result.data?.customer_accepted!==false||
             result.data?.billing_enabled!==false||
