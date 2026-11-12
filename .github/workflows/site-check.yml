@@ -136,3 +136,4 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres \
             -d lkz_contract_test -f scripts/test_lkz_document_exclusivity_pg17.sql
+          bash scripts/test_lkz_document_exclusivity_race.sh
