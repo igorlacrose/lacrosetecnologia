@@ -279,3 +279,18 @@ header p{font-size:14px;color:#587384;margin:0}
   .lkz-modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .lkz-modal-actions button{min-width:0}
 }
+
+
+/* Triagem comercial do OCA: sugestões sem disparos automáticos */
+.oca-triage{margin-top:18px}
+.oca-triage>.panel-head h2{margin:3px 0;color:#123c50}
+.oca-triage-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.oca-triage-item{display:flex;justify-content:space-between;align-items:center;gap:13px;
+  border:1px solid #d8e7ef;background:#f6fafc;border-radius:12px;padding:13px 15px}
+.oca-triage-item>div{min-width:0}
+.oca-triage-item strong{display:block;color:#183f53;font-size:14px;overflow-wrap:anywhere}
+.oca-triage-item small{display:block;font-size:12px;color:#567482;margin-top:4px}
+.oca-triage-item button{flex-shrink:0}
+@media(max-width:1000px){.oca-triage-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.oca-triage-item{align-items:flex-start;flex-direction:column}
+  .oca-triage-item button{width:100%}}
