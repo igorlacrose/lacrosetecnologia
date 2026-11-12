@@ -57,7 +57,7 @@ assert.equal(vm.runInContext('normalizedPhone',contactScope)('+55 (73) 99999-000
 console.log('OK: Sugestões por coincidência exata, sem atribuir nome arbitrário');
 
 
-const workerSql=fs.readFileSync('docs/oca/internal-worker-staged.sql','utf8');
+const workerSql=fs.readFileSync('supabase/migrations/20261112171446_lkz_oca_internal_worker_safe_pilot.sql','utf8');
 check('OCA visível no menu',html.includes('data-view="oca"')&&app.includes('function oca('));
 check('Fila interna usa RPCs autorizadas',app.includes('lkz_adm_oca_list_tasks')&&app.includes('lkz_adm_oca_resolve_task'));
 check('Motor possui pausa e execução com MASTER',app.includes('lkz_adm_oca_run_now')&&app.includes('lkz_adm_oca_set_enabled'));
