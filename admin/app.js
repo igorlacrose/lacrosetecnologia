@@ -1575,10 +1575,17 @@ function clients(feedback=''){
       });
     }
   }
+  if(selected&&!editMode&&!newMode&&window.LKZClientServices?.mountDetail){
+    const panel=el('clientDetail')?.querySelector('.client-profile');
+    if(panel)void window.LKZClientServices.mountDetail({panel,contact:selected,sb});
+  }
   const form=el('professionalClientForm');
   if(!form)return;
+  const servicesPromise=window.LKZClientServices?.mountForm({
+    form,contact:editMode?selected:null,sb
+  })??Promise.reject(new Error('Módulo de serviços indisponível.'));
   let requestId=crypto.randomUUID();
-  form.oninput=()=>{if(newMode)requestId=crypto.randomUUID()};
+  form.oninput=()=>{requestId=crypto.randomUUID()};
   form.onsubmit=async e=>{
     e.preventDefault();
     const f=new FormData(form),status=form.querySelector('[data-form-status]');
@@ -1613,20 +1620,34 @@ function clients(feedback=''){
       p_segment:val('segment'),p_email:val('email'),p_phone:val('phone'),
       p_city:val('city'),p_state:val('state').toUpperCase()
     };
-    const buttons=[...form.querySelectorAll('button,input')];
+    let contractSelection;
+    try{
+      const formModule=await servicesPromise;
+      contractSelection=formModule.snapshot();
+    }catch(error){
+      status.textContent=error?.message||'Não foi possível validar produtos e valores.';
+      return;
+    }
+    if(!form.isConnected||!user)return;
+    const buttons=[...form.querySelectorAll('button,input,select')];
     buttons.forEach(item=>item.disabled=true);
-    status.textContent='Salvando cadastro...';
+    status.textContent='Salvando cadastro e minuta comercial...';
     let result;
     try{
-      if(newMode && clientDraft?.lead_id && clientDraft?.conversation_id){
-        result=await sb.rpc('lkz_adm_create_client_from_conversation',{
-          p_id:requestId,p_conversation:clientDraft.conversation_id,
-          p_expected_lead:clientDraft.lead_id,...payload
+      if(newMode){
+        const fromConversation=!!(clientDraft?.lead_id&&clientDraft?.conversation_id);
+        result=await sb.rpc('lkz_adm_create_client_with_draft',{
+          p_id:requestId,
+          p_conversation:fromConversation?clientDraft.conversation_id:null,
+          p_expected_lead:fromConversation?clientDraft.lead_id:null,
+          ...payload,p_items:contractSelection.items,p_request_id:requestId
         });
-      }else if(newMode){
-        result=await sb.rpc('lkz_adm_create_client',{p_id:requestId,...payload});
       }else{
-        result=await sb.rpc('lkz_adm_edit_client',{p_id:selected.id,p_version:selected.updated_at,...payload});
+        result=await sb.rpc('lkz_adm_edit_client_with_draft',{
+          p_id:selected.id,p_version:selected.updated_at,
+          ...payload,p_items:contractSelection.items,
+          p_contract_version:contractSelection.version,p_request_id:requestId
+        });
       }
     }catch{result={error:{code:'REDE'}}}
     if(!form.isConnected||!user)return;
@@ -1644,10 +1665,21 @@ function clients(feedback=''){
     }
     clientDraft=null;clientFocus=updated.id;clientMode='detail';
     try{await loadCommercial()}catch{ /* O registro retornado pela RPC permanece disponível. */ }
-    clients(newMode?'Cliente cadastrado com sucesso.':'Cadastro atualizado com sucesso.');
+    clients(newMode?'Cliente e minuta comercial cadastrados.':'Cadastro e minuta comercial atualizados.');
   };
 }
-function finance(){el('content').innerHTML='<section class="panel"><h2>Cobranças</h2><p>A integração de pagamento ainda está pendente.</p></section>'}
+function finance(){
+  const content=el('content');
+  content.replaceChildren();
+  if(window.LKZClientServices?.mountFinance){
+    void window.LKZClientServices.mountFinance({target:content,sb});
+  }else{
+    const p=document.createElement('p');
+    p.className='operation-feedback error';
+    p.textContent='Resumo de minutas indisponível. Nenhuma cobrança foi gerada.';
+    content.append(p);
+  }
+}
 function usage(){
   const c=state.loadMeta?.counts||{};
   el('content').innerHTML=dataScopeNotice()+'<div class="grid">'+
