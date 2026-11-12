@@ -16,7 +16,11 @@ export function createStagingAuth({ url, publishableKey, clientFactory = createC
 
   async function verify(token, requireMfa = true) {
     if (typeof token !== 'string' || token.length > 6000 || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) return null;
-    const { data, error } = await client.auth.getClaims(token);
+    // Authentication provider outages must deny access, not surface unhandled
+    // verification errors to the HTTP request handler.
+    let data, error;
+    try { ({ data, error } = await client.auth.getClaims(token)); }
+    catch { return null; }
     const claims = data?.claims;
     if (error || !claims || claims.iss !== issuer || claims.aud !== 'authenticated'
       || claims.role !== 'authenticated' || claims.is_anonymous !== false || !uuid.test(claims.sub ?? '')
