@@ -166,7 +166,7 @@ test('direct tables deny authenticated users; aggregate summary requires AAL2 te
 test('signed sender reaches the local staging route without exposed data',async t=>{
   const db=await createPreviewDatabase();t.after(()=>db.close());
   const {handler}=setup(db);
-  const server=createPreviewServer(db,{appointmentWebhook:handler});
+  const server=createPreviewServer(db,{appointmentWebhook:handler,allowSyntheticIdentity:true});
   t.after(async()=>new Promise(resolve=>server.close(resolve)));
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const origin='http://127.0.0.1:'+server.address().port;
