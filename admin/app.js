@@ -668,6 +668,17 @@ function leads(){
   el('content').querySelector('[data-go-pipeline]').onclick=()=>view('crm');
   if(leadFocus&&records.some(l=>l.id===leadFocus))showOpportunity(leadFocus);
 }
+function leadEventTitle(type){
+  const value=String(type||'');
+  const names={'admin.note':'Nota interna','admin.status_changed':'Etapa atualizada',
+    'admin.contact_linked':'Cliente vinculado'};
+  if(value.startsWith('admin.manual_contact.')){
+    const channel=value.slice('admin.manual_contact.'.length);
+    const channels={whatsapp:'WhatsApp',email:'E-mail',phone:'Telefone',other:'Outro canal'};
+    return 'Contato manual · '+(channels[channel]||'Outro canal');
+  }
+  return names[value]||value||'Atividade';
+}
 async function showOpportunity(id,feedback=''){
   const lead=state.leads.find(l=>l.id===id),container=el('leadDetails');
   if(!lead||!container)return;
@@ -700,6 +711,21 @@ async function showOpportunity(id,feedback=''){
       '</form><div class="lead-history"><h3>Histórico da oportunidade</h3>'+
         '<div data-lead-events role="status">Carregando histórico...</div></div></section>';
   const panel=container.querySelector('.opportunity-profile');
+  // Componente isolado: nenhuma mensagem é enviada a serviços externos.
+  const crmUnavailable=()=>{
+    if(!panel.isConnected||panel.querySelector('[data-crm-failure]'))return;
+    const warning=document.createElement('p');
+    warning.dataset.crmFailure='';warning.className='operation-feedback error';
+    warning.setAttribute('role','alert');
+    warning.textContent='Central de contato manual indisponível. Atualize a página e confira sua sessão.';
+    panel.querySelector('.lead-history')?.before(warning);
+  };
+  if(window.LKZCrmComms?.mount){
+    void window.LKZCrmComms.mount({
+      panel,lead,contact:state.contacts.find(c=>c.id===lead.contact_id)||null,
+      sb,confirm:askConfirmation,isSessionActive:()=>Boolean(user),formatDate:dateLabel
+    }).catch(crmUnavailable);
+  }else crmUnavailable();
   panel.querySelector('[data-close-lead]').onclick=()=>{container.replaceChildren();leadFocus=null};
   panel.querySelector('[data-lead-followup]').onclick=()=>{
     followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
@@ -740,7 +766,7 @@ async function showOpportunity(id,feedback=''){
   const events=Array.isArray(result.data)?result.data:[];
   history.innerHTML=events.length?events.map(e=>
     '<div class="timeline-event"><div class="timeline-point"></div>'+
-    '<div><strong>'+esc(e.event_type||'Atividade')+'</strong>'+
+    '<div><strong>'+esc(leadEventTitle(e.event_type))+'</strong>'+
       '<small>'+esc(dateLabel(e.created_at))+' · '+esc(e.actor_type||'sistema')+'</small>'+
       (e.note?'<p>'+esc(e.note)+'</p>':'')+'</div></div>').join(''):
     '<p class="support-note">Nenhum evento registrado nesta oportunidade.</p>';
