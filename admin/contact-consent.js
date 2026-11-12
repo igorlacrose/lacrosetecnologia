@@ -143,13 +143,17 @@ async function mount({panel,contact,sb,isMaster=false,isSessionActive,confirm,fo
     for(const [id,label] of channels){
       const info=cache.current?.[id],granted=info?.status==='grant';
       const card=el('article','consent-channel-card');
+      const stale=info?.status==='stale';
       card.append(el('strong','',label),
-        el('span',granted?'consent-active':info?.status==='revoke'?'consent-revoked':'consent-unknown',
-          granted?'Autorização registrada':info?.status==='revoke'?'Revogada / oposição registrada':'Sem comprovação registrada'));
+        el('span',granted?'consent-active':stale?'consent-stale':info?.status==='revoke'?'consent-revoked':'consent-unknown',
+          granted?'Autorização válida para o destino cadastrado':
+          stale?'Desatualizada após alteração do destino':
+          info?.status==='revoke'?'Revogada / oposição registrada':'Sem comprovação registrada'));
       if(info?.recorded_at)card.append(el('small','',
         'Último evento: '+formatDate(info.recorded_at)));
       if(!granted)card.append(el('p','',
-        'Nenhum contato comercial pode ser aprovado neste canal sem nova manifestação comprovada.'));
+        stale?'Telefone ou e-mail mudou. Registre nova manifestação para o destino atual antes de aprovar qualquer prévia.':
+          'Nenhum contato comercial pode ser aprovado neste canal sem nova manifestação comprovada.'));
       const note=document.createElement('textarea');
       note.rows=2;note.maxLength=500;
       note.placeholder='Motivo ou origem do pedido (mín. 5 caracteres)';
