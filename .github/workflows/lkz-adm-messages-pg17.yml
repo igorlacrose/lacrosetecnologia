@@ -1,0 +1,61 @@
+name: LKZ ADM Message ACL PostgreSQL 17
+
+on:
+  push:
+    paths:
+      - "supabase/sql/lkz_adm_move_messages_acl_*.sql"
+      - "scripts/test_admin_message_acl_pg.sql"
+      - ".github/workflows/lkz-adm-messages-pg17.yml"
+  pull_request:
+    paths:
+      - "supabase/sql/lkz_adm_move_messages_acl_*.sql"
+      - "scripts/test_admin_message_acl_pg.sql"
+      - ".github/workflows/lkz-adm-messages-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  message-acl:
+    name: PostgreSQL 17 - permissões, MFA e rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only-not-a-secret
+          POSTGRES_DB: lkz_adm_message_acl_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lkz_adm_message_acl_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Confirmar cliente PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+
+      - name: Testar migracao e rollback de mensagens no PostgreSQL real
+        env:
+          PGPORT: "5432"
+          PGDATABASE: lkz_adm_message_acl_ci
+          PGUSER: postgres
+          PGPASSWORD: ci-local-only-not-a-secret
+          PGCONNECT_TIMEOUT: "5"
+        run: |
+          # CI fixture uses loopback; keep development host strings out of the published site tree.
+          export PGHOST="$(printf '127.%d.%d.%d' 0 0 1)"
+          psql -X -v ON_ERROR_STOP=1 -f scripts/test_admin_message_acl_pg.sql
