@@ -85,5 +85,10 @@ jobs:
           node --check admin/client-services.js
           node --test scripts/test_lkz_client_services.mjs
 
+      - name: Testar propostas comerciais versionadas
+        run: |
+          node --check admin/client-quotes.js
+          node --test scripts/test_lkz_client_quotes.mjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
