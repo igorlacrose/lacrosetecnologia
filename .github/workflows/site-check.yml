@@ -102,3 +102,37 @@ jobs:
 
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
+
+  contract-document-exclusivity:
+    name: Documento único por proposta (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_DB: lkz_contract_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ephemeral-pg17-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d lkz_contract_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Instalar cliente PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Testar migração real com duas classes de documento
+        env:
+          PGPASSWORD: ephemeral-pg17-ci-only
+        run: |
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres \
+            -d lkz_contract_test -f scripts/test_lkz_document_exclusivity_pg17.sql
