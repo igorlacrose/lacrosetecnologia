@@ -636,6 +636,11 @@ async function openThread(id,folder='active',before=null,feedback=''){
       '<div class="message-tools">'+Object.entries(messageActions[folder]).map(([key,title])=>
         '<button class="cta'+(key==='purge'?' danger':'')+'" type="button" data-move="'+key+'" disabled>'+title+'</button>').join('')+'</div>'+
     '</div>'+
+    (folder==='deleted'&&profile?.role==='master'
+      ?'<div class="trash-message-bar"><span>Lixeira global: '+Number(state.trashStats?.messages||0)+
+       ' mensagem(ns) aguardando exclusão definitiva.</span>'+
+       '<button class="cta danger-outline" type="button" data-empty-messages>'+
+       'Esvaziar todas as lixeiras de mensagens</button></div>':'')+
     '<p class="message-status" data-notice role="status">'+esc(feedback)+'</p>'+
     '<div class="message-stream">'+(items||'<p class="empty">Nenhuma mensagem nesta pasta.</p>')+'</div>'+
     '<div class="message-pagination">'+
@@ -643,6 +648,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       (before?'<button type="button" class="cta" data-recent>Voltar às recentes</button>':'')+
     '</div>';
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
+  page.querySelector('[data-empty-messages]')?.addEventListener('click',()=>emptyTrash('messages',id));
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
   page.querySelector('[data-message-contact]')?.addEventListener('click',async()=>{
     let lead=state.leads.find(l=>l.id===thread.lead_id);
