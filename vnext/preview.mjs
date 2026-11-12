@@ -12,7 +12,9 @@ const assets = new Map([
 
 export function createPreviewServer(db, { auth, oca, asaasWebhook, webhookOnly = false, lacroseTenant = fixture.tenant } = {}) {
   if (webhookOnly && !asaasWebhook) throw new Error('A webhook handler is required');
-  const limits = webhookOnly ? { requestTimeout: 15_000, headersTimeout: 10_000 } : {};
+  // Both the isolated webhook and the authenticated workspace can be reached
+  // through a staging reverse proxy. Never leave slow uploads on Node defaults.
+  const limits = { requestTimeout: 15_000, headersTimeout: 10_000 };
   return createServer(limits, async (incoming, outgoing) => {
     try {
       const port = outgoing.socket.localPort;
