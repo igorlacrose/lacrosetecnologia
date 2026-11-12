@@ -9,6 +9,7 @@ let state={leads:[],contacts:[],threads:[],followups:[],approvals:[]};
 const CONVERSATION_POLL_MS=20000;
 let currentView='overview',conversationPollTimer=null,conversationPollBusy=false;
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
+let followupFilter='pending',followupFocus=null,leadFocus=null;
 let clientFocus=null,clientMode='detail',clientDraft=null;
 const systemCatalog=[
   {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
@@ -157,7 +158,8 @@ function stopConversationPolling(){
 }
 
 const titles={
-  overview:['Painel geral','Indicadores e prioridades dos registros comerciais carregados.'],
+  overview:['Central de comando','Ações prioritárias, clientes e operações do CRM interno.'],
+  crm:['CRM · Pipeline','Oportunidades comerciais e trabalho operacional no próprio LKZ ADM.'],
   systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
   clients:['Clientes','Cadastros e contatos comerciais.'],
   finance:['Financeiro','Integração de cobrança pendente.'],
@@ -166,7 +168,7 @@ const titles={
   commercial:['Visão comercial','Resumo dos registros comerciais.'],
   leads:['Oportunidades','Leads e estágios comerciais.'],
   conversations:['Atendimentos','Converse com o cliente pelo CRM e gerencie o histórico.'],
-  followups:['Agenda de retornos','Retornos programados, em modo de consulta.'],
+  followups:['Agenda de retornos','Agende, reagende, conclua e acompanhe seus retornos aqui.'],
   approvals:['Aprovações e exceções','Decisões humanas do fluxo comercial.'],
   settings:['Configurações','Sessão e gestão de acesso.']
 };
@@ -180,68 +182,86 @@ sidebarBackdrop?.addEventListener('click',()=>setMenu(false));
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view(b.dataset.view);setMenu(false)});
 function view(v){currentView=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));el('title').textContent=titles[v][0];el('subtitle').textContent=titles[v][1];render(v)}
 function k(l,v,m){return '<article class="kpi"><span>'+l+'</span><strong>'+v+'</strong><small>'+m+'</small></article>'}
-function render(v){return {overview,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
-function dailyBrief(data, now = Date.now()) {
-  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Bahia', dateStyle: 'short' });
-  const today = day.format(now);
-  const inactive = new Set(data.leads.filter(lead => ['lost', 'archived'].includes(lead.status)).map(lead => lead.id));
-  const actions = [];
-  const add = (item, priority, view, reason, dueAt) => {
-    if (inactive.has(item.lead_id)) return;
-    actions.push({
-      key: item.lead_id || view + ':' + item.id,
-      name: item.lead,
-      priority, view, reason, dueAt: Number.isFinite(dueAt) ? dueAt : Infinity
-    });
+function render(v){return {overview,crm,systems,clients,finance,usage,tasks,commercial,leads,conversations,followups,approvals,settings}[v]()}
+
+function dailyBrief(data, now=Date.now()){
+  const dates=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Bahia',dateStyle:'short'});
+  const today=dates.format(now);
+  const actions=[];
+  const inactive=new Set(data.leads.filter(l=>['won','lost','archived'].includes(l.status)).map(l=>l.id));
+  const add=(item,priority,target,reason,stamp)=>{
+    if(item.lead_id&&inactive.has(item.lead_id))return;
+    actions.push({key:item.lead_id||target+':'+item.id,name:item.lead||item.name||'Oportunidade',
+      leadId:item.lead_id||item.id,target,followupId:target==='followups'?item.id:null,
+      approvalId:target==='approvals'?item.id:null,
+      priority,reason,dueAt:Number.isFinite(stamp)?stamp:Infinity});
   };
-  for (const item of data.followups) {
-    if (item.status !== 'pending') continue;
-    const dueAt = Date.parse(item.due_at);
-    if (dueAt < now) add(item, 0, 'followups', 'Retorno atrasado', dueAt);
-    else if (Number.isFinite(dueAt) && day.format(dueAt) === today) add(item, 2, 'followups', 'Retorno hoje', dueAt);
+  for(const f of data.followups){
+    if(f.status!=='pending')continue;
+    const due=Date.parse(f.due_at);
+    if(due<now)add(f,0,'followups','Retorno atrasado',due);
+    else if(Number.isFinite(due)&&dates.format(due)===today)add(f,2,'followups','Retorno hoje',due);
   }
-  for (const item of data.approvals) {
-    if (item.status === 'pending') add(item, 1, 'approvals', 'Aprovação pendente', Date.parse(item.requested_at));
+  for(const a of data.approvals){
+    if(a.status==='pending')add(a,1,'approvals','Aprovação pendente',Date.parse(a.requested_at));
   }
-  for (const lead of data.leads) {
-    if (lead.status !== 'won' && (lead.status === 'human_review' || lead.needs_human_review === true)) {
-      add({ lead_id: lead.id, lead: lead.name }, 3, 'leads', 'Escopo para revisar', Date.parse(lead.updated_at));
-    }
+  for(const l of data.leads){
+    if(l.status==='human_review'||l.needs_human_review)
+      add({id:l.id,lead_id:l.id,lead:l.name},3,'leads','Necessita revisão comercial',Date.parse(l.updated_at));
   }
-  actions.sort((a, b) => a.priority - b.priority || a.dueAt - b.dueAt || a.key.localeCompare(b.key));
-  const grouped = new Map();
-  for (const action of actions) {
-    if (!grouped.has(action.key)) grouped.set(action.key, { ...action, reasons: new Set() });
+  actions.sort((a,b)=>a.priority-b.priority||a.dueAt-b.dueAt||a.key.localeCompare(b.key));
+  const grouped=new Map();
+  for(const action of actions){
+    if(!grouped.has(action.key))grouped.set(action.key,{...action,reasons:new Set()});
     grouped.get(action.key).reasons.add(action.reason);
   }
-  return {
-    overdue: actions.filter(action => action.priority === 0).length,
-    dueToday: actions.filter(action => action.priority === 2).length,
-    approvals: actions.filter(action => action.priority === 1).length,
-    priorities: [...grouped.values()]
-  };
+  return {overdue:actions.filter(a=>a.priority===0).length,
+    dueToday:actions.filter(a=>a.priority===2).length,
+    approvals:actions.filter(a=>a.priority===1).length,
+    priorities:[...grouped.values()]};
 }
-
-function overview() {
-  const { overdue, dueToday, approvals, priorities } = dailyBrief(state);
-  const list = priorities.slice(0, 12).map(item =>
-    '<div class="row"><span><strong>' + esc(item.name || 'Oportunidade') + '</strong><br>' +
-    esc([...item.reasons].join(' · ')) + '</span><button type="button" class="cta" data-brief-view="' +
-    item.view + '">Abrir</button></div>'
-  ).join('');
-  el('content').innerHTML = '<div class="grid">' +
-    k('Retornos atrasados', overdue, 'Prazo vencido') +
-    k('Retornos de hoje', dueToday, 'Ainda no prazo') +
-    k('Aprovações', approvals, 'Decisões pendentes') +
-    '</div><div class="layout"><section class="panel"><h2>Prioridades do dia</h2>' +
-    '<p>' + priorities.length + ' prioridades nos registros carregados.</p>' +
-    (list || '<p>Nenhuma prioridade encontrada nos registros carregados.</p>') +
-    '</section><section class="panel"><h2>Operação da Lacrose</h2>' +
-    '<p>Acompanhe as prioridades aqui e abra o CRM para operar clientes, tarefas e conversas.</p>' +
-    '<a class="cta" href="https://lcrm.lacrosetecnologia.com.br/app/">Abrir LCRM</a>' +
-    '</section></div>';
-  el('content').querySelectorAll('[data-brief-view]').forEach(button => {
-    button.addEventListener('click', () => view(button.dataset.briefView));
+function navigatePriority(target,followupId,leadId){
+  if(target==='followups'){
+    followupFocus=followupId||null;followupFilter='all';view('followups');
+    if(followupFocus)openFollowupEditor('detail',followupFocus);
+  }else if(target==='leads'||target==='approvals'){
+    if(target==='approvals'&&!leadId){view('approvals');return}
+    openOpportunity(leadId);
+  }else view('crm');
+}
+function overview(){
+  const info=dailyBrief(state);
+  const list=info.priorities.slice(0,12).map(item=>
+    '<article class="priority-item"><span class="priority-dot'+(item.priority===0?' overdue':'')+'"></span>'+
+      '<div><strong>'+esc(item.name)+'</strong><small>'+esc([...item.reasons].join(' · '))+'</small></div>'+
+      '<button class="cta secondary" type="button" data-priority="'+esc(item.key)+'">Abrir ficha</button></article>').join('');
+  const pending=state.followups.filter(f=>f.status==='pending').length;
+  el('content').innerHTML=
+    '<section class="welcome-strip"><div><span class="eyebrow">OPERAÇÃO COMERCIAL</span>'+
+    '<h2>Seu negócio, em uma única central.</h2>'+
+    '<p>Clientes, conversas, oportunidades e agenda trabalhando juntos — sem depender de outro CRM.</p></div>'+
+    '<div class="welcome-actions"><button type="button" class="cta" data-overview="crm">Abrir CRM</button>'+
+    '<button type="button" class="cta secondary" data-overview="followups">Agenda</button></div></section>'+
+    '<div class="grid dashboard-kpis">'+
+      k('Oportunidades',state.leads.length,'Registros comerciais')+
+      k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada')+
+      k('Retornos pendentes',pending,'Aguardando ação')+
+      k('Clientes',state.contacts.length,'Cadastros disponíveis')+
+    '</div><div class="dashboard-lower">'+
+      '<section class="panel priorities-panel"><div class="panel-head"><div><span class="eyebrow">O QUE FAZER AGORA</span>'+
+      '<h2>Prioridades do dia</h2></div><span class="mini-count">'+info.priorities.length+' pendência(s)</span></div>'+
+      (list||'<div class="empty-state"><strong>Tudo em dia por aqui.</strong><p>Nenhum retorno ou aprovação pendente nesta consulta.</p></div>')+
+      '</section><section class="panel next-actions"><span class="eyebrow">ACESSO RÁPIDO</span>'+
+      '<h2>Trabalho operacional</h2>'+
+      '<button type="button" data-overview="conversations"><span>Atendimentos</span><small>Conversas, histórico e lixeiras</small></button>'+
+      '<button type="button" data-overview="leads"><span>Oportunidades</span><small>Negociação, notas e histórico</small></button>'+
+      '<button type="button" data-overview="followups"><span>Agenda de retornos</span><small>Agendar, reagendar e concluir</small></button>'+
+      '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+
+      '</section></div>';
+  el('content').querySelectorAll('[data-overview]').forEach(b=>b.onclick=()=>view(b.dataset.overview));
+  el('content').querySelectorAll('[data-priority]').forEach(b=>b.onclick=()=>{
+    const p=info.priorities.find(a=>a.key===b.dataset.priority);
+    if(p)navigatePriority(p.target,p.followupId,p.leadId);
   });
 }
 function commercial(){
@@ -276,6 +296,44 @@ function commercial(){
     '<article><h3>LCRM</h3><p>Clientes, tarefas, oportunidades e canais do CRM.</p><a class="cta" href="'+
     systemCatalog.find(item=>item.code==='LCRM').url+'">Abrir LCRM</a></article></div></section>';
   el('content').querySelectorAll('[data-commercial-view]').forEach(button=>button.onclick=()=>view(button.dataset.commercialView));
+}
+
+const crmStages=[
+  ['new','Novos'],['diagnosing','Diagnóstico'],['qualified','Qualificados'],
+  ['human_review','Revisão'],['contacted','Contato feito'],['proposal','Propostas'],['won','Fechados']
+];
+function openOpportunity(id){
+  leadFocus=id;el('search').value='';view('leads');
+  showOpportunity(id);
+}
+function crm(){
+  const active=state.leads.filter(l=>!['archived','lost'].includes(l.status));
+  const closed=state.leads.filter(l=>['archived','lost'].includes(l.status)).length;
+  const cols=crmStages.map(([status,title])=>{
+    const matches=active.filter(l=>l.status===status);
+    return '<section class="pipeline-column"><div class="pipeline-col-head"><span>'+esc(title)+'</span>'+
+      '<b>'+matches.length+'</b></div><div class="pipeline-col-body">'+
+      (matches.map(l=>
+        '<button type="button" class="pipeline-card" data-crm-lead="'+esc(l.id)+'">'+
+        '<strong>'+esc(l.name)+'</strong><small>'+esc(l.suggested_solution||l.intent||'Interesse não informado')+'</small>'+
+        '<span>'+esc(dateLabel(l.updated_at))+'</span></button>').join('')||
+        '<p class="pipeline-empty">Sem oportunidades</p>')+'</div></section>';
+  }).join('');
+  el('content').innerHTML=
+    '<section class="crm-topbar"><div><span class="eyebrow">CRM LACROSE</span>'+
+    '<h2>Funil comercial</h2><p>Etapas e registros reais do banco — movimentação com autorização e histórico.</p></div>'+
+    '<div><button type="button" class="cta" data-crm-goto="leads">Gerenciar oportunidades</button>'+
+    '<button type="button" class="cta secondary" data-crm-goto="followups">Nova atividade</button></div></section>'+
+    '<div class="grid crm-mini-stats">'+k('Oportunidades abertas',active.length,'Em atendimento')+
+      k('Retornos pendentes',state.followups.filter(f=>f.status==='pending').length,'Na agenda')+
+      k('Encerrados / arquivados',closed,'Histórico preservado')+'</div>'+
+    '<div class="pipeline-board" aria-label="Funil comercial">'+cols+'</div>'+
+    '<p class="support-note">Negociação, notas, mudanças de etapa e agendamento são feitos na ficha de cada oportunidade.</p>';
+  el('content').querySelectorAll('[data-crm-lead]').forEach(b=>b.onclick=()=>openOpportunity(b.dataset.crmLead));
+  el('content').querySelectorAll('[data-crm-goto]').forEach(b=>b.onclick=()=>{
+    view(b.dataset.crmGoto);
+    if(b.dataset.crmGoto==='followups')openFollowupEditor('create');
+  });
 }
 function leads(){
   const q=(el('search')?.value||'').trim().toLowerCase();
