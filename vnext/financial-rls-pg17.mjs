@@ -13,32 +13,44 @@ export async function verifyFinancialRls(pool,workspace,{a,b,adminA,adminB}){
     [a,viewerA,operatorA]
   );
 
-  for(const [tenant,code,state] of [[a,'a','paid'],[b,'b','overdue']]){
-    const {rows:[client]}=await pool.query(
+  const writer=await pool.connect();
+  try{
+    await writer.query('begin');
+    for(const [tenant,code,state,actor] of [[a,'a','paid',adminA],[b,'b','overdue',adminB]]){
+      await writer.query("select set_config('request.jwt.claims',$1,true)",
+        [JSON.stringify({sub:actor,aal:'aal2'})]);
+    const {rows:[client]}=await writer.query(
       'insert into lkz_vnext.clients(tenant_id,name,email) values($1,$2,$3) returning id',
       [tenant,'Fixture '+code,'fixture-'+code+'@example.test']
     );
-    const {rows:[product]}=await pool.query(
+    const {rows:[product]}=await writer.query(
       "insert into lkz_vnext.products(tenant_id,slug,name,kind) "+
       "values($1,$2,$3,'saas') returning id",
       [tenant,'sandbox-financial-'+code,'Synthetic '+code]
     );
-    const {rows:[plan]}=await pool.query(
+    const {rows:[plan]}=await writer.query(
       "insert into lkz_vnext.plans(tenant_id,product_id,name,amount_brl_cents,interval) "+
       "values($1,$2,$3,1000,'monthly') returning id",
       [tenant,product.id,'CI Billing '+code]
     );
-    const {rows:[draft]}=await pool.query(
+    const {rows:[draft]}=await writer.query(
       'insert into lkz_vnext.subscription_drafts(tenant_id,client_id,plan_id) '+
       'values($1,$2,$3) returning id',
       [tenant,client.id,plan.id]
     );
-    await pool.query(
+    await writer.query(
       'insert into lkz_vnext_billing.payment_bindings '+
       '(payment_id,tenant_id,subscription_id,customer_id,external_reference,expected_brl_cents,state) '+
       'values($1,$2,$3,$4,$5,1000,$6)',
       ['pay_ci_financial_'+code,tenant,draft.id,'cus_ci_financial_'+code,randomUUID(),state]
     );
+    }
+    await writer.query('commit');
+  }catch(error){
+    await writer.query('rollback');
+    throw error;
+  }finally{
+    writer.release();
   }
 
   async function asUser(sub,aal,sql,args=[]){
