@@ -65,9 +65,13 @@ function mount({target,preview,sb,isSessionActive}){
        response.data?.delivery_enabled!==false||
        response.data?.dry_run_only!==true||
        !Array.isArray(response.data?.blockers)){
-      feedback.textContent='Diagnóstico não confirmado ('+
-        (response.error?.code||'RESPOSTA_INVALIDA')+
-        '). A retentativa reutilizará o mesmo identificador.';
+      const code=response.error?.code||'RESPOSTA_INVALIDA';
+      // Manter chave somente se a resposta pode ter sido perdida depois da gravação.
+      const uncertain=code==='NETWORK'||code==='TIMEOUT'||code==='08P01';
+      if(!uncertain)retries.delete(key);
+      feedback.textContent='Diagnóstico não confirmado ('+code+'). '+
+        (uncertain?'A retentativa reutilizará o identificador.':
+          'Corrija o impedimento e consulte novamente.');
       return;
     }
     retries.delete(key);
