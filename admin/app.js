@@ -1306,6 +1306,28 @@ function clients(feedback=''){
     if(!val('company_name')&&!val('person_name')){
       status.textContent='Informe a empresa ou pessoa de contato.';return;
     }
+    if(newMode){
+      const enteredEmail=val('email').toLowerCase();
+      const enteredPhone=normalizedPhone(val('phone'));
+      const duplicates=state.contacts.filter(c=>
+        (enteredEmail&&c.email?.trim().toLowerCase()===enteredEmail)||
+        (enteredPhone&&normalizedPhone(c.phone)===enteredPhone)
+      );
+      if(duplicates.length){
+        const match=duplicates[0];
+        if(clientDraft?.conversation_id){
+          status.textContent='Possível duplicidade com '+contactDisplayName(match)+
+            '. Volte ao atendimento e use “Vincular existente”, sem criar outro cadastro.';
+          return;
+        }
+        const approved=await askConfirmation({
+          title:'Possível cliente duplicado',
+          message:'Existe cadastro com e-mail ou telefone igual: '+contactDisplayName(match)+
+            '. Confirme somente se for outra pessoa ou empresa e você realmente precisar de um novo cadastro.'
+        });
+        if(!approved||!form.isConnected)return;
+      }
+    }
     const payload={
       p_company:val('company_name'),p_name:val('person_name'),
       p_segment:val('segment'),p_email:val('email'),p_phone:val('phone'),
