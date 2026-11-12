@@ -9,7 +9,7 @@ const end=source.indexOf('function startConversationPolling(',begin);
 assert.ok(begin>=0&&end>begin,'Sincronização automática não encontrada');
 const snippet=source.slice(begin,end);
 
-function harness({remote,selected=false,filterActive=false,visible=true,view='conversations',error=null}={}){
+function harness({remote,selected=false,filterActive=false,visible=true,view='conversations',error=null,count=null,dialogActive=false}={}){
   let requests=0,reloads=0,renders=0,reopens=0;
   const initial=[{id:'t1',last:'2026-11-11T10:00:00Z',folder:'active'}];
   const recent=remote??[{id:'t1',last_message_at:'2026-11-11T10:00:00Z',started_at:'2026-11-11T09:00:00Z'}];
@@ -24,7 +24,8 @@ function harness({remote,selected=false,filterActive=false,visible=true,view='co
   const elements={app,chatWorkspace:root,messagePane:pane,threadFilter:filter};
   const ctx={
     user:{id:'test-admin'},endingForIdle:false,currentView:view,conversationPollBusy:false,
-    state:{threads:initial},conversationFocus:'t1',conversationFolder:'active',
+    state:{threads:initial,loadMeta:{counts:{conversations:1}}},conversationFocus:'t1',conversationFolder:'active',
+    activeDialogCancel:dialogActive?()=>{}:null,
     document:{visibilityState:visible?'visible':'hidden',activeElement:filterActive?filter:null},
     el:id=>elements[id]||null,
     sb:{from:table=>{
@@ -32,7 +33,7 @@ function harness({remote,selected=false,filterActive=false,visible=true,view='co
       return {select:fields=>{
         assert.equal(fields,'id,last_message_at,started_at');
         return {order:(field)=>({
-          limit:async()=>{requests++;return {data:recent,error};}
+          limit:async()=>{requests++;return {data:recent,error,count};}
         })};
       }};
     }},
@@ -95,4 +96,18 @@ test('não altera a interface quando a consulta retorna erro',async()=>{
   assert.equal(x.report().reloads,0);
   assert.equal(x.report().renders,0);
   assert.equal(x.report().busy,false);
+});
+
+test('mudança no total detecta registros após o primeiro lote de 100',async()=>{
+  const x=harness({count:101});
+  await x.run();
+  assert.equal(x.report().requests,1);
+  assert.equal(x.report().reloads,1);
+});
+
+test('não redesenha atendimento enquanto existe modal de confirmação/vínculo',async()=>{
+  const x=harness({dialogActive:true});
+  await x.run();
+  assert.equal(x.report().requests,0);
+  assert.equal(x.report().renders,0);
 });

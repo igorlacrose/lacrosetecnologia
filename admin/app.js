@@ -248,6 +248,8 @@ function threadStampKey(items){
 }
 function conversationRefreshBlocked(){
   if(typeof trashBusy!=='undefined'&&trashBusy)return true;
+  // Nunca redesenhar um atendimento durante uma confirmação ou vínculo de cliente.
+  if(typeof activeDialogCancel!=='undefined'&&activeDialogCancel)return true;
   const root=el('chatWorkspace'),pane=el('messagePane');
   return !root?.isConnected ||
     document.activeElement===el('threadFilter') ||
@@ -261,12 +263,14 @@ async function refreshLiveConversations(){
      document.visibilityState!=='visible'||conversationPollBusy||conversationRefreshBlocked())return;
   conversationPollBusy=true;
   try{
-    const {data,error}=await sb.from('conversations')
-      .select('id,last_message_at,started_at')
+    const {data,error,count}=await sb.from('conversations')
+      .select('id,last_message_at,started_at',{count:'exact'})
       .order('last_message_at',{ascending:false}).limit(100);
     if(error||!user||currentView!=='conversations'||conversationRefreshBlocked())return;
     const remoteKey=JSON.stringify((data||[]).map(item=>[item.id,item.last_message_at||item.started_at]));
-    if(remoteKey===threadStampKey(state.threads.slice(0,100)))return;
+    const currentTotal=state.loadMeta?.counts?.conversations;
+    const countChanged=Number.isSafeInteger(count)&&Number.isSafeInteger(currentTotal)&&count!==currentTotal;
+    if(!countChanged&&remoteKey===threadStampKey(state.threads.slice(0,100)))return;
 
     const selected=conversationFocus,folder=conversationFolder;
     const messageFolder=el('messagePane')?.querySelector('[data-folder][aria-pressed="true"]')?.dataset.folder||'active';
@@ -1041,6 +1045,12 @@ async function openThread(id,folder='active',before=null,feedback=''){
     ?'<button type="button" class="cta secondary" data-message-contact="open">Abrir cliente</button>'
     :(thread.lead_id?'<button type="button" class="cta secondary" data-message-contact="link">Vincular existente</button>':'')+
       '<button type="button" class="cta secondary" data-message-contact="new">Novo cliente</button>';
+  const linkedLead=state.leads.find(l=>l.id===thread.lead_id);
+  const canSchedule=linkedLead&&!['won','lost','archived'].includes(linkedLead.status);
+  const crmControls=linkedLead?
+    '<button type="button" class="cta secondary" data-message-lead>Abrir oportunidade</button>'+
+    (canSchedule&&thread.folder!=='deleted'?
+      '<button type="button" class="cta secondary" data-message-schedule>Agendar retorno</button>':''):'';
   const controls=thread.folder==='deleted'
     ?'<button type="button" class="cta" data-conversation-action="restore">Restaurar atendimento</button>'+
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
@@ -1067,7 +1077,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
         '<h2>'+esc(thread.lead)+'</h2><small>'+(leadForContact?.contact_id?'Cliente vinculado':
         thread.contactState==='suggested'?'Possível cliente encontrado · confirme a identidade':
         'Cliente ainda não vinculado')+'</small></div>'+
-        '<div class="conversation-actions">'+contactControl+controls+'</div></div>'+
+        '<div class="conversation-actions">'+contactControl+crmControls+controls+'</div></div>'+
     '</div>'+
     '<nav class="message-tools" aria-label="Pastas das mensagens">'+Object.entries(messageFolders).map(([key,title])=>
       '<button class="cta" type="button" data-folder="'+key+'" aria-pressed="'+(folder===key)+'">'+
@@ -1091,6 +1101,13 @@ async function openThread(id,folder='active',before=null,feedback=''){
     '</div>';
   page.querySelector('.message-back').onclick=()=>el('chatWorkspace')?.classList.remove('is-detail');
   page.querySelector('[data-empty-messages]')?.addEventListener('click',()=>emptyTrash('messages',id));
+  page.querySelector('[data-message-lead]')?.addEventListener('click',()=>openOpportunity(thread.lead_id));
+  page.querySelector('[data-message-schedule]')?.addEventListener('click',()=>{
+    followupFocus=null;
+    followupFilter='pending';
+    view('followups');
+    openFollowupEditor('create',null,thread.lead_id);
+  });
   page.querySelectorAll('[data-conversation-action]').forEach(button=>button.onclick=()=>conversationAction(id,button.dataset.conversationAction));
   page.querySelectorAll('[data-message-contact]').forEach(contactButton=>contactButton.addEventListener('click',async()=>{
     if(contactButton.dataset.messageContact==='link'){openContactSelector(thread);return;}
