@@ -75,3 +75,7 @@ check('Atendimento agenda retorno no CRM interno',app.includes('data-message-sch
 check('Atendimento não agenda para oportunidade fechada',app.includes("!['won','lost','archived'].includes(linkedLead.status)"));
 check('Polling detecta alterações acima dos primeiros 100',app.includes("count:'exact'")&&app.includes('countChanged'));
 check('Polling preserva diálogo em aberto',app.includes('activeDialogCancel!==')||app.includes("typeof activeDialogCancel!=='undefined'&&activeDialogCancel"));
+
+check('Central manual carregada na ficha de oportunidade',app.includes('LKZCrmComms.mount')&&html.includes('crm-comms.js?v=20261112-1'));
+check('Estilo isolado carregado',html.includes('crm-comms.css?v=20261112-1'));
+check('Nenhuma chave privada de API introduzida',!app.includes('sb_secret_')&&!html.includes('service_role'));
