@@ -71,13 +71,16 @@ async function mount({panel,lead,sb,confirm,isMaster=false,isSessionActive,forma
       row(box,'div','crm-preview-destination','Destino verificado: '+String(item.recipient||''));
       const message=row(box,'p','crm-preview-message',item.body||'');
       message.setAttribute('aria-label','Texto da prévia');
+      const warnings=[];
+      if(!item.consent_ready)warnings.push('Consentimento com data não registrado ou revogado');
+      if(!item.recipient_current)warnings.push('Destino alterado');
+      if(!item.draft_current)warnings.push('Rascunho alterado');
+      if(item.status==='pending'&&warnings.length)
+        row(box,'p','crm-preview-warning','Aprovação bloqueada: '+warnings.join('; ')+'.');
+      if(item.status==='approved'&&warnings.length)
+        row(box,'p','crm-preview-warning',
+          'Aprovação antiga não está mais apta: '+warnings.join('; ')+'. Continua sem envio.');
       if(item.status==='pending'){
-        const warnings=[];
-        if(!item.consent_ready)warnings.push('Consentimento com data ainda não registrado');
-        if(!item.recipient_current)warnings.push('Destino foi alterado');
-        if(!item.draft_current)warnings.push('Rascunho foi alterado');
-        if(warnings.length)row(box,'p','crm-preview-warning',
-          'Aprovação bloqueada: '+warnings.join('; ')+'.');
         const decision=node('div','crm-preview-decision');
         const reason=document.createElement('textarea');
         reason.maxLength=500;reason.rows=2;
