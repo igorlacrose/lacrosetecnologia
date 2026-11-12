@@ -1,0 +1,76 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync('admin/app.js','utf8');
+const start=source.indexOf('const LIST_BATCH_SIZE=');
+const end=source.indexOf('async function loadCommercial(){',start);
+assert.ok(start>=0&&end>start,'Carregador paginado não encontrado');
+const triageStart=source.indexOf('function ocaInternalTriage(');
+const triageEnd=source.indexOf('function openTriageAction(',triageStart);
+assert.ok(triageStart>=0&&triageEnd>triageStart,'Triagem OCA não encontrada');
+
+async function checkPaging(numRecords){
+  const values=Array.from({length:numRecords},(_,i)=>({id:String(i+1)}));
+  const calls=[];
+  const sb={
+    from(table){
+      assert.equal(table,'leads');
+      return {
+        select(fields,options){
+          assert.equal(fields,'*');
+          return {
+            order(){return this},
+            async range(first,last){
+              calls.push([first,last,options.count]);
+              return {data:values.slice(first,last+1),count:options.count==='exact'?values.length:null,error:null};
+            }
+          };
+        }
+      };
+    }
+  };
+  const ctx=vm.createContext({sb,Number,Date,String});
+  vm.runInContext(source.slice(start,end),ctx,{timeout:3000});
+  const fn=vm.runInContext('loadPaged',ctx);
+  const response=await fn('leads','*','updated_at');
+  assert.equal(response.count,numRecords);
+  assert.equal(response.loaded,Math.min(numRecords,3000));
+  assert.equal(response.partial,numRecords>3000);
+  assert.equal(calls.length,Math.ceil(Math.min(numRecords||1,3000)/200));
+  assert.equal(calls[0][2],'exact');
+  for(let i=1;i<calls.length;i++){
+    assert.equal(calls[i][0],calls[i-1][1]+1);
+  }
+}
+
+async function main(){
+  await checkPaging(0);
+  await checkPaging(17);
+  await checkPaging(205);
+  await checkPaging(3002);
+  console.log('OK: paginacao e corte de 3000 com aviso de parcialidade');
+
+  const scope=vm.createContext({Date,Set,Number});
+  vm.runInContext(source.slice(triageStart,triageEnd),scope,{timeout:3000});
+  const fn=vm.runInContext('ocaInternalTriage',scope);
+  const dataset={
+    leads:[
+      {id:'a',name:'Revisao',status:'human_review',contact_id:'client1',updated_at:'2026-11-11T14:00:00Z'},
+      {id:'b',name:'Sem contato',status:'new',contact_id:null,updated_at:'2026-11-11T14:00:00Z'},
+      {id:'c',name:'Qualificado',status:'qualified',contact_id:'client2',updated_at:'2026-11-11T14:00:00Z'},
+      {id:'d',name:'Com retorno',status:'qualified',contact_id:'client3',updated_at:'2026-11-11T14:00:00Z'},
+      {id:'e',name:'Encerrado',status:'won',contact_id:'client4',updated_at:'2026-11-11T14:00:00Z'}
+    ],
+    followups:[{lead_id:'d',status:'pending'}]
+  };
+  const actions=fn(dataset,Date.parse('2026-11-12T18:00:00Z'));
+  assert.equal(actions.length,3);
+  assert.deepEqual(actions.map(a=>a.action).join(','),'review,identify,schedule');
+  assert.ok(!actions.some(a=>a.id==='d'||a.id==='e'));
+  console.log('OK: triagem prioriza revisao, identidade e retorno sem duplicidade');
+  assert.ok(source.includes('const ADMIN_IDLE_MS=30*60*1000'));
+  assert.ok(source.includes('function dataScopeNotice()'));
+  console.log('OK: hardening 30 min e aviso de carga parcial');
+}
+main().catch(e=>{console.error(e);process.exitCode=1});

@@ -57,5 +57,8 @@ jobs:
       - name: Testar regressões do LKZ ADM
         run: node scripts/lkz_adm_regression_check.cjs
 
+      - name: Testar paginação e triagem interna do LKZ ADM
+        run: node scripts/test_lkz_adm_scaling.cjs
+
       - name: Verificar segredos no histórico Git
         run: python scripts/secret_history_check.py
