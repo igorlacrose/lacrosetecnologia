@@ -11,7 +11,7 @@
   display:flex;align-items:start;flex-direction:column;gap:7px}
 .consent-channel-card>strong{color:#193e50;font-size:14px}
 .consent-channel-card span{font-size:12px;font-weight:770}
-.consent-active{color:#23795a}.consent-revoked{color:#a24550}.consent-unknown{color:#7b6872}
+.consent-active{color:#23795a}.consent-revoked{color:#a24550}.consent-stale{color:#ad612d}.consent-unknown{color:#7b6872}
 .consent-channel-card small,.consent-channel-card p{font-size:12px;color:#607f8d;line-height:1.45;margin:0}
 .consent-channel-card textarea{min-height:62px;width:100%;resize:vertical;padding:10px;border:1px solid #cedde6;
   border-radius:9px;font-size:12.5px;color:#274a5c}
