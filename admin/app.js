@@ -448,6 +448,11 @@ function conversations(folder=conversationFolder,selectId=null){
       '<span class="thread-info"><b>'+esc(t.lead)+'</b><small>'+esc(t.channel)+' · '+esc(dateLabel(t.last))+'</small></span>'+
     '</button>').join('');
   el('content').innerHTML=
+    (folder==='deleted'&&profile?.role==='master'
+      ?'<div class="trash-toolbar"><div><strong>Lixeira de atendimentos</strong>'+
+        '<span>'+Number(state.trashStats?.conversations||0)+' atendimento(s) excluído(s)</span></div>'+
+        '<button class="cta danger-outline" type="button" data-empty-conversations>Esvaziar Lixeira de atendimentos</button></div>'
+      :'')+
     '<div class="chat" id="chatWorkspace">'+
       '<div class="threads"><div class="thread-header"><h2>Atendimentos</h2><p>'+threads.length+' nessa pasta</p>'+
         '<div class="conversation-folder-tabs" role="group" aria-label="Pastas de atendimentos">'+
@@ -460,6 +465,7 @@ function conversations(folder=conversationFolder,selectId=null){
         '<strong>Selecione um atendimento</strong><span>Gerencie histórico, mensagens e o atendimento completo.</span></div></div>'+
     '</div>';
   const root=el('chatWorkspace');
+  el('content').querySelector('[data-empty-conversations]')?.addEventListener('click',()=>emptyTrash('conversations'));
   root.querySelectorAll('[data-workfolder]').forEach(button=>button.onclick=()=>{
     conversationFocus=null;conversationFlash='';conversations(button.dataset.workfolder);
   });
