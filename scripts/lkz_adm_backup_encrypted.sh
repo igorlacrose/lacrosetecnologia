@@ -89,7 +89,6 @@ pg_dump \
   --format=custom \
   --no-owner \
   --no-acl |
-
   gpg --symmetric --cipher-algo AES256 --compress-algo none \
     --output "$ENCRYPTED_TEMP"
 
