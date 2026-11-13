@@ -55,10 +55,10 @@ test('runbook diferencia índice de teste real de restauração',()=>{
 });
 
 test('inventário pré-backup é apenas leitura e é obrigatório no script',()=>{
- const sql=preflight.split('\\n').filter(line=>!line.trim().startsWith('--')).join('\\n');
+ const sql=preflight.split('\n').filter(line=>!line.trim().startsWith('--')).join('\n');
  assert.match(sql,/BEGIN TRANSACTION READ ONLY;/);
  assert.match(sql,/COMMIT;/);
- assert.doesNotMatch(sql,/\\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|COPY|DO)\\b/i);
+ assert.doesNotMatch(sql,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|COPY|DO)\b/i);
  assert.match(source,/psql -X --set ON_ERROR_STOP=1/);
  assert.match(source,/PREFLIGHT_NAME='lkz_adm_preflight_readonly.sql'/);
  assert.match(doc,/Supabase CLI v3/);
