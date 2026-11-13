@@ -7,6 +7,7 @@ const scriptPath=new URL('./lkz_adm_backup_encrypted.sh',import.meta.url);
 const docPath=new URL('../docs/LKZ_ADM_BACKUP_E_MIGRACAO_GATE.md',import.meta.url);
 const source=fs.readFileSync(scriptPath,'utf8');
 const doc=fs.readFileSync(docPath,'utf8');
+const preflight=fs.readFileSync(new URL('./lkz_adm_preflight_readonly.sql',import.meta.url),'utf8');
 
 test('script Bash completo: parser aceita e execução sem destino falha fechada',()=>{
  const syntax=spawnSync('bash',['-n',scriptPath.pathname],{encoding:'utf8'});
@@ -51,4 +52,15 @@ test('runbook diferencia índice de teste real de restauração',()=>{
  assert.match(doc,/NÃO exporta conteúdo dos objetos do Storage API/);
  assert.match(doc,/MASTER\+MFA/);
  assert.match(doc,/supabase\/migrations\/20261112233300/);
+});
+
+test('inventário pré-backup é apenas leitura e é obrigatório no script',()=>{
+ const sql=preflight.split('\n').filter(line=>!line.trim().startsWith('--')).join('\n');
+ assert.match(sql,/BEGIN TRANSACTION READ ONLY;/);
+ assert.match(sql,/COMMIT;/);
+ assert.doesNotMatch(sql,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|COPY|DO)\b/i);
+ assert.match(source,/psql -X --set ON_ERROR_STOP=1/);
+ assert.match(source,/PREFLIGHT_NAME='lkz_adm_preflight_readonly.sql'/);
+ assert.match(doc,/Supabase CLI v3/);
+ assert.match(doc,/não é um processo completo nem diretamente restaurável/);
 });
