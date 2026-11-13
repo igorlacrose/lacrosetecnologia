@@ -8,6 +8,7 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
+check('Financeiro acessível pelo menu lateral',html.includes('data-view="finance"')&&app.includes('function finance()'));
 const catalog=app.slice(app.indexOf('const systemCatalog='),app.indexOf('const esc='));
 check('Sistemas aprovados no painel',catalog.includes("name:'LibertyOS'")&&
   catalog.includes("name:'BarbarOS'")&&(catalog.match(/name:/g)||[]).length===2);
