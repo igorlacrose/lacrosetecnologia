@@ -36,7 +36,7 @@ chmod 600 -- "$TMP_DIR/passphrase"
 readonly ENCRYPTED="$TMP_DIR/fixture.pgdump.gpg"
 
 # Reproduz a sequência de produção, mas apenas sobre a base sintética.
-pg_dump --format=custom --no-owner --no-acl --file=- |
+pg_dump --format=custom --no-owner --no-acl  |
   gpg --batch --yes --pinentry-mode loopback \
     --passphrase-file "$TMP_DIR/passphrase" \
     --symmetric --cipher-algo AES256 --compress-algo none \
