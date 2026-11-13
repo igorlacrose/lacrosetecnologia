@@ -35,8 +35,21 @@ gpg --gen-random 2 48 | base64 > "$TMP_DIR/passphrase"
 chmod 600 -- "$TMP_DIR/passphrase"
 readonly ENCRYPTED="$TMP_DIR/fixture.pgdump.gpg"
 
+# Proprietários e permissões da fixture também precisam sobreviver.
+# O role de origem é global neste cluster descartável e não possui login.
+psql -v ON_ERROR_STOP=1 -d "$PGDATABASE" <<'SQL'
+CREATE ROLE lkz_backup_fixture_owner NOLOGIN;
+CREATE TABLE lkz_adm_private.restore_acl_fixture (
+  id integer PRIMARY KEY, value text NOT NULL
+);
+INSERT INTO lkz_adm_private.restore_acl_fixture VALUES (1, 'backup-safe');
+ALTER TABLE lkz_adm_private.restore_acl_fixture OWNER TO lkz_backup_fixture_owner;
+GRANT SELECT ON lkz_adm_private.restore_acl_fixture TO authenticated;
+REVOKE ALL ON lkz_adm_private.restore_acl_fixture FROM anon;
+SQL
+
 # Reproduz a sequência de produção, mas apenas sobre a base sintética.
-pg_dump --format=custom --no-owner --no-acl |
+pg_dump --format=custom |
   gpg --batch --yes --pinentry-mode loopback \
     --passphrase-file "$TMP_DIR/passphrase" \
     --symmetric --cipher-algo AES256 --compress-algo none \
@@ -68,7 +81,7 @@ createdb "$DEST_DB"
 gpg --batch --quiet --pinentry-mode loopback \
   --passphrase-file "$TMP_DIR/passphrase" \
   --decrypt "$ENCRYPTED" |
-  pg_restore --exit-on-error --no-owner --no-acl --dbname="$DEST_DB"
+  pg_restore --exit-on-error --dbname="$DEST_DB"
 
 # Comparar IDs e classes do conteúdo, preservando a auditoria de exclusividade.
 sql="select quote_id::text || '|' || document_kind || '|' || document_id::text
@@ -112,6 +125,21 @@ protected="$(psql -v ON_ERROR_STOP=1 -At -d "$DEST_DB" -c "$protection_sql")"
   exit 1
 }
 
+# Comprovar proprietário real, GRANT positivo, negativa para anon e dados.
+acl_sql="SELECT (
+  pg_get_userbyid(c.relowner)='lkz_backup_fixture_owner'
+  AND has_table_privilege('authenticated','lkz_adm_private.restore_acl_fixture','SELECT')
+  AND NOT has_table_privilege('anon','lkz_adm_private.restore_acl_fixture','SELECT')
+  AND (SELECT value FROM lkz_adm_private.restore_acl_fixture WHERE id=1)='backup-safe'
+)::text
+FROM pg_class c
+WHERE c.oid='lkz_adm_private.restore_acl_fixture'::regclass;"
+acl="$(psql -v ON_ERROR_STOP=1 -At -d "$DEST_DB" -c "$acl_sql")"
+[[ "$acl" == 'true' ]] || {
+  echo 'ERRO: proprietário, ACL ou conteúdo do fixture não foram restaurados.' >&2
+  exit 1
+}
+
 # Tentativa de criar documento oposto deve ser rejeitada após recuperação.
 if psql -v ON_ERROR_STOP=1 -d "$DEST_DB" -c "
   insert into lkz_adm_private.signature_dossiers
@@ -125,4 +153,4 @@ if psql -v ON_ERROR_STOP=1 -d "$DEST_DB" -c "
   exit 1
 fi
 
-echo 'PASS: backup GPG + checksum + restauração real com registros, RLS e triggers.'
+echo 'PASS: backup GPG + restauração com dados, RLS, triggers, proprietário e ACL.'
