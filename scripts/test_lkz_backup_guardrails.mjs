@@ -33,6 +33,7 @@ test('sem credenciais no código ou argumentos e alvo fixo correto',()=>{
 
 test('dump em stream criptografado, com validação local e sem deploy',()=>{
  assert.match(source,/pg_dump\s+\\/);
+ assert.doesNotMatch(source,/--file(?:=|\s+)-(?:\s|$)/m, 'pg_dump nunca deve criar arquivo literal -');
  assert.match(source,/--format=custom/);
  assert.match(source,/gpg --symmetric --cipher-algo AES256/);
  assert.match(source,/pg_restore --list/);

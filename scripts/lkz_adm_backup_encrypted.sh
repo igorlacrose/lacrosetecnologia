@@ -88,8 +88,7 @@ printf 'Confirme a senha forte no GPG. O banco não será modificado.\n'
 pg_dump \
   --format=custom \
   --no-owner \
-  --no-acl \
-  --file=- |
+  --no-acl |
   gpg --symmetric --cipher-algo AES256 --compress-algo none \
     --output "$ENCRYPTED_TEMP"
 
