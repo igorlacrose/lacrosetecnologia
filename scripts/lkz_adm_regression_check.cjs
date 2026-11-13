@@ -12,6 +12,9 @@ check('CSS premium carregado com versão de cache',/href="premium\.css\?v=\d{8}-
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));
+check('Arquivo comercial acessível e arquivamento confirmado',
+  app.includes('data-toggle-archived')&&app.includes("title:'Arquivar oportunidade?'")&&
+  app.includes('Registre o motivo do arquivamento'));
 check('Lixeira de mensagens e atendimentos',app.includes("data-empty-messages")&&app.includes("data-empty-conversations"));
 check('Exclusão definitiva confirma e usa API autorizada',app.includes('p_expected_count:count')&&app.includes("keyword:'ESVAZIAR'"));
 check('Sem acesso a service role no frontend',!app.includes('service_role')&&!app.includes('sb_secret_'));

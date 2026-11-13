@@ -12,4 +12,8 @@ A main em `b9d4374` contém o ADM em `admin/`, o exemplo de LKZ-CRM em `demo/lcr
 
 ## Publicação
 
+A tela Financeiro já permite conferir um backup JSON v2 do FluX Local Beta. O arquivo é lido no navegador e a prévia mostra totais e categorias após validar formato, duplicatas e checksum. A prévia não grava lançamentos. Arquivos CSV legados e gravação no livro caixa dependem da etapa de importação.
+
+A lista comercial tem uma visão de arquivadas. O painel pede motivo e confirmação ao arquivar e usa a mudança de etapa auditada já disponível. O motivo obrigatório é uma regra da interface neste incremento. O fluxo de expurgo por oportunidade ainda depende de controles no servidor.
+
 Validar a pilha paralela sobre a main atual, revisar permissões e executar os gates de PostgreSQL 17, Auth/MFA, RLS e integrações em homologação. Antes de qualquer migração ou publicação, seguir [o procedimento de backup e recuperação](LKZ_ADM_BACKUP_E_MIGRACAO_GATE.md) e comprovar restauração. O GitHub Pages publica a partir da main.

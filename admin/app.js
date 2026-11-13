@@ -10,6 +10,7 @@ const CONVERSATION_POLL_MS=20000;
 let currentView='overview',conversationPollTimer=null,conversationPollBusy=false;
 let conversationFolder='active',conversationFocus=null,conversationFlash='';
 let followupFilter='pending',followupFocus=null,leadFocus=null;
+let showArchivedLeads=false;
 let trashBusy=false;
 let clientFocus=null,clientMode='detail',clientDraft=null;
 let clientSearchTerm='',clientSearchTimer=null;
@@ -647,7 +648,9 @@ const crmStages=[
   ['human_review','Revisão'],['contacted','Contato feito'],['proposal','Propostas'],['won','Fechados']
 ];
 function openOpportunity(id){
-  leadFocus=id;el('search').value='';view('leads');
+  leadFocus=id;
+  showArchivedLeads=state.leads.some(lead=>lead.id===id&&lead.status==='archived');
+  el('search').value='';view('leads');
 }
 function crm(){
   const active=state.leads.filter(l=>!['archived','lost'].includes(l.status));
@@ -681,9 +684,10 @@ function crm(){
 
 function leads(){
   const query=(el('search')?.value||'').trim().toLowerCase();
-  const records=query?state.leads.filter(l=>
+  const visible=state.leads.filter(l=>(l.status==='archived')===showArchivedLeads);
+  const records=query?visible.filter(l=>
     [l.name,l.contact,l.intent,l.category,l.suggested_solution,l.problem]
-      .some(v=>String(v||'').toLowerCase().includes(query))):state.leads;
+      .some(v=>String(v||'').toLowerCase().includes(query))):visible;
   const table=records.map(l=>
     '<tr><td><div class="client-name-cell"><strong>'+esc(l.name)+'</strong>'+
       '<small>'+esc(l.source||'Origem não informada')+'</small></div></td>'+
@@ -693,13 +697,20 @@ function leads(){
   el('content').innerHTML=
     '<section class="crm-topbar"><div><span class="eyebrow">RELACIONAMENTO</span><h2>Oportunidades</h2>'+
     '<p>Registre a evolução comercial, acompanhe o histórico e programe retornos.</p></div>'+
-    '<button class="cta secondary" type="button" data-go-pipeline>Ver pipeline</button></section>'+
+    '<div><button class="cta secondary" type="button" data-go-pipeline>Ver pipeline</button>'+
+    '<button class="cta secondary" type="button" data-toggle-archived>'+
+    (showArchivedLeads?'Ver lista comercial':'Ver arquivadas')+'</button></div></section>'+
     dataScopeNotice()+'<p class="result-count">'+records.length+' oportunidade(s) encontrada(s) nos registros carregados</p>'+
     '<div id="leadDetails"></div><div class="table opportunity-table"><table>'+
     '<thead><tr><th>Oportunidade</th><th>Contato</th><th>Interesse</th><th>Etapa</th><th>Atualização</th><th>Ação</th></tr></thead>'+
     '<tbody>'+table+'</tbody></table></div>';
   el('content').querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>showOpportunity(b.dataset.lead));
   el('content').querySelector('[data-go-pipeline]').onclick=()=>view('crm');
+  el('content').querySelector('[data-toggle-archived]').onclick=()=>{
+    showArchivedLeads=!showArchivedLeads;
+    leadFocus=null;
+    leads();
+  };
   if(leadFocus&&records.some(l=>l.id===leadFocus))showOpportunity(leadFocus);
 }
 function leadEventTitle(type){
@@ -789,6 +800,13 @@ async function showOpportunity(id,feedback=''){
       status=form.querySelector('[name=status]').value,
       note=form.querySelector('[name=note]').value.trim();
     if(status===lead.status&&!note){target.textContent='Informe uma anotação ou altere a etapa.';return}
+    const archiving=status==='archived'&&status!==lead.status;
+    if(archiving){
+      if(!note){target.textContent='Registre o motivo do arquivamento na anotação.';return}
+      const confirmed=await askConfirmation({title:'Arquivar oportunidade?',
+        message:'A oportunidade sai da lista comercial. Conversas, histórico e registros vinculados ficam preservados.'});
+      if(!confirmed||!form.isConnected||!user)return;
+    }
     const controls=[...form.querySelectorAll('button,select,textarea')];
     controls.forEach(control=>control.disabled=true);
     target.textContent='Registrando atividade...';
@@ -805,6 +823,8 @@ async function showOpportunity(id,feedback=''){
     const current=state.leads.find(l=>l.id===id);
     if(current)Object.assign(current,result.data);
     try{await loadCommercial();}catch{}
+    if(!form.isConnected||!user)return;
+    showArchivedLeads=status==='archived';
     view('leads');
     const feedback=el('leadDetails')?.querySelector('[data-lead-status]');
     if(feedback)feedback.textContent='Atividade registrada e auditada.';
@@ -1804,7 +1824,16 @@ function finance(){
   const content=el('content');
   content.innerHTML='<section class="panel executive-pipeline"><h2>Operação financeira</h2>'+
     '<p class="support-note">Recebimentos, valores em aberto, inadimplência e caixa aguardam uma fonte financeira conciliada.</p>'+
-    '</section><div id="financeDrafts"></div>';
+    '</section><section class="panel executive-pipeline" id="fluxPreview">'+
+    '<h2>Lacrose FluX</h2><p class="support-note">Confira um backup do FluX Local Beta antes da migração. A conferência ocorre neste navegador.</p>'+
+    '<label>Backup JSON do FluX <input type="file" accept=".json,application/json"></label>'+
+    '<p role="status"></p><ul data-flux-summary></ul></section><div id="financeDrafts"></div>';
+  if(typeof mountFluxPreview==='function')mountFluxPreview(el('fluxPreview'));
+  else{
+    const preview=el('fluxPreview');
+    preview.querySelector('input').disabled=true;
+    preview.querySelector('[role=status]').textContent='Prévia indisponível. Atualize a página.';
+  }
   const drafts=el('financeDrafts');
   if(window.LKZClientServices?.mountFinance){
     void window.LKZClientServices.mountFinance({target:drafts,sb});
