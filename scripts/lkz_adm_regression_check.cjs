@@ -8,7 +8,7 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
-check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-4'));
+check('CSS premium carregado com versão de cache',/href="premium\.css\?v=\d{8}-\d+"/.test(html));
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));

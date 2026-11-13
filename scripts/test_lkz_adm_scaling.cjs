@@ -69,6 +69,24 @@ async function main(){
   assert.deepEqual(actions.map(a=>a.action).join(','),'review,identify,schedule');
   assert.ok(!actions.some(a=>a.id==='d'||a.id==='e'));
   console.log('OK: triagem prioriza revisao, identidade e retorno sem duplicidade');
+  const metricsStart=source.indexOf('function executiveMetrics(');
+  const metricsEnd=source.indexOf('function overview(',metricsStart);
+  const stagesStart=source.indexOf('const crmStages=');
+  const stagesEnd=source.indexOf('function openOpportunity(',stagesStart);
+  const metrics=vm.runInNewContext(
+    source.slice(stagesStart,stagesEnd)+source.slice(metricsStart,metricsEnd)+'executiveMetrics');
+  const report=metrics({
+    leads:['new','proposal','won','lost','lost','archived'].map(status=>({status})),
+    loadMeta:{partial:true}
+  });
+  assert.equal(report.open,2);
+  assert.equal(report.decided,3);
+  assert.equal(report.winRate,1/3);
+  assert.equal(report.archived,1);
+  assert.equal(report.partial,true);
+  assert.equal(report.pipeline.reduce((sum,[,count])=>sum+count,0),3);
+  assert.equal(metrics({leads:[]}).winRate,null);
+  console.log('OK: funil executivo, taxa de fechamento e amostra parcial');
   assert.ok(source.includes('const ADMIN_IDLE_MS=30*60*1000'));
   assert.ok(source.includes('function dataScopeNotice()'));
   console.log('OK: hardening 30 min e aviso de carga parcial');

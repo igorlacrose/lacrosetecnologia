@@ -64,6 +64,10 @@ header p{font-size:14px;color:#587384;margin:0}
 .kpi strong{color:#0b3044;font-weight:830;letter-spacing:-.045em;font-size:30px;line-height:1.35}
 .kpi small{color:#65808c;font-size:11px}
 .dashboard-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 19px}
+.executive-pipeline{margin-bottom:19px}
+.executive-pipeline dl{margin:0}
+.executive-pipeline dt{color:var(--muted)}
+.executive-pipeline dd{margin:0}
 .welcome-strip{background:linear-gradient(120deg,#092a3d,#0d4e63 80%);
   border:1px solid rgba(24,153,181,.16);border-radius:18px;box-shadow:0 14px 38px rgba(11,51,72,.14);
   color:#fff;padding:27px 30px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:22px}

@@ -309,7 +309,7 @@ const titles={
   oca:['OCA · Operações','Tarefas internas criadas automaticamente pelo motor de regras.'],
   systems:['Sistemas','Acesso operacional aos sistemas da Lacrose.'],
   clients:['Clientes','Cadastros e contatos comerciais.'],
-  finance:['Financeiro','Integração de cobrança pendente.'],
+  finance:['Financeiro','Minutas comerciais e situação da operação financeira.'],
   usage:['Atividade','Indicadores dos registros comerciais carregados.'],
   tasks:['Demandas','Pendências comerciais que precisam de ação.'],
   commercial:['Visão comercial','Resumo dos registros comerciais.'],
@@ -421,26 +421,58 @@ function navigatePriority(target,followupId,leadId){
     openOpportunity(leadId);
   }else view('crm');
 }
+function executiveMetrics(data){
+  const stages=new Map();
+  for(const lead of data.leads){
+    stages.set(lead.status,(stages.get(lead.status)||0)+1);
+  }
+  const won=stages.get('won')||0;
+  const lost=stages.get('lost')||0;
+  const archived=stages.get('archived')||0;
+  const closed=won+lost;
+  return {
+    open:data.leads.length-closed-archived,
+    decided:closed,
+    winRate:closed?won/closed:null,
+    pipeline:crmStages.map(([status,title])=>[title,stages.get(status)||0]),
+    lost,archived,
+    partial:Boolean(data.loadMeta?.partial)
+  };
+}
 function overview(){
   const info=dailyBrief(state);
+  const metrics=executiveMetrics(state);
   const suggestions=ocaInternalTriage(state);
   const list=info.priorities.slice(0,12).map(item=>
     '<article class="priority-item"><span class="priority-dot'+(item.priority===0?' overdue':'')+'"></span>'+
       '<div><strong>'+esc(item.name)+'</strong><small>'+esc([...item.reasons].join(' · '))+'</small></div>'+
       '<button class="cta secondary" type="button" data-priority="'+esc(item.key)+'">Abrir ficha</button></article>').join('');
-  const pending=state.followups.filter(f=>f.status==='pending').length;
+  const winRate=metrics.winRate===null?'—':
+    new Intl.NumberFormat('pt-BR',{style:'percent',maximumFractionDigits:1}).format(metrics.winRate);
   el('content').innerHTML=
     '<section class="welcome-strip"><div><span class="eyebrow">OPERAÇÃO COMERCIAL</span>'+
     '<h2>Seu negócio, em uma única central.</h2>'+
-    '<p>Clientes, conversas, oportunidades e agenda trabalhando juntos — sem depender de outro CRM.</p></div>'+
+    '<p>Acompanhe o funil comercial, os retornos e as aprovações.</p></div>'+
     '<div class="welcome-actions"><button type="button" class="cta" data-overview="crm">Abrir CRM</button>'+
     '<button type="button" class="cta secondary" data-overview="followups">Agenda</button></div></section>'+
     dataScopeNotice()+'<div class="grid dashboard-kpis">'+
-      k('Oportunidades',state.loadMeta?.counts.leads??state.leads.length,'Registros comerciais')+
+      k('Oportunidades abertas',metrics.open,'Entre as oportunidades carregadas')+
+      k('Taxa de fechamento',winRate,metrics.decided?
+        'Fechadas sobre fechadas + perdidas ('+metrics.decided+' decisões carregadas)':'Sem decisões registradas na consulta')+
+      k('Retornos atrasados',info.overdue,'Em oportunidades ativas e retornos avulsos')+
+      k('Aprovações pendentes',info.approvals,'Na consulta atual')+
+      k('Retornos hoje',info.dueToday,'Ainda no prazo')+
       k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada carregada')+
-      k('Retornos pendentes',pending,'Aguardando ação')+
       k('Clientes',state.loadMeta?.counts.contacts??state.contacts.length,'Cadastros disponíveis')+
-    '</div><div class="dashboard-lower">'+
+    '</div><section class="panel executive-pipeline"><div class="panel-head"><div>'+
+      '<h2>Oportunidades por etapa</h2><p class="support-note">'+
+      (metrics.partial?'A consulta atingiu o limite de carga. Os indicadores por etapa usam os registros carregados.':
+        'Posição atual dos registros disponíveis para esta sessão.')+'</p></div>'+
+      '<button type="button" class="cta secondary" data-overview="crm">Ver funil</button></div>'+
+      '<dl class="grid crm-mini-stats">'+
+      [...metrics.pipeline,['Perdidas',metrics.lost],['Arquivadas',metrics.archived]].map(([title,count])=>
+        '<div class="kpi"><dt>'+esc(title)+'</dt><dd><strong>'+count+'</strong></dd></div>').join('')+
+      '</dl></section><div class="dashboard-lower">'+
       '<section class="panel priorities-panel"><div class="panel-head"><div><span class="eyebrow">O QUE FAZER AGORA</span>'+
       '<h2>Prioridades do dia</h2></div><span class="mini-count">'+info.priorities.length+' pendência(s)</span></div>'+
       (list||'<div class="empty-state"><strong>Tudo em dia por aqui.</strong><p>Nenhum retorno ou aprovação pendente nesta consulta.</p></div>')+
@@ -450,6 +482,7 @@ function overview(){
       '<button type="button" data-overview="leads"><span>Oportunidades</span><small>Negociação, notas e histórico</small></button>'+
       '<button type="button" data-overview="followups"><span>Agenda de retornos</span><small>Agendar, reagendar e concluir</small></button>'+
       '<button type="button" data-overview="clients"><span>Clientes</span><small>Cadastro, contatos e relacionamento</small></button>'+ 
+      '<button type="button" data-overview="finance"><span>Financeiro</span><small>Minutas e situação da integração</small></button>'+
       '<button type="button" data-overview="oca"><span>OCA · Operações</span><small>Tarefas internas automáticas, auditoria e controle</small></button>'+
       '</section></div>'+
       '<section class="panel oca-triage"><div class="panel-head"><div><span class="eyebrow">OCA · TRIAGEM INTERNA</span>'+
@@ -1769,14 +1802,17 @@ function clients(feedback=''){
 }
 function finance(){
   const content=el('content');
-  content.replaceChildren();
+  content.innerHTML='<section class="panel executive-pipeline"><h2>Operação financeira</h2>'+
+    '<p class="support-note">Recebimentos, valores em aberto, inadimplência e caixa aguardam uma fonte financeira conciliada.</p>'+
+    '</section><div id="financeDrafts"></div>';
+  const drafts=el('financeDrafts');
   if(window.LKZClientServices?.mountFinance){
-    void window.LKZClientServices.mountFinance({target:content,sb});
+    void window.LKZClientServices.mountFinance({target:drafts,sb});
   }else{
     const p=document.createElement('p');
     p.className='operation-feedback error';
     p.textContent='Resumo de minutas indisponível. Nenhuma cobrança foi gerada.';
-    content.append(p);
+    drafts.append(p);
   }
 }
 function usage(){
