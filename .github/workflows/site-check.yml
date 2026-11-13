@@ -28,6 +28,11 @@ jobs:
       - name: Validar arquivos, links e SEO
         run: python scripts/site_check.py
 
+      - name: Validar script de backup e guardrails
+        run: |
+          bash -n scripts/lkz_adm_backup_encrypted.sh
+          node --test scripts/test_lkz_backup_guardrails.mjs
+
       - name: Validar sintaxe do LKZ ADM
         run: node --check admin/app.js
 
