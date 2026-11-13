@@ -8,6 +8,7 @@ umask 077
 
 readonly PROJECT_REF='icrtewhazpfauuroswri'
 readonly DIRECT_HOST="db.${PROJECT_REF}.supabase.co"
+readonly PREFLIGHT_NAME='lkz_adm_preflight_readonly.sql'
 readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 fail() {
@@ -19,7 +20,7 @@ if (( $# != 1 )); then
   fail 'Uso: bash scripts/lkz_adm_backup_encrypted.sh /caminho/seguro/fora-do-repositorio'
 fi
 
-for bin in pg_dump pg_restore gpg sha256sum mktemp git tty; do
+for bin in pg_dump pg_restore psql gpg sha256sum mktemp git tty; do
   command -v "$bin" >/dev/null 2>&1 || fail "Ferramenta ausente: $bin"
 done
 
@@ -27,6 +28,8 @@ done
   fail 'Use pg_dump PostgreSQL 17 para o banco atual.'
 [[ "$(pg_restore --version)" =~ [[:space:]]17\. ]] ||
   fail 'Use pg_restore PostgreSQL 17 para conferir o arquivo.'
+[[ "$(psql --version)" =~ [[:space:]]17\. ]] ||
+  fail 'Use psql PostgreSQL 17 para o inventário read-only.'
 
 : "${PGHOST:?Configure PGHOST a partir do botão Connect do projeto correto}"
 : "${PGUSER:?Configure PGUSER a partir do botão Connect do projeto correto}"
@@ -80,7 +83,13 @@ trap cleanup EXIT
 WORK_DIR="$(mktemp -d "$BACKUP_DIR/.lkz-backup.XXXXXXXX")"
 readonly ENCRYPTED_TEMP="$WORK_DIR/archive.gpg"
 
-printf 'Iniciando exportação lógica completa, diretamente para criptografia AES-256.\n'
+printf 'ATENÇÃO: dump PostgreSQL bruto para contingência; NÃO é restauração Supabase gerenciado pronta.\n'
+printf 'Verifique roles, schemas internos, Auth e CLI da plataforma antes de restaurar.\n'
+printf 'Executando inventário estritamente READ ONLY do banco de origem.\n'
+[[ -r "$REPO_ROOT/scripts/$PREFLIGHT_NAME" ]] || fail 'Inventário SQL ausente no repositório.'
+psql -X --set ON_ERROR_STOP=1 --file="$REPO_ROOT/scripts/$PREFLIGHT_NAME" ||
+  fail 'Inventário PostgreSQL falhou; backup não iniciado.'
+printf 'Iniciando exportação lógica do banco diretamente para criptografia AES-256.\n'
 printf 'Confirme a senha forte no GPG. O banco não será modificado.\n'
 
 # pg_dump envia os bytes para GPG sem gravar dump plaintext no disco.
