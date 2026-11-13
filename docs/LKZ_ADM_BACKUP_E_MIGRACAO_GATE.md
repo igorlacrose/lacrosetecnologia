@@ -50,6 +50,7 @@ A PR #99 já foi incorporada ao GitHub. Merge não executa DDL no Supabase.
 7. OBRIGATÓRIO: faça ensaio de restauração funcional em PostgreSQL 17 ISOLADO e compatível, com schemas/extensões necessários. A validação automática de formato via pg_restore --list NÃO comprova restauração funcional. Nunca use o Supabase de produção para teste de recuperação. Um novo projeto Supabase para esse teste pode ter custo e exige aprovação própria.
 
 ### Limites do backup
+O dump criptografado preserva agora metadados de propriedade dos objetos e comandos de GRANT/REVOKE do PostgreSQL. **Não utilize --no-owner ou --no-acl no dump de recuperação**, pois as permissões poderiam ser perdidas. Isso pressupõe que as roles globais correspondentes já existam no destino antes da restauração: valide-as separadamente e jamais crie usuários privilegiados automaticamente com base em um arquivo não verificado. O teste sintético no CI comprova restauração de proprietário, GRANT positivo e acesso negado para anon; não comprova a disponibilidade das roles reais no ambiente de recuperação.
 pg_dump cobre a parte lógica acessível pelo usuário do banco, mas NÃO exporta conteúdo dos objetos do Storage API, código de Edge Functions, segredos externos, DNS/Cloudflare, configurações de plataforma ou roles globais. Auth e metadados do Storage podem exigir tratamento especial ao restaurar em outro projeto. Esses componentes demandam plano de recuperação específico. Não confundir este arquivo com snapshot completo do projeto.
 
 ## Gate para publicar a migração no Supabase
