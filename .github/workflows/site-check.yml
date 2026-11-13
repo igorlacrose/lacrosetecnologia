@@ -111,7 +111,7 @@ jobs:
   contract-document-exclusivity:
     name: Documento único por proposta (PostgreSQL 17)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     container: postgres:17.11
 
     services:
@@ -130,6 +130,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Preparar ferramenta de criptografia do ensaio
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gnupg
+
       - name: Testar migração real e concorrência de documentos
         env:
           PGHOST: postgres
@@ -139,3 +144,4 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f scripts/test_lkz_document_exclusivity_pg17.sql
           bash scripts/test_lkz_document_exclusivity_race.sh
+          bash scripts/test_lkz_backup_restore_roundtrip_pg17.sh
