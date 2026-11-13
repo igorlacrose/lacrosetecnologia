@@ -60,7 +60,9 @@ jobs:
           node --test scripts/test_oca_turnstile.cjs
 
       - name: Testar regressões do LKZ ADM
-        run: node scripts/lkz_adm_regression_check.cjs
+        run: |
+          node scripts/lkz_adm_regression_check.cjs
+          node scripts/test_lkz_site_inbox.cjs
 
       - name: Testar paginação e triagem interna do LKZ ADM
         run: node scripts/test_lkz_adm_scaling.cjs
