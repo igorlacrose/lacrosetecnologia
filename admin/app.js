@@ -15,8 +15,8 @@ let trashBusy=false;
 let clientFocus=null,clientMode='detail',clientDraft=null;
 let clientSearchTerm='',clientSearchTimer=null;
 const systemCatalog=[
-  {code:'LISP',name:'LKZ ISP Intelligence',description:'Indicadores gerenciais para provedores de internet.',url:'../lkzisp/'},
-  {code:'LCRM',name:'Lacrose CRM',description:'Clientes, oportunidades, tarefas e conversas comerciais.',url:'https://lcrm.lacrosetecnologia.com.br/app/'}
+  {name:'LibertyOS',description:'Gestão de salão e estética.'},
+  {name:'BarbarOS',description:'Gestão para barbearias.'}
 ];
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
@@ -1499,9 +1499,8 @@ function approvals(feedback=''){
   });
 }
 function systems(){el('content').innerHTML='<div class="layout">'+systemCatalog.map(system=>
-  '<section class="panel"><h2>'+system.code+' · '+system.name+'</h2><p>'+system.description+'</p>'+
-  '<a class="cta" href="'+system.url+'">Abrir '+system.code+'</a></section>'
-).join('')+'</div><p class="notice">O acesso usa o login de cada sistema. O provisionamento de um banco por empresa ainda está em implantação.</p>'}
+  '<section class="panel"><h2>'+esc(system.name)+'</h2><p>'+esc(system.description)+'</p></section>'
+).join('')+'</div>'}
 function clients(feedback=''){
   const contacts=state.contacts;
   const clientLeads=c=>state.leads.filter(l=>l.contact_id===c.id);

@@ -8,6 +8,9 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
+const catalog=app.slice(app.indexOf('const systemCatalog='),app.indexOf('const esc='));
+check('Sistemas aprovados no painel',catalog.includes("name:'LibertyOS'")&&
+  catalog.includes("name:'BarbarOS'")&&(catalog.match(/name:/g)||[]).length===2);
 check('CSS premium carregado com versão de cache',/href="premium\.css\?v=\d{8}-\d+"/.test(html));
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
