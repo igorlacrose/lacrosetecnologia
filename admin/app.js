@@ -25,6 +25,16 @@ function normalizedPhone(value){
   if(digits.length===13&&digits.startsWith('55'))digits=digits.slice(2);
   return digits.length>=10&&digits.length<=11?digits:'';
 }
+function whatsappContactUrl(contact){
+  const digits=String(contact?.phone||'').trim();
+  if(!/^[+\d\s().-]+$/.test(digits))return '';
+  const local=normalizedPhone(digits);
+  return /^[1-9]\d[2-9]\d{7,8}$/.test(local)?'https://wa.me/55'+local:'';
+}
+function whatsappContactLink(contact){
+  const url=whatsappContactUrl(contact);
+  return url?'<a class="cta secondary" href="'+url+'" target="_blank" rel="noopener noreferrer">Abrir no WhatsApp</a>':'';
+}
 function recognizedContactCandidates(lead,contacts){
   const d=lead?.structured_data&&typeof lead.structured_data==='object'?lead.structured_data:{};
   const email=String(d.contact_email||'').trim().toLowerCase();
@@ -740,6 +750,8 @@ async function showOpportunity(id,feedback=''){
       '<span class="eyebrow">FICHA COMERCIAL</span><h2>'+esc(lead.name)+'</h2>'+
       '<p>'+tag(lead.status)+' · '+esc(lead.contact)+'</p></div>'+
       '<div class="action-row"><button class="cta secondary" type="button" data-lead-followup>Agendar retorno</button>'+
+        (current!=='archived'&&!locked?'<button class="cta danger-outline" type="button" data-archive-lead>Descartar oportunidade</button>':'')+
+        (current!=='archived'?whatsappContactLink(state.contacts.find(c=>c.id===lead.contact_id)):'')+
         '<button class="cta secondary" type="button" data-close-lead>Fechar</button></div></div>'+
       '<div class="lead-detail-grid">'+
         '<article><span>Necessidade identificada</span><strong>'+esc(lead.problem||lead.intent||'Não informada')+'</strong></article>'+
@@ -794,6 +806,17 @@ async function showOpportunity(id,feedback=''){
     followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
   };
   const form=panel.querySelector('#leadManagementForm');
+  const archiveButton=panel.querySelector('[data-archive-lead]');
+  if(archiveButton)archiveButton.onclick=()=>{
+    form.querySelector('[name=status]').value='archived';
+    const note=form.querySelector('[name=note]');
+    if(!note.value.trim()){
+      form.querySelector('[data-lead-status]').textContent='Informe o motivo do descarte e salve a atividade.';
+      note.focus();
+      return;
+    }
+    form.requestSubmit();
+  };
   form.onsubmit=async event=>{
     event.preventDefault();
     const target=form.querySelector('[data-lead-status]'),
@@ -803,7 +826,7 @@ async function showOpportunity(id,feedback=''){
     const archiving=status==='archived'&&status!==lead.status;
     if(archiving){
       if(!note){target.textContent='Registre o motivo do arquivamento na anotação.';return}
-      const confirmed=await askConfirmation({title:'Arquivar oportunidade?',
+      const confirmed=await askConfirmation({title:'Descartar oportunidade?',
         message:'A oportunidade sai da lista comercial. Conversas, histórico e registros vinculados ficam preservados.'});
       if(!confirmed||!form.isConnected||!user)return;
     }
@@ -1147,6 +1170,8 @@ async function openThread(id,folder='active',before=null,feedback=''){
   const canSchedule=linkedLead&&!['won','lost','archived'].includes(linkedLead.status);
   const crmControls=linkedLead?
     '<button type="button" class="cta secondary" data-message-lead>Abrir oportunidade</button>'+
+    (thread.folder!=='deleted'&&linkedLead.status!=='archived'?
+      whatsappContactLink(state.contacts.find(c=>c.id===linkedLead.contact_id)):'')+
     (canSchedule&&thread.folder!=='deleted'?
       '<button type="button" class="cta secondary" data-message-schedule>Agendar retorno</button>':''):'';
   const controls=thread.folder==='deleted'
@@ -1154,7 +1179,7 @@ async function openThread(id,folder='active',before=null,feedback=''){
       (profile?.role==='master'?'<button type="button" class="cta danger" data-conversation-action="purge">Excluir definitivamente</button>':'')
     :'<button type="button" class="cta" data-conversation-action="'+(thread.folder==='active'?'archive':'restore')+'">'+
       (thread.folder==='active'?'Arquivar':'Restaurar')+'</button>'+
-     '<button type="button" class="cta danger-outline" data-conversation-action="trash">Excluir atendimento completo</button>';
+     '<button type="button" class="cta danger-outline" data-conversation-action="trash">Mover atendimento para a lixeira</button>';
   const items=visible.map(item=>{
     const outbound=item.role!=='user';
     const bubble='<span class="message-copy"><span class="message-text">'+esc(item.content)+'</span>'+

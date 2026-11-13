@@ -88,6 +88,14 @@ async function main(){
   assert.equal(report.pipeline.reduce((sum,[,count])=>sum+count,0),3);
   assert.equal(metrics({leads:[]}).winRate,null);
   console.log('OK: funil executivo, taxa de fechamento e amostra parcial');
+  const phoneStart=source.indexOf('function normalizedPhone(');
+  const phoneEnd=source.indexOf('function recognizedContactCandidates(',phoneStart);
+  const whatsappUrl=vm.runInNewContext(source.slice(phoneStart,phoneEnd)+'whatsappContactUrl');
+  assert.equal(whatsappUrl({phone:'+55 (73) 98888-0000'}),'https://wa.me/5573988880000');
+  assert.equal(whatsappUrl({phone:'(73) 3333-0000'}),'https://wa.me/557333330000');
+  assert.equal(whatsappUrl({phone:'nome988880000@example.test'}),'');
+  assert.equal(whatsappUrl({phone:'99999-0000'}),'');
+  assert.equal(whatsappUrl(null),'');
   const fluxSource=fs.readFileSync('admin/flux-preview.js','utf8');
   const readFlux=vm.runInNewContext(fluxSource+'\nreadFluxBackup',{TextEncoder});
   const income={id:'b',date:'2026-11-13',type:'income',description:'Venda',category:'Caixa',cents:5000};

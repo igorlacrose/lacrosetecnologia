@@ -17,7 +17,7 @@ check('Atualização manual conectada',html.includes('id="refreshData"')&&app.in
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));
 check('Arquivo comercial acessível e arquivamento confirmado',
-  app.includes('data-toggle-archived')&&app.includes("title:'Arquivar oportunidade?'")&&
+  app.includes('data-toggle-archived')&&app.includes("title:'Descartar oportunidade?'")&&
   app.includes('Registre o motivo do arquivamento'));
 check('Lixeira de mensagens e atendimentos',app.includes("data-empty-messages")&&app.includes("data-empty-conversations"));
 check('Exclusão definitiva confirma e usa API autorizada',app.includes('p_expected_count:count')&&app.includes("keyword:'ESVAZIAR'"));
