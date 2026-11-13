@@ -5,6 +5,22 @@ const view = document.querySelector('#view');
 const tenant = document.querySelector('#tenant');
 const feedback = document.querySelector('#feedback');
 const nav = document.querySelector('#navigation');
+const menuToggle = document.querySelector('#menu-toggle');
+function setMenu(open) {
+  document.body.classList.toggle('menu-open', open);
+  menuToggle.setAttribute('aria-expanded', String(open));
+}
+menuToggle.onclick = () => setMenu(!document.body.classList.contains('menu-open'));
+document.querySelector('.sidebar-backdrop').onclick = () => {
+  setMenu(false);
+  menuToggle.focus();
+};
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
+    setMenu(false);
+    menuToggle.focus();
+  }
+});
 const tabs = {
   overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
@@ -457,7 +473,12 @@ async function render(done = '') {
 for (const [key,label] of Object.entries(tabs)) {
   const button = element('button', label);
   button.dataset.page = key;
-  button.onclick = () => { page = key; render(); };
+  button.onclick = () => {
+    if (document.body.classList.contains('menu-open')) menuToggle.focus();
+    setMenu(false);
+    page = key;
+    render();
+  };
   nav.append(button);
 }
 tenant.onchange = () => render();
@@ -483,6 +504,7 @@ async function sendAuth(path, data, token) {
 }
 
 function showLogin() {
+  setMenu(false);
   nav.hidden = true;
   tenant.parentElement.hidden = true;
   title.textContent = 'Entrar';
