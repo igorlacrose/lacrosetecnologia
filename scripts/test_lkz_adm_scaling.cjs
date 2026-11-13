@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
+const {createHash,webcrypto}=require('node:crypto');
 const source=fs.readFileSync('admin/app.js','utf8');
 const start=source.indexOf('const LIST_BATCH_SIZE=');
 const end=source.indexOf('async function loadCommercial(){',start);
@@ -69,6 +70,40 @@ async function main(){
   assert.deepEqual(actions.map(a=>a.action).join(','),'review,identify,schedule');
   assert.ok(!actions.some(a=>a.id==='d'||a.id==='e'));
   console.log('OK: triagem prioriza revisao, identidade e retorno sem duplicidade');
+  const metricsStart=source.indexOf('function executiveMetrics(');
+  const metricsEnd=source.indexOf('function overview(',metricsStart);
+  const stagesStart=source.indexOf('const crmStages=');
+  const stagesEnd=source.indexOf('function openOpportunity(',stagesStart);
+  const metrics=vm.runInNewContext(
+    source.slice(stagesStart,stagesEnd)+source.slice(metricsStart,metricsEnd)+'executiveMetrics');
+  const report=metrics({
+    leads:['new','proposal','won','lost','lost','archived'].map(status=>({status})),
+    loadMeta:{partial:true}
+  });
+  assert.equal(report.open,2);
+  assert.equal(report.decided,3);
+  assert.equal(report.winRate,1/3);
+  assert.equal(report.archived,1);
+  assert.equal(report.partial,true);
+  assert.equal(report.pipeline.reduce((sum,[,count])=>sum+count,0),3);
+  assert.equal(metrics({leads:[]}).winRate,null);
+  console.log('OK: funil executivo, taxa de fechamento e amostra parcial');
+  const fluxSource=fs.readFileSync('admin/flux-preview.js','utf8');
+  const readFlux=vm.runInNewContext(fluxSource+'\nreadFluxBackup',{TextEncoder});
+  const income={id:'b',date:'2026-11-13',type:'income',description:'Venda',category:'Caixa',cents:5000};
+  const expense={...income,id:'a',type:'expense',cents:1200};
+  const checksum=createHash('sha256').update(JSON.stringify([expense,income])).digest('hex');
+  const backup={format:'lacrose-flux-local',version:2,transactions:[income,expense],checksum};
+  const file=payload=>({size:100,text:async()=>JSON.stringify(payload)});
+  const summary=await readFlux(file(backup),webcrypto.subtle);
+  assert.equal(summary.count,2);
+  assert.equal(summary.totals.income,5000);
+  assert.equal(summary.categories.get('Caixa').expense,1200);
+  await assert.rejects(readFlux(file({...backup,checksum:'0'}),webcrypto.subtle),/checksum/);
+  await assert.rejects(readFlux(file({...backup,transactions:[income,income]}),webcrypto.subtle),/repetidos/);
+  await assert.rejects(readFlux(file({...backup,transactions:[{...income,date:'2026-02-30'}]}),webcrypto.subtle),/inválidos/);
+  await assert.rejects(readFlux({size:11*1024*1024},webcrypto.subtle),/10 MB/);
+  console.log('OK: conferência de backup FluX, categorias, checksum e rejeição de dados inválidos');
   assert.ok(source.includes('const ADMIN_IDLE_MS=30*60*1000'));
   assert.ok(source.includes('function dataScopeNotice()'));
   console.log('OK: hardening 30 min e aviso de carga parcial');

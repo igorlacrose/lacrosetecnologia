@@ -8,10 +8,16 @@ const css=fs.readFileSync('admin/premium.css','utf8');
 const sql=fs.readFileSync('supabase/migrations/20261112154035_lkz_adm_crm_interno_operacoes_lixeiras.sql','utf8');
 const check=(desc,value)=>{assert.ok(value,desc);console.log('OK:',desc)};
 check('CRM navega pela aplicação',html.includes('data-view="crm"')&&app.includes('function crm()'));
-check('Novo CSS premium carregado',html.includes('premium.css?v=20261112-4'));
+const catalog=app.slice(app.indexOf('const systemCatalog='),app.indexOf('const esc='));
+check('Sistemas aprovados no painel',catalog.includes("name:'LibertyOS'")&&
+  catalog.includes("name:'BarbarOS'")&&(catalog.match(/name:/g)||[]).length===2);
+check('CSS premium carregado com versão de cache',/href="premium\.css\?v=\d{8}-\d+"/.test(html));
 check('Atualização manual conectada',html.includes('id="refreshData"')&&app.includes("el('refreshData').onclick"));
 check('Agenda operável',app.includes("function openFollowupEditor(")&&app.includes("lkz_adm_manage_followup"));
 check('Oportunidades operáveis',app.includes("function showOpportunity(")&&app.includes("lkz_adm_update_lead"));
+check('Arquivo comercial acessível e arquivamento confirmado',
+  app.includes('data-toggle-archived')&&app.includes("title:'Arquivar oportunidade?'")&&
+  app.includes('Registre o motivo do arquivamento'));
 check('Lixeira de mensagens e atendimentos',app.includes("data-empty-messages")&&app.includes("data-empty-conversations"));
 check('Exclusão definitiva confirma e usa API autorizada',app.includes('p_expected_count:count')&&app.includes("keyword:'ESVAZIAR'"));
 check('Sem acesso a service role no frontend',!app.includes('service_role')&&!app.includes('sb_secret_'));

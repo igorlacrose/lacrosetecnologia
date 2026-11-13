@@ -1,0 +1,19 @@
+# LKZ ADM e Lacrose FluX
+
+A main em `b9d4374` contém o ADM em `admin/`, o exemplo de LKZ-CRM em `demo/lcrm/` e o FluX Local Beta em `flux/`. O JavaScript servido em https://lacrosetecnologia.com.br/flux/app.js coincide com o código versionado na data da inspeção. O beta usa IndexedDB e exporta JSON versão 2 com checksum. O LEIA-ME da versão anterior descreve localStorage e CSV. Inventarie o formato de cada instalação antes de importar dados.
+
+## Sequência de entrega
+
+1. **Painel executivo.** Usar o acesso autenticado e os registros já carregados. Mostrar etapas, retornos prioritários e taxa de fechamento como fechadas / (fechadas + perdidas), com arquivadas fora do denominador e aviso de consulta parcial. A tela financeira apresenta minutas e a situação da integração. Receita contratada, valores recebidos e em aberto, inadimplência, assinaturas e fluxo de caixa dependem de fontes oficiais conciliadas.
+2. **WhatsApp e oportunidades.** Validar a pilha VNext (#60, #61, #63 e #76) e a correção de permissões da lixeira (#56 e #72). Reutilizar a caixa de conversas e o funil com autorização no servidor, vincular o número ao tenant e validar assinatura sobre o corpo original, roteamento e idempotência antes de registrar eventos. Tratar descarte como exclusão lógica auditada. Antes de habilitar expurgo de oportunidade, definir retenção e bloqueios legais, mapear dependências e anexos, reavaliar elegibilidade na transação de expurgo e preservar vínculos compartilhados, movimentos financeiros e auditoria obrigatória. Revisar também os caminhos de exclusão definitiva já presentes no ADM.
+3. **Acessos e gateway.** Usar os grupos atuais como ponto de partida e definir a matriz Master, Administrador, Financeiro, Comercial e Consulta. Convites, mudança de perfil, revogação e configuração do gateway exigem autorização do tenant e MFA no servidor. O backend guarda credenciais e verifica webhooks e idempotência. Validar Pix e cartão em sandbox e conciliar eventos confirmados pelo provedor, aproveitando o trabalho Asaas em #60, #74–#76.
+4. **Dinheiro.** Registrar operador, tenant, data, valor em centavos e origem do recebimento. Vincular à conta a receber quando houver, conferir valor físico versus esperado no fechamento e registrar divergências. Uma chave idempotente evita duplicação na baixa. Preservar lançamentos no livro caixa e corrigir por estorno compensatório auditado. Manter recebimento e emissão fiscal como operações distintas.
+5. **FluX nativo.** Portar lançamentos, categorias, filtros, saldo e exportação para o módulo financeiro do ADM com o mesmo acesso e o livro caixa do servidor. Para dados locais, preparar importação por arquivo com simulação, conferência de checksum quando disponível, mapeamento de categorias, totais antes e depois e deduplicação por origem e identificador estável. Validar RLS entre tenants e regras de estorno, conciliação e importação com dados fictícios.
+
+## Publicação
+
+A tela Financeiro já permite conferir um backup JSON v2 do FluX Local Beta. O arquivo é lido no navegador e a prévia mostra totais e categorias após validar formato, duplicatas e checksum. A prévia não grava lançamentos. Arquivos CSV legados e gravação no livro caixa dependem da etapa de importação.
+
+A lista comercial tem uma visão de arquivadas. O painel pede motivo e confirmação ao arquivar e usa a mudança de etapa auditada já disponível. O motivo obrigatório é uma regra da interface neste incremento. O fluxo de expurgo por oportunidade ainda depende de controles no servidor.
+
+Validar a pilha paralela sobre a main atual, revisar permissões e executar os gates de PostgreSQL 17, Auth/MFA, RLS e integrações em homologação. Antes de qualquer migração ou publicação, seguir [o procedimento de backup e recuperação](LKZ_ADM_BACKUP_E_MIGRACAO_GATE.md) e comprovar restauração. O GitHub Pages publica a partir da main.
