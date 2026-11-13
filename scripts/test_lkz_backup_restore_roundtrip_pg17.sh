@@ -36,11 +36,17 @@ chmod 600 -- "$TMP_DIR/passphrase"
 readonly ENCRYPTED="$TMP_DIR/fixture.pgdump.gpg"
 
 # Reproduz a sequência de produção, mas apenas sobre a base sintética.
-pg_dump --format=custom --no-owner --no-acl  |
+pg_dump --format=custom --no-owner --no-acl |
   gpg --batch --yes --pinentry-mode loopback \
     --passphrase-file "$TMP_DIR/passphrase" \
     --symmetric --cipher-algo AES256 --compress-algo none \
     --output "$ENCRYPTED"
+
+# Garante que nenhum arquivo literal de nome '-' foi criado no checkout.
+if [[ -e ./- ]]; then
+  echo "ERRO: pg_dump deixou dump plaintext com nome '-'" >&2
+  exit 1
+fi
 
 [[ -s "$ENCRYPTED" ]] || {
   echo 'ERRO: exportação criptografada vazia.' >&2
