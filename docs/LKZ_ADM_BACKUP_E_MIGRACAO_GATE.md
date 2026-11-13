@@ -40,7 +40,8 @@ A PR #99 já foi incorporada ao GitHub. Merge não executa DDL no Supabase.
 
        bash scripts/lkz_adm_backup_encrypted.sh "$HOME/Backups/LacroseTech"
 
-   O script valida identificação do projeto, host, usuário, porta, TLS verify-full com CA, versões do PostgreSQL, diretório e TTY. Os bytes do pg_dump são criptografados em streaming por GPG AES-256; o dump em claro não é salvo no disco. Gera .pgdump.gpg e checksum .sha256 com acesso restrito. Digite senha forte para GPG, distinta da senha do banco.
+   O script valida identificação do projeto, host, usuário, porta, TLS verify-full com CA, versões do PostgreSQL, diretório e TTY. Use sempre uma revisão posterior à correção que retirou --file=- do pg_dump (opção que criava um arquivo chamado '-' em vez de escrever no stdout). Se uma versão anterior tiver sido executada, inspecione em privado o diretório de execução em busca de um arquivo com nome literal '-' e trate-o como dump sensível, sem enviar o arquivo ao chat ou ao Git.
+   Os bytes do pg_dump são criptografados em streaming por GPG AES-256; o dump em claro não é salvo no disco. Gera .pgdump.gpg e checksum .sha256 com acesso restrito. Digite senha forte para GPG, distinta da senha do banco.
 
 6. Copie o arquivo criptografado e checksum para local off-site privado. Guarde a senha de criptografia em gerenciador separado. Evite sincronização pública. Verifique checksum depois:
 
