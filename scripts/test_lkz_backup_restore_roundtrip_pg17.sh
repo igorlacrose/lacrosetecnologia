@@ -85,9 +85,15 @@ counts_sql="select
  (select count(*) from lkz_adm_private.contract_document_claims),
  (select count(*) from lkz_adm_private.contract_text_previews),
  (select count(*) from lkz_adm_private.signature_dossiers);"
+original_counts="$(psql -v ON_ERROR_STOP=1 -At -F '|' -d "$PGDATABASE" -c "$counts_sql")"
 counts="$(psql -v ON_ERROR_STOP=1 -At -F '|' -d "$DEST_DB" -c "$counts_sql")"
-[[ "$counts" == '2|1|1' ]] || {
-  echo "ERRO: contagens não preservadas ($counts)." >&2
+[[ "$counts" == "$original_counts" ]] || {
+  echo "ERRO: contagens divergiram (origem=$original_counts, recuperação=$counts)." >&2
+  exit 1
+}
+# O ensaio de concorrência, executado antes do backup, cria um terceiro documento.
+[[ "$counts" == 3\|* ]] || {
+  echo 'ERRO: contagens da fixture não incluem a disputa concorrente.' >&2
   exit 1
 }
 
