@@ -19,7 +19,7 @@ if (( $# != 1 )); then
   fail 'Uso: bash scripts/lkz_adm_backup_encrypted.sh /caminho/seguro/fora-do-repositorio'
 fi
 
-for bin in pg_dump pg_restore gpg sha256sum mktemp; do
+for bin in pg_dump pg_restore gpg sha256sum mktemp git tty; do
   command -v "$bin" >/dev/null 2>&1 || fail "Ferramenta ausente: $bin"
 done
 
@@ -84,11 +84,10 @@ printf 'Iniciando exportação lógica completa, diretamente para criptografia A
 printf 'Confirme a senha forte no GPG. O banco não será modificado.\n'
 
 # pg_dump envia os bytes para GPG sem gravar dump plaintext no disco.
+# Preserva proprietários e GRANT/REVOKE: a recuperação depende dos roles globais.
 # Senha do PostgreSQL é obtida pela libpq (prompt ou PGPASSFILE fora do Git).
 pg_dump \
-  --format=custom \
-  --no-owner \
-  --no-acl |
+  --format=custom |
   gpg --symmetric --cipher-algo AES256 --compress-algo none \
     --output "$ENCRYPTED_TEMP"
 

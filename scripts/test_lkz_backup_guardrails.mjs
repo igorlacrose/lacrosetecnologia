@@ -35,6 +35,8 @@ test('dump em stream criptografado, com validação local e sem deploy',()=>{
  assert.match(source,/pg_dump\s+\\/);
  assert.doesNotMatch(source,/--file(?:=|\s+)-(?:\s|$)/m, 'pg_dump nunca deve criar arquivo literal -');
  assert.match(source,/--format=custom/);
+ assert.doesNotMatch(source,/^\s*--no-owner\b/m,'Backup não pode excluir proprietários');
+ assert.doesNotMatch(source,/^\s*--no-acl\b/m,'Backup não pode excluir GRANT/REVOKE');
  assert.match(source,/gpg --symmetric --cipher-algo AES256/);
  assert.match(source,/pg_restore --list/);
  assert.match(source,/sha256sum/);
