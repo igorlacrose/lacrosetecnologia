@@ -149,3 +149,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f scripts/lkz_adm_preflight_readonly.sql
           bash scripts/test_lkz_document_exclusivity_race.sh
           bash scripts/test_lkz_backup_restore_roundtrip_pg17.sh
+          bash scripts/test_lkz_license_installation_limit_pg17.sh
