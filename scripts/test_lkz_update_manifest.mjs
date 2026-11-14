@@ -85,3 +85,11 @@ test('integração não concede CRUD aos clientes nem contém chave privada',()=
  assert.doesNotMatch(edge,/eval\s*\(|new Function|exec\s*\(|localStorage|innerHTML/);
  assert.doesNotMatch(edge,/PRIVATE_KEY|SIGNING_SEED|LICENSE_SIGNING_SECRET/);
 });
+
+test('Inventário Windows não executa instalador, copia dados ou lê segredos',()=>{
+ const ps=readFileSync('scripts/lkz_erp_inventario_windows_readonly.ps1','utf8');
+ assert.match(ps,/Get-FileHash/);
+ assert.match(ps,/Get-AuthenticodeSignature/);
+ assert.doesNotMatch(ps,/\b(?:Remove-Item|Set-Content|Add-Content|Copy-Item|Move-Item|Invoke-WebRequest|Invoke-RestMethod|Start-Process|New-Item|Set-ItemProperty)\b/i);
+ assert.doesNotMatch(ps,/\.pfx|service_role|private[_-]?key|vault\.decrypted/i);
+});
