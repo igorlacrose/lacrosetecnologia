@@ -48,6 +48,16 @@ test('Segredos nao estao no frontend ou no codigo da API',async()=>{
  assert.match(adminLock,/REVOKE ALL ON FUNCTION public\.lkz_license_admin_activate_v1/);
  assert.match(adminLock,/REVOKE ALL ON FUNCTION public\.lkz_license_admin_status_v1/);
  assert.match(adminLock,/FROM PUBLIC, anon, authenticated, service_role/);
+ const limit=readFileSync('supabase/migrations/20261114195500_lkz_license_installation_limit.sql','utf8');
+ assert.match(limit,/ADD COLUMN max_installations smallint NOT NULL DEFAULT 1/);
+ assert.match(limit,/CHECK \(max_installations BETWEEN 1 AND 10\)/);
+ assert.match(limit,/FROM lkz_licensing\.licenses WHERE id=p_license FOR UPDATE/);
+ assert.match(limit,/IF v_count>=v_limit THEN/);
+ assert.match(limit,/PERFORM lkz_licensing\.claim_installation_v1\(v_id,p_installation\)/);
+ assert.match(limit,/IF v_prior_status='cancelled' THEN/);
+ assert.match(limit,/REVOKE ALL ON FUNCTION lkz_licensing\.claim_installation_v1/);
+ assert.match(limit,/REVOKE ALL ON FUNCTION public\.lkz_license_admin_activate_v1/);
+
  assert.match(edge,/SUPABASE_SERVICE_ROLE_KEY/);
  assert.doesNotMatch(edge,/secret[_-]?key\s*[:=]\s*['"][A-Za-z0-9]/i);
  assert.doesNotMatch(edge,/localStorage|sessionStorage/);
