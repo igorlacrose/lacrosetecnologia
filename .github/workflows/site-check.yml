@@ -36,6 +36,9 @@ jobs:
       - name: Testar assinatura e bloqueios do licenciamento LKZ ERP
         run: node --test scripts/test_lkz_license_signing.mjs
 
+      - name: Validar manifesto remoto e isolamento de releases
+        run: node --test scripts/test_lkz_update_manifest.mjs
+
       - name: Validar sintaxe do LKZ ADM
         run: node --check admin/app.js
 
