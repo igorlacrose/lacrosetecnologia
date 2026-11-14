@@ -40,6 +40,18 @@ Branch técnica baseada na autoridade da PR #109; novos arquivos:
 - **Pilot** alcança somente licenças incluídas em `update_pilot_targets`. **Stable** alcança as licenças compatíveis, após promoção explícita e assinatura.
 - O cliente deve verificar assinatura do manifesto com chave fixa, SHA-256 **após download**, assinatura Authenticode do instalador, compatibilidade de plataforma, versão, escopo e não regressão **antes da execução**.
 
+## Homologação do serviço de atualização (14/11/2026)
+
+- Migração `lkz_updates_signed_registry_isolated` aplicada no Supabase **homologação** `nijsafzwxzcfqdevlsxe`, sem mexer no Supabase comercial.
+- Edge Function `lkz-updates` v1 **ACTIVE**: `POST https://nijsafzwxzcfqdevlsxe.supabase.co/functions/v1/lkz-updates/check`.
+- Instalação não registrada: **HTTP 404**, sem metadados nem acesso ao pacote.
+- Instalação fictícia autorizada, sem release publicada: **HTTP 204**, corretamente sem download. Fixture criada sob CNPJ `00000000000000` e ID `f` × 64 e excluída em seguida (contagem de fixtures remanescentes: zero).
+- Permanecem **2 licenças e 2 instalações** cadastradas previamente por outro trabalho em homologação. Foram preservadas sem alteração.
+- Nenhuma chave pública de **updates** cadastrada, nenhum release, nenhum artefato em Storage, nenhum instalador enviado.
+- Advisor do Supabase sem WARN/ERROR. Informativos `rls_enabled_no_policy` são esperados para tabelas privadas **sem policies e sem GRANT**.
+- CI da PR cobre assinatura Ed25519, adulteração de manifestos, downgrade, escolha por tenant e proibição de comandos arbitrários. Esse CI **não** substitui testes de instalação/rollback em Windows.
+- **Chave Ed25519 de atualização não é a mesma chave pública Ed25519 de licenciamento** já fornecida ao Codex. A primeira ainda deverá ser gerada/custodiada no laboratório e fixada no atualizador.
+
 ## Portal de gestão LKZ ADM — etapas ainda NÃO implementadas
 
 - MASTER+MFA, autorização no servidor e auditoria para: vincular instalação; conceder **cortesia** com justificativa, expiração e distinção de cobrança; registrar pagamento confirmado, suspender, cancelar, reativar com aprovação; manter limite por licença.
