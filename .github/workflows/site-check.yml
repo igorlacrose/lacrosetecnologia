@@ -33,6 +33,9 @@ jobs:
           bash -n scripts/lkz_adm_backup_encrypted.sh
           node --test scripts/test_lkz_backup_guardrails.mjs
 
+      - name: Testar assinatura e bloqueios do licenciamento LKZ ERP
+        run: node --test scripts/test_lkz_license_signing.mjs
+
       - name: Validar sintaxe do LKZ ADM
         run: node --check admin/app.js
 
@@ -146,3 +149,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f scripts/lkz_adm_preflight_readonly.sql
           bash scripts/test_lkz_document_exclusivity_race.sh
           bash scripts/test_lkz_backup_restore_roundtrip_pg17.sh
+          bash scripts/test_lkz_license_installation_limit_pg17.sh
