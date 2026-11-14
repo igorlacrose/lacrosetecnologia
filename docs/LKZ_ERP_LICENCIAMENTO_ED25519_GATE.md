@@ -36,6 +36,10 @@ A chave privada é um seed de 32 bytes gerado por `extensions.gen_random_bytes(3
 - O nome `license.manual_activate` de um registro de auditoria e `license.homologation_demo_activate` de outro foram vistos em consulta somente de leitura. Isso não é prova de homologação de login/MFA real.
 - **Não usar as licenças existentes em homologação para faturamento real**; confirmar individualmente sua finalidade com o responsável, sem inferir que sejam dados fictícios ou comerciais.
 
+## Limite operacional da revogação offline
+
+Suspender uma licença **não invalida imediatamente um grant `active` já armazenado** em uma instalação sem conexão. O limite atual é de **sete dias ou o vencimento da concessão, o que ocorrer primeiro**, desde que o relógio local seja protegido e validado pelo ERP. Uma consulta online nova recebe `suspended` assinado. Se for exigido bloqueio em poucas horas, reduzir `offline_seconds` por contrato e validar a política de reconexão; não prometer revogação instantânea offline.
+
 ## Próximos gates para produção
 - [ ] Verificar backup/restauração do Supabase alvo, **incluindo custódia da chave do Vault**. Nova instalação com seed nova exige rebuild do app com chave pública nova; sem seed original não se validam concessões anteriores.
 - [ ] Aplicar migração aditiva, versionada e revisada exclusivamente ao ambiente definitivo; nunca reaproveitar a chave de homologação.
