@@ -5,6 +5,7 @@
 - O usuário confirmou que o **LKZ ERP 1.3.3 já está instalado no computador do cliente**. Não há acesso direto neste repositório ao executável instalado, à pasta de dados ou à árvore atual do Codex em Darkstar/Osiris.
 - A fonte arquivada `LKZ-ERP-1.3.3-QA-Cadastro-Tributario-Codigo-Fonte.zip` (05/11) apresenta `emissionEnabled: false`; `fiscal_profile.go` rejeita `UF != BA` e `product_tax.go` considera cadastro completo apenas para Simples Nacional. Esses limites devem ser removidos **por ampliação de regras e testes reais**, nunca apenas eliminando as validações.
 - O executável de `cmd/installer-upgrade` da fonte arquivada ainda é **legado 1.2.9**. Não utilizar no cliente 1.3.3.
+- Para identificar a instalação atual sem tocar em configurações ou arquivos fiscais, execute `scripts/lkz_erp_inventario_windows_readonly.ps1` **no usuário Windows autorizado**. Ele devolve nomes relativos de versões, SHA-256 dos executáveis e estado da assinatura Authenticode, sem exportar A1/CSC/CNPJ/tokens. O script foi revisado estaticamente, mas **não foi executado no computador do cliente**.
 - A autoridade Ed25519 de licenças está em **homologação**, PR #109, não na instância comercial definitiva.
 - Este PR prepara apenas o **registro e a descoberta segura de updates assinados**, não publica pacotes e não altera o ERP instalado.
 
