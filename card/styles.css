@@ -1,0 +1,79 @@
+:root{color-scheme:dark;--bg:#020b16;--panel:#07192c;--text:#eff8ff;--muted:#a9c2d9;--blue:#35c6ff;--orange:#ff9a36;--border:#23516f}
+*{box-sizing:border-box}
+html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;min-height:100vh;font:500 16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);background:radial-gradient(ellipse at 5% 5%,#06395e 0,transparent 36%),radial-gradient(ellipse at 95% 14%,#41230f 0,transparent 26%),#020b16}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:3px solid #fff;outline-offset:4px}
+.wrap{width:min(100% - 32px,960px);margin-inline:auto;padding:36px 0 48px}
+.eyebrow{text-align:center;text-transform:uppercase;letter-spacing:.34em;font-size:.72rem;color:#82d9ff;font-weight:800;margin:0 0 15px}
+.hero{text-align:center;padding:24px 8px 25px}
+.hero h1{font-size:clamp(2.2rem,8vw,4.7rem);line-height:1.06;letter-spacing:-.045em;margin:.15em 0}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,#fff,#48ccff 60%,#1895ee);background-clip:text;color:transparent}
+.kicker{margin:0;text-transform:uppercase;letter-spacing:.15em;font-size:clamp(.72rem,2.4vw,.96rem);color:#f0f4fc;font-weight:750}
+.motto{margin:19px auto 4px;font-size:clamp(1.15rem,4vw,1.5rem);font-style:italic;color:#c4e6fa;line-height:1.35}
+.motto strong{color:var(--blue)}
+.section-label{color:#9cc4da;text-transform:uppercase;letter-spacing:.19em;font-size:.75rem;font-weight:800;margin:8px 0 13px}
+.brand-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
+.panel{position:relative;overflow:hidden;border:1px solid #238bc8;border-radius:24px;background:linear-gradient(155deg,#0a2842,#051322 70%);padding:25px;box-shadow:0 12px 40px #0008,inset 0 1px 0 #ffffff11}
+.panel::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,transparent,#4ce0ff,transparent)}
+.panel.orange{border-color:#b96927;background:linear-gradient(155deg,#281a15,#0b131f 70%)}
+.panel.orange::before{background:linear-gradient(90deg,transparent,#ffac45,transparent)}
+.brand-head{text-align:center;min-height:160px;display:grid;align-content:center;justify-items:center}
+.brand-logo{width:min(100%,240px);height:155px;object-fit:contain;filter:drop-shadow(0 7px 20px #00aaff18)}
+.panel h2{margin:0 0 8px;font-size:1.3rem;line-height:1.2}
+.brand-intro{text-align:center;min-height:50px;color:#c6d8e8;font-size:.91rem;max-width:36ch;margin:3px auto 18px}
+.brand-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:47px;padding:10px 12px;border:1px solid #36708d;border-radius:13px;background:#0c2d49;color:#f4faff;font-weight:750;font-size:.9rem;text-align:center;transition:transform .15s,filter .15s}
+.button:hover{filter:brightness(1.22);transform:translateY(-1px)}
+.button.primary{background:linear-gradient(135deg,#0076bb,#0086d9);border-color:#21c3ff;color:white}
+.button.orange{background:linear-gradient(135deg,#9f4f0b,#d86e15);border-color:#f5a540;color:white}
+.button.full{grid-column:1 / -1}
+.button.ghost{background:#0b2032;border-color:#31546f}
+.button:active{transform:translateY(0)}
+.nexos-logo{width:100%;max-width:250px;display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0}
+.nexos-emblem{position:relative;font-size:5.2rem;font-weight:1000;font-style:italic;letter-spacing:-.16em;line-height:1;background:linear-gradient(135deg,#49f1ff,#0050cc 65%,#ff9c35);color:transparent;background-clip:text;filter:drop-shadow(0 0 10px #0685ff77);padding-right:10px}
+.nexos-emblem:after{content:"◔";color:#67ddff;font-style:normal;font-size:.2em;position:absolute;top:0;right:6px;letter-spacing:0}
+.nexos-type{font-size:1.7rem;line-height:.9;font-weight:900;letter-spacing:.025em}
+.nexos-type small{display:block;font-size:.55rem;letter-spacing:.27em;margin:10px 0 3px}
+.nexos-bahia{display:block;font-size:.75rem;letter-spacing:.2em;margin-bottom:7px;color:#f2f7ff}
+.service-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;list-style:none;padding:0;margin:16px auto 24px}
+.service-chips li{background:#122e45;border:1px solid #315972;border-radius:999px;padding:7px 12px;font-size:.82rem;color:#cfeeff}
+.contact-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:21px 0 0}
+.contact-tools .button{min-height:58px;font-size:.83rem;background:#0a1d30}
+.utility{margin-top:28px;padding:21px;border:1px solid #22516b;background:linear-gradient(130deg,#06192a,#071524);border-radius:20px;display:flex;align-items:center;gap:21px}
+.utility img{background:#fff;border:7px solid #fff;border-radius:12px;width:126px;height:126px;flex:none;image-rendering:pixelated}
+.utility p{margin:0;color:#bfdaed}
+.utility h2{font-size:1.1rem;margin:0 0 5px}
+.utility .url{word-break:break-all;font-size:.83rem;margin-top:7px;color:#7ed6ff}
+.footer{text-align:center;color:#8cabc0;font-size:.8rem;margin-top:28px}
+.footer a{color:#65d0ff;text-decoration:underline;text-underline-offset:3px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:#0a2840;border:1px solid #42aedf;color:white;border-radius:999px;padding:10px 18px;font-size:.82rem;z-index:10;max-width:calc(100vw - 20px);transition:opacity .2s,transform .2s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.solo .hero{padding-bottom:12px}
+.solo .main-logo{display:block;width:min(290px,83vw);height:auto;margin:12px auto 7px;object-fit:contain}
+.solo .main-panel{width:min(100%,590px);margin:18px auto 0}
+.solo .contact-tools{width:min(100%,590px);margin-inline:auto}
+.solo .utility{width:min(100%,590px);margin-inline:auto}
+.solo .brand-intro{min-height:0}
+@media(max-width:650px){
+ .wrap{width:min(100% - 26px,540px);padding-top:21px}
+ .hero{padding:9px 0 22px}
+ .brand-grid{grid-template-columns:1fr;gap:16px}
+ .brand-head{min-height:120px}
+ .brand-logo{height:126px}
+ .panel{padding:20px 17px}
+ .brand-intro{min-height:0}
+ .contact-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .contact-tools .button:last-child{grid-column:1 / -1}
+ .utility{gap:13px;padding:14px}
+ .utility img{width:104px;height:104px}
+ .nexos-logo{max-width:230px}
+}
+@media(max-width:365px){
+ .utility{flex-direction:column;text-align:center}
+ .brand-actions{grid-template-columns:1fr}
+ .button.full{grid-column:auto}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important}}
+.center-title{text-align:center;font-size:clamp(1.3rem,4vw,1.6rem);margin:0 0 10px}

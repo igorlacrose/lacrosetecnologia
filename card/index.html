@@ -1,126 +1,55 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#020b16">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
-  <meta name="description" content="Lacrose Tecnologia: sites, sistemas, SaaS, automação com IA, consultoria em TI, infraestrutura e segurança. Cartão digital de Igor Lacrose.">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="Lacrose Tecnologia | Cartão Digital">
-  <meta property="og:description" content="Sua empresa tem um problema? Nós desenvolvemos a solução.">
-  <meta property="og:image" content="https://lacrosetecnologia.com.br/card/card-visual.webp">
-  <meta property="og:url" content="https://lacrosetecnologia.com.br/card/">
-  <link rel="canonical" href="https://lacrosetecnologia.com.br/card/">
-  <link rel="icon" type="image/png" href="./icon-192.png">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <title>Igor Lacrose | Cartão Digital — Lacrose Tecnologia</title>
-  <link rel="preload" href="./card-visual.webp" as="image" type="image/webp" fetchpriority="high">
-  <style>
-    :root { color-scheme:dark; --cyan:#54c5fa; --ink:#020b16; }
-    * { box-sizing:border-box; }
-    html,body { width:100%; min-height:100%; margin:0; }
-    html { background:var(--ink); }
-    body { font:500 16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--ink); color:#f1f6ff; }
-    button,a { -webkit-tap-highlight-color:transparent; }
-    button { cursor:pointer; font:inherit; }
-    .page { position:fixed; inset:0; overflow:hidden; isolation:isolate; display:flex; justify-content:center; align-items:center; background:#020b16; }
-    .page::before {content:""; position:absolute; inset:-7%; background:url('./card-visual.webp') center / cover no-repeat; filter:blur(23px) brightness(.62); transform:scale(1.02); z-index:-1; }
-    /* The approved 9:16 image is never distorted or retouched.
-       On taller phone viewports we reveal the whole portrait by allowing a
-       small atmospheric extension above and below the artwork. */
-    .artboard {position:relative; isolation:isolate; flex:none; height:100%; height:100dvh; width:auto; aspect-ratio:941 / 1672; background:#010b15; overflow:hidden; box-shadow:0 0 54px #0008; }
-    .artboard>img { width:100%; height:100%; display:block; user-select:none; -webkit-user-drag:none; pointer-events:none; }
-    .hotspot {position:absolute; display:block; z-index:2; border-radius:14px; cursor:pointer; background:transparent; text-decoration:none; color:inherit; outline-offset:2px; }
-    .hotspot:hover {background:rgba(67,194,247,.06); box-shadow:inset 0 0 0 1px rgba(84,197,250,.28); }
-    .hotspot:active {background:rgba(84,197,250,.12); }
-    :focus-visible {outline:2px solid #fff; outline-offset:3px; }
-    .site {top:61.95%; left:4.8%; width:68.0%; height:5.60%;}
-    .instagram {top:68.05%; left:4.8%; width:68.0%; height:5.65%;}
-    .whatsapp {top:74.30%; left:4.8%; width:68.0%; height:5.65%;}
-    .services {top:44.15%; left:2.9%; width:52.0%; height:15.8%;}
-    /* Subtle utility trigger: leaves artwork intact and preserves old features. */
-    .tools-trigger {position:fixed; z-index:9; top:max(12px, env(safe-area-inset-top)); right:max(12px, env(safe-area-inset-right)); height:36px; width:36px; display:grid; place-items:center; border:1px solid #8ccdea52; border-radius:50%; color:#ecfaff; background:rgba(1,12,25,.61); box-shadow:0 2px 12px #0004; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
-    .tools-trigger svg {height:19px;width:19px;fill:currentColor;}
-    .tools-trigger:hover {border-color:#80d5ff;background:rgba(10,37,59,.84)}
-    .sheet {border:1px solid #3c6a88; border-radius:19px; background:#071929; color:#f1f7ff; padding:20px; width:min(360px,calc(100vw - 28px)); box-shadow:0 30px 90px #000c; }
-    .sheet::backdrop {background:rgba(0,8,15,.83);backdrop-filter:blur(3px)}
-    .sheet h2 {font-size:17px;line-height:1.3;margin:0 0 14px;font-weight:650;}
-    .sheet button,.sheet a {display:flex; width:100%; align-items:center; justify-content:space-between; padding:13px 14px; min-height:47px; margin:8px 0; border:1px solid #23465d; border-radius:12px; background:linear-gradient(135deg,#102b43,#091b2a); color:#eaf7ff; font-weight:600; font-size:14px; text-decoration:none; }
-    .sheet .close {justify-content:center; background:transparent; border-color:#42556a; margin-bottom:0; }
-    .toast {position:fixed; z-index:12; left:50%; bottom:max(25px,calc(env(safe-area-inset-bottom) + 18px)); transform:translate(-50%,10px); opacity:0; pointer-events:none; border-radius:999px; padding:10px 18px; color:#fff; white-space:nowrap; background:#081d30e8; border:1px solid #336580; font-size:12px; transition:opacity .18s,transform .18s; }
-    .toast.show {opacity:1;transform:translate(-50%,0)}
-    .sr-only {position:absolute!important; height:1px!important;width:1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;clip-path:inset(50%)!important; }
-    @media (orientation:portrait) and (max-width:767px) {
-      .artboard {height:min(100dvh, calc(100vw * 1.95)); box-shadow:none; }
-      .page {justify-content:flex-start;}
-    }
-    @media (orientation:landscape) and (max-height:500px) { .tools-trigger {height:31px;width:31px;} }
-    @media (prefers-reduced-motion:reduce) {*,*::before,*::after {transition:none!important; animation:none!important;} .page::before,.tools-trigger,.sheet::backdrop {backdrop-filter:none;-webkit-backdrop-filter:none;} }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#020b16">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="description" content="Cartão digital da Lacrose Tecnologia. Sites, sistemas, SaaS e automação com inteligência artificial, consultoria em TI, infraestrutura e segurança.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Lacrose Tecnologia | Cartão Digital">
+<meta property="og:description" content="Sua empresa tem um desafio? Nós desenvolvemos a solução.">
+<meta property="og:image" content="https://lacrosetecnologia.com.br/assets/brand/lacrose-tecnologia-dark.png">
+<meta property="og:url" content="https://lacrosetecnologia.com.br/card/">
+<link rel="canonical" href="https://lacrosetecnologia.com.br/card/">
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./styles.css">
+<script defer src="./actions.js"></script>
+<title>Lacrose Tecnologia | Cartão Digital</title>
 </head>
-<body>
-  <main class="page" aria-label="Cartão digital de Igor Lacrose — Lacrose Tecnologia">
-    <div class="artboard">
-      <img src="./card-visual.webp" width="941" height="1672" alt="Lacrose Tecnologia. Sua empresa tem um problema? Nós desenvolvemos a solução. Sites, sistemas, SaaS, automação com IA, consultoria em TI, infraestrutura e segurança. Igor Lacrose de braços cruzados. Contatos abaixo." decoding="async" fetchpriority="high">
-      <h1 class="sr-only">Lacrose Tecnologia — Igor Lacrose</h1>
-      <nav aria-label="Links da Lacrose Tecnologia">
-        <a class="hotspot services" href="https://lacrosetecnologia.com.br/#agente" target="_blank" rel="noopener noreferrer" aria-label="Diagnosticar meu desafio com a Lacrose Tecnologia"></a>
-        <a class="hotspot site" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer" aria-label="Abrir lacrosetecnologia.com.br"></a>
-        <a class="hotspot instagram" href="https://www.instagram.com/lacrosetecnologia/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram @lacrosetecnologia"></a>
-        <a class="hotspot whatsapp" href="https://wa.me/5573981097097?text=Ol%C3%A1%2C%20Igor!%20Vim%20pelo%20seu%20cart%C3%A3o%20digital%20da%20Lacrose%20Tecnologia." target="_blank" rel="noopener noreferrer" aria-label="Conversar com Igor Lacrose pelo WhatsApp, (73) 98109-7097"></a>
-      </nav>
-    </div>
-  </main>
-  <button class="tools-trigger" id="tools-trigger" type="button" aria-haspopup="dialog" aria-controls="more-actions" aria-label="Mais opções: compartilhar, salvar contato e ligar" title="Mais opções">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-  </button>
-  <dialog id="more-actions" class="sheet" aria-labelledby="sheet-title">
-    <h2 id="sheet-title">Igor Lacrose · Contatos e ações</h2>
-    <button id="share" type="button">Compartilhar cartão <span aria-hidden="true">↗</span></button>
-    <button id="save" type="button">Salvar contato no celular <span aria-hidden="true">↓</span></button>
-    <a href="tel:+5573981097097">Ligar para Igor <span aria-hidden="true">↗</span></a>
-    <a href="https://lacrosetecnologia.com.br/#agente" target="_blank" rel="noopener noreferrer">Diagnosticar meu desafio <span aria-hidden="true">↗</span></a>
-    <button id="close-actions" class="close" type="button">Fechar</button>
-  </dialog>
-  <div role="status" aria-live="polite" class="toast" id="toast"></div>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache:'none' }).then(reg => reg.update()).catch(() => {}));
-    }
-    (() => {
-      'use strict';
-      const trigger=document.getElementById('tools-trigger');
-      const sheet=document.getElementById('more-actions');
-      const toast=document.getElementById('toast');
-      let toastTimer=0;
-      function notify(message){ clearTimeout(toastTimer); toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),2500); }
-      trigger.addEventListener('click',()=>{ if(typeof sheet.showModal==='function'){sheet.showModal();} else {sheet.setAttribute('open','');} });
-      document.getElementById('close-actions').addEventListener('click',()=>sheet.close());
-      sheet.addEventListener('click',(event)=>{if(event.target===sheet)sheet.close();});
-      document.getElementById('share').addEventListener('click',async()=>{
-        const data={title:'Igor Lacrose | Lacrose Tecnologia',text:'Sua empresa tem um problema? Nós desenvolvemos a solução.',url:'https://lacrosetecnologia.com.br/card/'};
-        try {if(navigator.share){await navigator.share(data);return;}}catch(e){ if(e && e.name==='AbortError')return; }
-        try {await navigator.clipboard.writeText(data.url);notify('Link do cartão copiado.');}
-        catch(e){notify('Compartilhe: '+data.url);}
-      });
-      document.getElementById('save').addEventListener('click',()=>{
-        const v=`BEGIN:VCARD
-VERSION:3.0
-FN:Igor Lacrose
-ORG:Lacrose Tecnologia
-TITLE:Tecnologia, Desenvolvimento e Automação
-TEL;TYPE=CELL:+5573981097097
-URL:https://lacrosetecnologia.com.br/
-X-SOCIALPROFILE;TYPE=instagram:https://www.instagram.com/lacrosetecnologia/
-END:VCARD
-`;
-        const a=document.createElement('a');
-        const href=URL.createObjectURL(new Blob([v],{type:'text/vcard;charset=utf-8'}));
-        a.href=href;a.download='Igor-Lacrose.vcf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),1000);notify('Contato pronto para salvar.');
-      });
-    })();
-  </script>
+<body class="solo" data-card="company">
+<main class="wrap">
+<header class="hero">
+<p class="eyebrow">Cartão digital · Lacrose Tecnologia</p>
+<img class="main-logo" src="/assets/brand/lacrose-tecnologia-dark.png" alt="Logo oficial 3D da Lacrose Tecnologia" width="290" height="290">
+<p class="motto">Sua empresa tem um desafio?<br><strong>Nós desenvolvemos a solução.</strong></p>
+</header>
+<section class="panel main-panel" aria-labelledby="servicos">
+<h1 id="servicos" class="center-title">Tecnologia aplicada ao seu negócio</h1>
+<p class="brand-intro">Desenvolvimento de soluções digitais, consultoria técnica e automação com inteligência artificial.</p>
+<ul class="service-chips">
+<li>Sites e sistemas</li><li>Aplicações e SaaS</li><li>Automação com IA</li><li>Redes e segurança</li>
+</ul>
+<div class="brand-actions">
+<a class="button primary" href="https://lacrosetecnologia.com.br/">↗ Visitar o site</a>
+<a class="button" href="https://www.instagram.com/lacrosetecnologia/" target="_blank" rel="noopener noreferrer">◎ Instagram</a>
+<a class="button primary full" href="https://wa.me/5573981097097?text=Ol%C3%A1%21%20Vim%20pelo%20cart%C3%A3o%20digital%20da%20Lacrose%20Tecnologia." target="_blank" rel="noopener noreferrer">◉ Falar com a Lacrose no WhatsApp</a>
+<a class="button ghost full" href="https://lacrosetecnologia.com.br/#agente">✦ Solicitar diagnóstico de solução</a>
+</div>
+</section>
+<div class="contact-tools" aria-label="Ações do cartão">
+<a class="button" href="tel:+5573981097097">☎ Ligar para a empresa</a>
+<button class="button" type="button" data-action="save">⊕ Salvar contato</button>
+<button class="button" type="button" data-action="share">↗ Compartilhar cartão</button>
+</div>
+<section class="utility" aria-label="QR Code do cartão institucional">
+<a href="https://lacrosetecnologia.com.br/card/" aria-label="Abrir cartão digital da Lacrose Tecnologia"><img src="./qr.svg" width="126" height="126" alt="QR Code para abrir o cartão da Lacrose Tecnologia" loading="lazy"></a>
+<div><h2>Escaneie e compartilhe</h2><p>Acesse este cartão em outro dispositivo e salve o contato comercial.</p><p class="url">lacrosetecnologia.com.br/card</p></div>
+</section>
+<footer class="footer">Lacrose Tecnologia · Jequié/BA · Atendimento remoto no Brasil<br><a href="/igor/">Conheça Igor Lacrose e suas empresas</a></footer>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
