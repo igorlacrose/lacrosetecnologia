@@ -1,6 +1,6 @@
 const PREFIX='lacrose-card:'+self.registration.scope+':';
 const CACHE=PREFIX+'v5-dual-card';
-const ASSETS=['./','index.html','styles.css','actions.js','qr.svg','icon-192.png','icon-512.png','manifest.webmanifest'];
+const ASSETS=['./','index.html','styles.css','actions.js','qr.svg','logo.webp','icon-192.png','icon-512.png','manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
