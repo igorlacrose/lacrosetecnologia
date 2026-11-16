@@ -1,0 +1,9 @@
+/* Complemento isolado para o cartão executivo: não altera a arte aprovada. */
+.profile-teaser{width:min(100% - 28px,600px);margin:18px auto 35px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 19px;border:1px solid #35617c;border-radius:16px;background:linear-gradient(120deg,#0a2339,#061626);text-decoration:none;color:#f0f9ff;box-shadow:0 8px 32px #0004;min-height:68px;transition:border-color .18s,transform .18s,background .18s}
+.profile-teaser:hover{border-color:#69cfff;background:linear-gradient(120deg,#0d2d49,#081d32);transform:translateY(-2px)}
+.profile-teaser:focus-visible{outline:3px solid #fff;outline-offset:4px}
+.profile-teaser__text{display:flex;flex-direction:column;gap:3px}
+.profile-teaser__title{font-size:.94rem;font-weight:760;letter-spacing:.01em}
+.profile-teaser__desc{color:#acc8db;font-size:.76rem;font-weight:400}
+.profile-teaser__arrow{font-size:1.6rem;font-weight:350;color:#74d8ff;line-height:1}
+@media(prefers-reduced-motion:reduce){.profile-teaser{transition:none!important}.profile-teaser:hover{transform:none}}
