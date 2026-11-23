@@ -229,7 +229,8 @@ async function loadCommercial(){
     loadMeta:{
       partial:[lr,cr,vr,fr,ar].some(item=>item.partial),
       counts:{leads:lr.count,contacts:cr.count,conversations:vr.count,followups:fr.count,approvals:ar.count},
-      loaded:{leads:lr.loaded,contacts:cr.loaded,conversations:vr.loaded,followups:fr.loaded,approvals:ar.loaded}
+      loaded:{leads:lr.loaded,contacts:cr.loaded,conversations:vr.loaded,followups:fr.loaded,approvals:ar.loaded},
+      partialConversations:Boolean(vr.partial)
     },
     threads:(vr.data||[]).map(c=>{
       const linkedLead=lm.get(c.lead_id);
@@ -450,10 +451,35 @@ function executiveMetrics(data){
     partial:Boolean(data.loadMeta?.partial)
   };
 }
+/* Uma oportunidade do site aparece na fila mesmo quando sua conversa não foi salva.
+   Dados da sessão autorizada já carregados: esta função não grava nem envia mensagens. */
+function siteInboxEntries(data){
+  const withConversation=new Set((data.threads||[]).map(t=>t.lead_id).filter(Boolean));
+  const seen=new Set();
+  return (data.leads||[])
+    .filter(l=>l?.source==='website_agent'&&!['archived','lost','won'].includes(l.status))
+    .filter(l=>{if(!l.id||seen.has(l.id))return false;seen.add(l.id);return true})
+    .map(l=>({
+      id:l.id,name:l.name||'Contato não identificado',contact:l.contact||'—',
+      status:l.status,updated_at:l.updated_at,
+      hasConversation:withConversation.has(l.id),
+      conversationLoadPartial:Boolean(data.loadMeta?.partialConversations)
+    }))
+    .sort((a,b)=>(Date.parse(b.updated_at)||0)-(Date.parse(a.updated_at)||0)||
+      String(a.id).localeCompare(String(b.id)));
+}
 function overview(){
   const info=dailyBrief(state);
   const metrics=executiveMetrics(state);
   const suggestions=ocaInternalTriage(state);
+  const websiteQueue=siteInboxEntries(state);
+  const websiteQueueRows=websiteQueue.slice(0,8).map(item=>
+    '<article class="priority-item"><span class="priority-dot"></span>'+
+      '<div><strong>'+esc(item.name)+'</strong>'+
+      '<small>'+esc(item.contact)+' · '+esc(dateLabel(item.updated_at))+' · '+esc(label(item.status))+'</small>'+
+      '<small>'+esc(item.hasConversation?'Atendimento vinculado':
+        item.conversationLoadPartial?'Histórico não verificado na consulta parcial':'Sem conversa registrada')+'</small></div>'+
+      '<button class="cta secondary" type="button" data-site-inbox-lead="'+esc(item.id)+'">Abrir ficha</button></article>').join('');
   const list=info.priorities.slice(0,12).map(item=>
     '<article class="priority-item"><span class="priority-dot'+(item.priority===0?' overdue':'')+'"></span>'+
       '<div><strong>'+esc(item.name)+'</strong><small>'+esc([...item.reasons].join(' · '))+'</small></div>'+
@@ -475,7 +501,14 @@ function overview(){
       k('Retornos hoje',info.dueToday,'Ainda no prazo')+
       k('Atendimentos',state.threads.filter(t=>t.folder==='active').length,'Na caixa de entrada carregada')+
       k('Clientes',state.loadMeta?.counts.contacts??state.contacts.length,'Cadastros disponíveis')+
-    '</div><section class="panel executive-pipeline"><div class="panel-head"><div>'+
+    '</div><section class="panel site-entry-queue"><div class="panel-head"><div>'+
+      '<span class="eyebrow">CAPTAÇÃO PELO SITE</span><h2>Entradas do site</h2>'+
+      '<p class="support-note">Fila de oportunidades carregadas, inclusive quando a conversa não foi salva. Abra a ficha para identificar, acompanhar e arquivar.</p>'+
+      '</div><span class="mini-count">'+websiteQueue.length+' entrada(s) na consulta</span></div>'+
+      (websiteQueueRows||'<p class="empty-state">Nenhuma oportunidade ativa do site na consulta atual.</p>')+
+      (websiteQueue.length>8?'<p class="support-note">Exibindo as 8 entradas mais recentes. Consulte as demais em Oportunidades.</p>':'')+
+      '<button type="button" class="cta secondary" data-overview="leads">Gerenciar todas as oportunidades</button>'+
+    '</section><section class="panel executive-pipeline"><div class="panel-head"><div>'+
       '<h2>Oportunidades por etapa</h2><p class="support-note">'+
       (metrics.partial?'A consulta atingiu o limite de carga. Os indicadores por etapa usam os registros carregados.':
         'Posição atual dos registros disponíveis para esta sessão.')+'</p></div>'+
@@ -507,6 +540,7 @@ function overview(){
           '</button></article>').join('')||
           '<p class="empty-state">Nenhuma ação interna sugerida para os registros carregados.</p>')+
         '</div></section>';
+  el('content').querySelectorAll('[data-site-inbox-lead]').forEach(button=>button.onclick=()=>openOpportunity(button.dataset.siteInboxLead));
   el('content').querySelectorAll('[data-oca-lead]').forEach(button=>button.onclick=()=>openTriageAction(button.dataset.ocaLead,button.dataset.ocaAction));
   el('content').querySelectorAll('[data-overview]').forEach(b=>b.onclick=()=>view(b.dataset.overview));
   el('content').querySelectorAll('[data-priority]').forEach(b=>b.onclick=()=>{
@@ -751,6 +785,7 @@ async function showOpportunity(id,feedback=''){
       '<p>'+tag(lead.status)+' · '+esc(lead.contact)+'</p></div>'+
       '<div class="action-row"><button class="cta secondary" type="button" data-lead-followup>Agendar retorno</button>'+
         (current!=='archived'&&!locked?'<button class="cta danger-outline" type="button" data-archive-lead>Descartar oportunidade</button>':'')+
+        (current==='archived'?'<button class="cta secondary" type="button" data-restore-lead>Restaurar como nova</button>':'')+
         (current!=='archived'?whatsappContactLink(state.contacts.find(c=>c.id===lead.contact_id)):'')+
         '<button class="cta secondary" type="button" data-close-lead>Fechar</button></div></div>'+
       '<div class="lead-detail-grid">'+
@@ -806,6 +841,13 @@ async function showOpportunity(id,feedback=''){
     followupFocus=null;followupFilter='pending';view('followups');openFollowupEditor('create',null,id);
   };
   const form=panel.querySelector('#leadManagementForm');
+  const restoreButton=panel.querySelector('[data-restore-lead]');
+  if(restoreButton)restoreButton.onclick=()=>{
+    form.querySelector('[name=status]').value='new';
+    const note=form.querySelector('[name=note]');
+    if(!note.value.trim())note.value='Oportunidade restaurada para a fila comercial.';
+    form.requestSubmit();
+  };
   const archiveButton=panel.querySelector('[data-archive-lead]');
   if(archiveButton)archiveButton.onclick=()=>{
     form.querySelector('[name=status]').value='archived';
