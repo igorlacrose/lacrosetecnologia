@@ -1,21 +1,945 @@
 <!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#020a15"><meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; form-action 'none'; manifest-src 'self'; upgrade-insecure-requests">
-<meta name="description" content="Sites, sistemas e automação com IA"><meta property="og:type" content="website"><meta property="og:title" content="Lacrose Tecnologia | Cartão Digital"><meta property="og:description" content="Sites, sistemas e automação com IA"><meta property="og:url" content="https://lacrosetecnologia.com.br/card/">
-<link rel="canonical" href="https://lacrosetecnologia.com.br/card/">
-<link rel="icon" type="image/png" href="/card/icon-192.png">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./styles.css"><script defer src="./actions.js"></script>
-<title>Lacrose Tecnologia | Cartão Digital</title></head>
-<body data-card="card"><main class="frame" aria-label="Lacrose Tecnologia | Cartão Digital"><div class="art">
-<h1 class="sr-only">Lacrose Tecnologia | Cartão Digital</h1>
-<img class="poster" width="941" height="1672" src="./art-card.webp" decoding="async" fetchpriority="high" alt="Lacrose Tecnologia | Cartão Digital. Arte premium em preto, azul neon e detalhes cromados; acione os links e botões sobre a imagem.">
-<nav aria-label="Links comerciais e ações do cartão"><a class="hotspot hs-card-1" href="https://lacrosetecnologia.com.br/" target="_blank" rel="noopener noreferrer" aria-label="Site da Lacrose Tecnologia"><span class="sr-only">Site da Lacrose Tecnologia</span></a><a class="hotspot hs-card-2" href="https://www.instagram.com/lacrosetecnologia/" target="_blank" rel="noopener noreferrer" aria-label="Instagram da Lacrose Tecnologia"><span class="sr-only">Instagram da Lacrose Tecnologia</span></a><a class="hotspot hs-card-3" href="https://wa.me/5573981097097" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp comercial da Lacrose Tecnologia"><span class="sr-only">WhatsApp comercial da Lacrose Tecnologia</span></a><a class="hotspot hs-card-4" href="https://wa.me/5573981097097?text=Ol%C3%A1%21%20Vim%20pelo%20cart%C3%A3o%20digital%20da%20Lacrose%20Tecnologia." target="_blank" rel="noopener noreferrer" aria-label="Falar com a Lacrose pelo WhatsApp"><span class="sr-only">Falar com a Lacrose pelo WhatsApp</span></a><button type="button" class="hotspot hs-card-5" data-action="qr" aria-label="Ampliar QR Code da Lacrose"><span class="sr-only">Ampliar QR Code da Lacrose</span></button></nav>
-</div>
-<div class="card-actions" role="group" aria-label="Ações do cartão">
-  <button type="button" data-action="save">Salvar contato comercial</button>
-  <button type="button" data-action="share">Compartilhar cartão</button>
-</div></main>
-<dialog id="qr-modal" class="qr-modal" aria-label="QR Code do cartão"><h2>QR Code do cartão</h2><img src="./qr.png" width="200" height="200" alt="QR Code válido para abrir o cartão"><p>https://lacrosetecnologia.com.br/card/</p><button id="close-qr" type="button">Fechar</button></dialog>
-<div class="toast" role="status" aria-live="polite" id="toast"></div></body></html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; script-src 'self' 'sha256-rxlv4AmFreB+fRGtmuluuMzdfTyD0WzlZY+RHNek4kY='; style-src 'self' 'sha256-XFrdBgDGeH77NybKJd+yuppxyJ0t0o8lNzphvYJGdAg=' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; form-action 'none'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="canonical" href="https://lacrosetecnologia.com.br/card/">
+  <link rel="icon" href="/card/icon-192.png" type="image/png">
+  <link rel="manifest" href="/card/manifest.webmanifest">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Igor Lacrose — Lacrose Tecnologia</title>
+  <meta name="description" content="Igor Lacrose — Empresário e Consultor de Tecnologia. Engenharia de software sob medida, IA e infraestrutura crítica." />
+  <meta name="theme-color" content="#06080c" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-canvas: #06080c;
+      --surface-base: rgba(14, 18, 26, 0.84);
+      --surface-tile: rgba(255, 255, 255, 0.028);
+      --surface-tile-hover: rgba(255, 255, 255, 0.06);
+      --border-hairline: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(54, 191, 255, 0.35);
+      --accent: #36bfff;
+      --accent-soft: rgba(54, 191, 255, 0.12);
+      --text-primary: #f3f6fc;
+      --text-secondary: #94a0b8;
+      --text-muted: #5e6a82;
+      --font-display: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-sans: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      min-height: 100dvh;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Static Architectural Atmosphere */
+    .ambient-light {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% -10%, rgba(54, 191, 255, 0.14), transparent 55%),
+        radial-gradient(circle at 85% 90%, rgba(28, 78, 138, 0.12), transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .architectural-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse at center, black 35%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 35%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Stage */
+    .stage {
+      width: 100%;
+      max-width: 420px;
+      perspective: 1600px;
+      animation: chassisMount 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+      z-index: 2;
+    }
+
+    /* One-Time Chassis Seating */
+    .card-flipper {
+      position: relative;
+      width: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+      
+    }
+
+    @keyframes chassisMount {
+      0% {
+        opacity: 0;
+        transform: scale(0.95) translateY(16px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .card-flipper.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    /* Titanium Glass Card Surface */
+    .card-face {
+      position: relative;
+      width: 100%;
+      border-radius: 26px;
+      background: var(--surface-base);
+      border: 1px solid var(--border-hairline);
+      box-shadow:
+        0 32px 64px -16px rgba(0, 0, 0, 0.78),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      overflow: hidden;
+      padding: 24px;
+    }
+
+    /* One-Time Calibration Light Sweep (runs once and stops) */
+    .card-front::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        115deg,
+        transparent 30%,
+        rgba(54, 191, 255, 0.14) 48%,
+        rgba(255, 255, 255, 0.08) 50%,
+        transparent 68%
+      );
+      transform: translateX(-120%);
+      animation: singleSweep 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    @keyframes singleSweep {
+      to {
+        transform: translateX(120%);
+      }
+    }
+
+    /* Modular Assembly Pieces (each module locks into place once) */
+    .assemble-step {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: moduleLock 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation-delay: var(--step-delay, 0.1s);
+    }
+
+    @keyframes moduleLock {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card-back {
+      position: absolute;
+      inset: 0;
+      transform: rotateY(180deg);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .face-layer {
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-hairline);
+      padding: 5px 11px;
+      border-radius: 99px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(54, 191, 255, 0.7);
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      height: 34px;
+      padding: 0 11px;
+      border-radius: 10px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border-hairline);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .icon-btn:hover {
+      color: var(--text-primary);
+      background: var(--surface-tile-hover);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    /* Identity Block */
+    .identity {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .emblem-box {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(26, 33, 46, 0.9), rgba(11, 14, 21, 0.95));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      overflow: hidden;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.3rem;
+      color: var(--accent);
+    }
+
+    .emblem-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 10px;
+    }
+
+    .emblem-box img[hidden], .emblem-box span[hidden] {
+      display: none;
+    }
+
+    .identity-text h1 {
+      font-family: var(--font-display);
+      font-size: 1.52rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      color: var(--text-primary);
+    }
+
+    .identity-role {
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--accent);
+      margin-top: 3px;
+    }
+
+    .identity-meta {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Editorial Positioning Statement */
+    .statement-box {
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-hairline);
+      margin-bottom: 18px;
+    }
+
+    .statement-box p {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .statement-box strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* Primary Actions */
+    .primary-stack {
+      display: grid;
+      gap: 9px;
+      margin-bottom: 16px;
+    }
+
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-radius: 13px;
+      background: linear-gradient(135deg, #42c5ff 0%, #24a8e8 100%);
+      color: #04080e;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.94rem;
+      text-decoration: none;
+      box-shadow: 0 8px 24px -6px rgba(54, 191, 255, 0.4);
+      transition: filter 0.2s ease, transform 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.06);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.99);
+    }
+
+    .btn-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      border-radius: 13px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border-hairline);
+      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface-tile-hover);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.99);
+    }
+
+    /* Unified 2-Column Action Grid */
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 18px;
+    }
+
+    .action-tile {
+      background: var(--surface-tile);
+      border: 1px solid var(--border-hairline);
+      border-radius: 13px;
+      padding: 12px 14px;
+      text-align: left;
+      color: var(--text-primary);
+      text-decoration: none;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .action-tile:hover {
+      background: var(--surface-tile-hover);
+      border-color: var(--border-active);
+    }
+
+    .tile-kicker {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .tile-kicker span.arrow {
+      color: var(--accent);
+    }
+
+    .tile-label {
+      font-family: var(--font-display);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: block;
+    }
+
+    .tile-value {
+      font-size: 0.73rem;
+      color: var(--text-secondary);
+      display: block;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Ecosystem Bar */
+    .ecosystem-section {
+      padding-top: 14px;
+      border-top: 1px solid var(--border-hairline);
+      margin-bottom: 16px;
+    }
+
+    .ecosystem-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.63rem;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 9px;
+    }
+
+    .ecosystem-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .eco-pill {
+      padding: 8px 4px;
+      border-radius: 8px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border-hairline);
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .eco-pill:hover {
+      color: var(--text-primary);
+      background: var(--accent-soft);
+      border-color: var(--border-active);
+    }
+
+    /* Card Footer */
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-hairline);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .brand-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-link:hover {
+      color: var(--text-primary);
+    }
+
+    .brand-link span {
+      color: var(--accent);
+    }
+
+    /* Back Face (QR Code) */
+    .qr-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    .qr-content h2 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .qr-content p {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      max-width: 270px;
+      line-height: 1.45;
+    }
+
+    .qr-card {
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 18px;
+      margin: 22px 0 16px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+    }
+
+    .qr-card img {
+      display: block;
+      width: 192px;
+      height: 192px;
+    }
+
+    .qr-domain {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(18, 24, 36, 0.95);
+      border: 1px solid var(--border-active);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 10px 18px;
+      border-radius: 99px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .assemble-step {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  
+    .inline-0 { --step-delay: 0.12s; }
+    .inline-1 { --step-delay: 0.22s; }
+    .inline-2 { --step-delay: 0.32s; }
+    .inline-3 { --step-delay: 0.42s; }
+    .inline-4 { --step-delay: 0.52s; }
+    .inline-5 { --step-delay: 0.62s; }
+    .inline-6 { --step-delay: 0.7s; }
+    .inline-7 { background:none;border:none;color:inherit;font:inherit;cursor:pointer; }
+    .inline-8 { width: 100%; justify-content: center; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="ambient-light" aria-hidden="true"></div>
+  <div class="architectural-grid" aria-hidden="true"></div>
+
+  <main class="stage">
+    <div class="card-flipper" id="cardFlipper">
+
+      <!-- ==================== FRONT FACE ==================== -->
+      <section class="card-face card-front">
+        <div class="face-layer">
+          <!-- Step 1: Header -->
+          <div class="top-bar assemble-step inline-0">
+            <div class="status-pill">
+              <span class="status-dot"></span>
+              <span>LACROSE TECNOLOGIA</span>
+            </div>
+
+            <div class="top-actions">
+              <button type="button" class="icon-btn" id="flipToBackBtn" aria-label="Exibir QR Code">
+                <span>QR Code</span>
+                <span>↻</span>
+              </button>
+              <button type="button" class="icon-btn" id="shareBtn" aria-label="Compartilhar cartão">
+                <span>↗</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Identity -->
+          <div class="identity assemble-step inline-1">
+            <div class="emblem-box">
+              <img src="/assets/logo-mark.webp" alt="Lacrose Tecnologia">
+              <span hidden>LT</span>
+            </div>
+
+            <div class="identity-text">
+              <h1>Igor Lacrose</h1>
+              <div class="identity-role">Empresário • Consultor de Tecnologia</div>
+              <div class="identity-meta">
+                <span>Jequié, BA</span>
+                <span>•</span>
+                <span id="liveClock">Bahia</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Value Statement -->
+          <div class="statement-box assemble-step inline-2">
+            <p>
+              <strong>O próximo nível não vem pronto. A gente cria.</strong> Engenharia de software sob medida, automação com IA e infraestrutura crítica.
+            </p>
+          </div>
+
+          <!-- Step 4: Primary Actions -->
+          <div class="primary-stack assemble-step inline-3">
+            <a id="waLink" href="https://wa.me/5573981097097" target="_blank" rel="noopener" class="btn-primary">
+              <span>Conversar no WhatsApp</span>
+              <span>↗</span>
+            </a>
+
+            <button type="button" id="vcfBtn" class="btn-secondary">
+              <span>Salvar Contato na Agenda (.vcf)</span>
+              <span>↓</span>
+            </button>
+          </div>
+
+          <!-- Step 5: Unified Action Grid -->
+          <div class="actions-grid assemble-step inline-4">
+            <a id="telLink" href="tel:+5573981097097" class="action-tile">
+              <div class="tile-kicker"><span>TELEFONE</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Ligar Direto</span>
+                <span class="tile-value" id="phoneText">+55 (73) 98109-7097</span>
+              </div>
+            </a>
+
+            <a href="https://lacrosetecnologia.com.br/#agente" target="_blank" rel="noopener" class="action-tile">
+              <div class="tile-kicker"><span>DIAGNÓSTICO IA</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Agente OCA</span>
+                <span class="tile-value">Escopo de projetos</span>
+              </div>
+            </a>
+
+            <a href="/igor/perfil/" target="_blank" rel="noopener" class="action-tile">
+              <div class="tile-kicker"><span>EXECUTIVO</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Perfil Igor Lacrose</span>
+                <span class="tile-value">Experiência e atuação</span>
+              </div>
+            </a>
+
+            <a href="https://wa.me/5573982455573" target="_blank" rel="noopener" class="action-tile">
+              <div class="tile-kicker"><span>CONECTIVIDADE</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Bahia Nexos</span>
+                <span class="tile-value">(73) 98245-5573</span>
+              </div>
+            </a>
+
+            <a href="https://www.instagram.com/lacrosetecnologia/" target="_blank" rel="noopener" class="action-tile">
+              <div class="tile-kicker"><span>SOCIAL</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Instagram</span>
+                <span class="tile-value">@lacrosetecnologia</span>
+              </div>
+            </a>
+
+            <a href="https://lacrosetecnologia.com.br" target="_blank" rel="noopener" class="action-tile">
+              <div class="tile-kicker"><span>PORTAL</span><span class="arrow">↗</span></div>
+              <div>
+                <span class="tile-label">Site Oficial</span>
+                <span class="tile-value">lacrosetecnologia.com.br</span>
+              </div>
+            </a>
+          </div>
+
+          <!-- Step 6: Ecosystem -->
+          <div class="ecosystem-section assemble-step inline-5">
+            <div class="ecosystem-header">
+              <span>ECOSSISTEMA PROPRIETÁRIO</span>
+              <span>SOLUÇÕES ↗</span>
+            </div>
+            <div class="ecosystem-row">
+              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LCRM</a>
+              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LKZ ADM</a>
+              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LKZ ERP</a>
+              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LISP</a>
+            </div>
+          </div>
+
+          <!-- Step 7: Footer -->
+          <footer class="card-footer assemble-step inline-6">
+            <a href="https://lacrosetecnologia.com.br" target="_blank" rel="noopener" class="brand-link">
+              <span>✳</span> Lacrose Tecnologia
+            </a>
+            <button type="button" id="copyPhoneBtn" class="inline-7">
+              Copiar número ❐
+            </button>
+          </footer>
+        </div>
+      </section>
+
+      <!-- ==================== BACK FACE (QR CODE) ==================== -->
+      <section class="card-face card-back" aria-hidden="true" inert>
+        <div class="face-layer">
+          <div class="top-bar">
+            <div class="status-pill">
+              <span class="status-dot"></span>
+              <span>ACESSO RÁPIDO</span>
+            </div>
+            <button type="button" class="icon-btn" id="flipToFrontBtn">
+              <span>Voltar</span>
+              <span>↻</span>
+            </button>
+          </div>
+
+          <div class="qr-content">
+            <h2>Compartilhar Contato</h2>
+            <p>Aponte a câmera do celular para abrir o cartão digital de Igor Lacrose.</p>
+
+            <div class="qr-card">
+              <img id="qrImg" alt="QR Code Igor Lacrose" />
+            </div>
+
+            <span class="qr-domain">lacrosetecnologia.com.br/card/</span>
+
+            <button type="button" id="copyUrlBtn" class="btn-secondary inline-8">
+              <span>Copiar link do cartão</span>
+              <span>❐</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="face-layer card-footer">
+          <span class="brand-link"><span>✳</span> Engenharia de Possibilidades</span>
+          <span>Jequié • BA</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const PROFILE_CONFIG = {
+      firstName: "Igor",
+      lastName: "Lacrose",
+      fullName: "Igor Lacrose",
+      role: "Empresário • Consultor de Tecnologia",
+      org: "Lacrose Tecnologia",
+      phoneRaw: "5573981097097",
+      phoneFormatted: "+55 (73) 98109-7097",
+      website: "https://lacrosetecnologia.com.br",
+      cardUrl: "https://lacrosetecnologia.com.br/card/",
+      city: "Jequié",
+      state: "BA",
+      country: "Brasil",
+      whatsappMessage: "Olá Igor! Acessei seu cartão digital da Lacrose Tecnologia e gostaria de conversar sobre um projeto."
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const logo = document.querySelector(".emblem-box img");
+      const fallback = () => { logo.hidden = true; logo.nextElementSibling.hidden = false; };
+      logo.addEventListener("error", fallback);
+      if (logo.complete && !logo.naturalWidth) fallback();
+      document.getElementById("phoneText").textContent = PROFILE_CONFIG.phoneFormatted;
+      document.getElementById("telLink").href = `tel:+${PROFILE_CONFIG.phoneRaw}`;
+      document.getElementById("waLink").href =
+        `https://wa.me/${PROFILE_CONFIG.phoneRaw}?text=${encodeURIComponent(PROFILE_CONFIG.whatsappMessage)}`;
+
+      // QR Code embutido
+      document.getElementById("qrImg").src =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAAChUlEQVR4nO2aQY6kMAxFnwekWoI0B+ijpG7QRxrNkfoG5Ch1gJbCHvRnkYSiqtU90xKFipG9QEDe4kuWEzu2ie9Y/PEtHJx33nnnnXfe+c94K9ZC7AFGs+sj23lHPc5vzAdJUgI7j2ZmfVm2M40kSbf8o/U4vzE/lgjV0E0UT3cTGoAc2Pvqcf5BfLicBN0EjKePxdPT63f+xtq7bwNM8QyKPfbBwc+m3/mvrfq3EzCC4mvCQuoxuve8unbys+l3/p/4aCWrsl+XFqAR4XKSnZlz+ryvHuc34u8jVDmIe0yxx0pg76fH+W15cvETUpMfGgApNSXJCpIImjKn4dn0O/8Xy35TqqVRro8kQScBjTR0Ui6R3b8H46t/b4IYOklKxbVSAvfvIfm67+a3CXJqlf81IqSy4PvzIfllLy6u1bCculdk+ef+PSifU6tuKvdXsaemVqnJh/C+epzfiK/3G2MPYAhmI7y1k2KfAGYTzJV7Nv3Of22l/o0vU6v4+t5aGKZWsW8wujWoffQ4vy2/xO9JFi4tin2ShdQbMLfEvpkAsDDsocf5h/AhzZYL3pCAnGldT91rJ+lJ9Tv/mdXSF0qZW6teipOBIM+fD8rf1r+6uavKoxvrOy3379H4fP5a0NxaePs5ES7tVNa6hOXVhO/Px+RX95Nlp9ZEOYm19BcSvj8fk6/3V9mWXsK1f3TTSXL/HpRf5idzpvW7Bw3jMom1ux7nN+br/GSe1QipzE8S6+fOepx/DC+lRnn+eWkdwejzsf8Jfx1tB+Yy6R5ffL79oHy939C6oV+7RlBHc7z+PSh/nz+vXAusN2nPn4/If5yfZLoZeM4f3v913nnnnXfe+Q35P4w32y2u0/a9AAAAAElFTkSuQmCC";
+
+      // Toast helper
+      const toast = document.getElementById("toast");
+      let toastTimeout;
+      function notify(text) {
+        toast.textContent = text;
+        toast.classList.add("show");
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => toast.classList.remove("show"), 2600);
+      }
+
+      // Static Bahia Local Time on Open
+      const clockEl = document.getElementById("liveClock");
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Bahia"
+      });
+      clockEl.textContent = `Bahia • ${timeStr}`;
+
+      // Flip Front <-> Back on User Click
+      const flipper = document.getElementById("cardFlipper");
+      const frontFace = document.querySelector(".card-front");
+      const backFace = document.querySelector(".card-back");
+
+      document.getElementById("flipToBackBtn").addEventListener("click", () => {
+        flipper.classList.add("is-flipped");
+        frontFace.setAttribute("aria-hidden", "true");
+        backFace.setAttribute("aria-hidden", "false");
+        frontFace.inert = true;
+        backFace.inert = false;
+        document.getElementById("flipToFrontBtn").focus();
+      });
+
+      document.getElementById("flipToFrontBtn").addEventListener("click", () => {
+        flipper.classList.remove("is-flipped");
+        frontFace.setAttribute("aria-hidden", "false");
+        backFace.setAttribute("aria-hidden", "true");
+        backFace.inert = true;
+        frontFace.inert = false;
+        document.getElementById("flipToBackBtn").focus();
+      });
+
+      // Dynamic vCard (.vcf) Generator
+      document.getElementById("vcfBtn").addEventListener("click", () => {
+        const vcf = [
+          "BEGIN:VCARD",
+          "VERSION:3.0",
+          `N:${PROFILE_CONFIG.lastName};${PROFILE_CONFIG.firstName};;;`,
+          `FN:${PROFILE_CONFIG.fullName} — ${PROFILE_CONFIG.org}`,
+          `ORG:${PROFILE_CONFIG.org}`,
+          `TITLE:${PROFILE_CONFIG.role}`,
+          `TEL;TYPE=WORK,VOICE:+${PROFILE_CONFIG.phoneRaw}`,
+          "TEL;TYPE=WORK,VOICE:+5573982455573",
+          `URL:${PROFILE_CONFIG.cardUrl}`,
+          `ADR;TYPE=WORK:;;;${PROFILE_CONFIG.city};${PROFILE_CONFIG.state};;${PROFILE_CONFIG.country}`,
+          "NOTE:Engenharia de software sob medida, IA e infraestrutura crítica.",
+          "END:VCARD"
+        ].join("\r\n");
+
+        const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Igor-Lacrose.vcf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1300);
+        notify("Contato salvo. Abra o arquivo .vcf para adicionar à agenda.");
+      });
+
+      // Copy & Share Actions
+      document.getElementById("copyPhoneBtn").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(PROFILE_CONFIG.phoneFormatted);
+          notify("Número copiado para a área de transferência.");
+        } catch {
+          notify(PROFILE_CONFIG.phoneFormatted);
+        }
+      });
+
+      document.getElementById("copyUrlBtn").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(PROFILE_CONFIG.cardUrl);
+          notify("Link do cartão copiado.");
+        } catch {
+          notify(PROFILE_CONFIG.cardUrl);
+        }
+      });
+
+      document.getElementById("shareBtn").addEventListener("click", async () => {
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: `${PROFILE_CONFIG.fullName} — ${PROFILE_CONFIG.org}`,
+              text: "Cartão Digital Executivo — Lacrose Tecnologia",
+              url: PROFILE_CONFIG.cardUrl
+            });
+          } catch (_) {}
+        } else {
+          try {
+            await navigator.clipboard.writeText(PROFILE_CONFIG.cardUrl);
+            notify("Link do cartão copiado.");
+          } catch {
+            notify(PROFILE_CONFIG.cardUrl);
+          }
+        }
+      });
+      if ("serviceWorker" in navigator && location.protocol === "https:") {
+        navigator.serviceWorker.register("/card/sw.js", {scope:"/card/", updateViaCache:"none"}).then(reg => reg.update()).catch(() => {});
+      }
+    });
+  </script>
+</body>
+</html>
