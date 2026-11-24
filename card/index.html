@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; script-src 'self' 'sha256-rxlv4AmFreB+fRGtmuluuMzdfTyD0WzlZY+RHNek4kY='; style-src 'self' 'sha256-XFrdBgDGeH77NybKJd+yuppxyJ0t0o8lNzphvYJGdAg=' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; form-action 'none'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; script-src 'self' 'sha256-evYgwMp3T4Z9A7k/Y/4LxApstsUiouIsCjepXtVudvE='; style-src 'self' 'sha256-XFrdBgDGeH77NybKJd+yuppxyJ0t0o8lNzphvYJGdAg=' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; form-action 'none'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <link rel="canonical" href="https://lacrosetecnologia.com.br/card/">
   <link rel="icon" href="/card/icon-192.png" type="image/png">
@@ -735,10 +735,10 @@
               <span>SOLUÇÕES ↗</span>
             </div>
             <div class="ecosystem-row">
-              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LCRM</a>
-              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LKZ ADM</a>
-              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LKZ ERP</a>
-              <a href="https://lacrosetecnologia.com.br/#sistemas" target="_blank" rel="noopener" class="eco-pill">LISP</a>
+              <a href="https://lacrosetecnologia.com.br/#capacidades" target="_blank" rel="noopener" class="eco-pill">LCRM</a>
+              <a href="https://lacrosetecnologia.com.br/#capacidades" target="_blank" rel="noopener" class="eco-pill">LKZ ADM</a>
+              <a href="https://lacrosetecnologia.com.br/#capacidades" target="_blank" rel="noopener" class="eco-pill">LKZ ERP</a>
+              <a href="https://lacrosetecnologia.com.br/#capacidades" target="_blank" rel="noopener" class="eco-pill">LISP</a>
             </div>
           </div>
 
@@ -883,9 +883,9 @@
           "TEL;TYPE=WORK,VOICE:+5573982455573",
           `URL:${PROFILE_CONFIG.cardUrl}`,
           `ADR;TYPE=WORK:;;;${PROFILE_CONFIG.city};${PROFILE_CONFIG.state};;${PROFILE_CONFIG.country}`,
-          "NOTE:Engenharia de software sob medida, IA e infraestrutura crítica.",
+          "NOTE:Engenharia de software sob medida\\, IA e infraestrutura crítica.",
           "END:VCARD"
-        ].join("\r\n");
+        ].join("\r\n") + "\r\n";
 
         const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
         const url = URL.createObjectURL(blob);
@@ -900,6 +900,15 @@
       });
 
       // Copy & Share Actions
+      async function copyCardUrl() {
+        try {
+          await navigator.clipboard.writeText(PROFILE_CONFIG.cardUrl);
+          notify("Link do cartão copiado.");
+        } catch {
+          notify(PROFILE_CONFIG.cardUrl);
+        }
+      }
+
       document.getElementById("copyPhoneBtn").addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(PROFILE_CONFIG.phoneFormatted);
@@ -909,14 +918,7 @@
         }
       });
 
-      document.getElementById("copyUrlBtn").addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(PROFILE_CONFIG.cardUrl);
-          notify("Link do cartão copiado.");
-        } catch {
-          notify(PROFILE_CONFIG.cardUrl);
-        }
-      });
+      document.getElementById("copyUrlBtn").addEventListener("click", copyCardUrl);
 
       document.getElementById("shareBtn").addEventListener("click", async () => {
         if (navigator.share) {
@@ -926,14 +928,11 @@
               text: "Cartão Digital Executivo — Lacrose Tecnologia",
               url: PROFILE_CONFIG.cardUrl
             });
-          } catch (_) {}
-        } else {
-          try {
-            await navigator.clipboard.writeText(PROFILE_CONFIG.cardUrl);
-            notify("Link do cartão copiado.");
-          } catch {
-            notify(PROFILE_CONFIG.cardUrl);
+          } catch (error) {
+            if (error.name !== "AbortError") await copyCardUrl();
           }
+        } else {
+          await copyCardUrl();
         }
       });
       if ("serviceWorker" in navigator && location.protocol === "https:") {
