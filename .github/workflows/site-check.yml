@@ -28,6 +28,9 @@ jobs:
       - name: Validar arquivos, links e SEO
         run: python scripts/site_check.py
 
+      - name: Validar cartão digital, CSP, contatos e cache offline
+        run: node --test scripts/test_card.mjs
+
       - name: Validar script de backup e guardrails
         run: |
           bash -n scripts/lkz_adm_backup_encrypted.sh
