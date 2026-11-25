@@ -4,7 +4,7 @@ const tenant = document.querySelector('#tenant');
 const feedback = document.querySelector('#feedback');
 const nav = document.querySelector('#navigation');
 const tabs = {
-  overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
+  overview: 'Visão geral', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
   subscription_drafts: 'Assinaturas', license_requests: 'Licenças', audit: 'Auditoria',
 };
@@ -29,8 +29,9 @@ function message(text, error = false) {
   feedback.toggleAttribute('data-error', error);
 }
 
-async function api(route, data) {
+async function api(route, data, after) {
   const query = new URLSearchParams({ tenant: tenant.value });
+  if (after) query.set('after', after);
   const headers = accessToken ? { Authorization: 'Bearer ' + accessToken } : {};
   if (data !== undefined) headers['Content-Type'] = 'application/json';
   const response = await fetch('/api/' + route + '?' + query, {
@@ -123,6 +124,48 @@ async function build(section) {
     resources.forEach(key => {
       content.append(card(tabs[key], element('strong', String(counts[key]), 'metric')));
     });
+    return content;
+  }
+
+  if (section === 'operations') {
+    const token = generation;
+    content.className = 'records';
+    const more = element('button', 'Carregar mais');
+    async function appendPage(after) {
+      const result = await api('operations', undefined, after);
+      if (token !== generation) return;
+      more.remove();
+      for (const row of result.items) {
+        const payments = Object.entries(row.payments).map(([state,n]) => n + ' ' + sandboxStates[state]);
+        const details = [row.plan, money.format(row.amount_brl_cents / 100) + ' · ' + intervals[row.interval],
+          'Assinatura em rascunho', !result.canRequest ? 'Cobranças restritas ao administrador' : payments.length ? 'Sandbox: ' + payments.join(', ') : 'Sem cobrança vinculada'];
+        let control;
+        if (row.kind === 'saas') {
+          details.push(row.license_state ? 'Licença solicitada · liberação bloqueada' : 'Licença ainda não solicitada');
+          if (result.canRequest && !row.license_state) {
+            control = element('button', 'Solicitar licença');
+            control.onclick = async () => {
+              control.disabled = true;
+              try { await mutate('operations/' + row.id + '/request-license', {}, token); }
+              catch (error) { if (token === generation) message(error.message, true); }
+              finally { control.disabled = false; }
+            };
+          }
+        }
+        content.append(record(row.client + ' · ' + row.product, details.join(' · '), control));
+      }
+      if (!after && !result.items.length) content.append(element('p', 'Nenhuma assinatura cadastrada nesta empresa.'));
+      if (result.next) {
+        content.append(more);
+        more.onclick = async () => {
+          more.disabled = true;
+          try { await appendPage(result.next); }
+          catch (error) { if (token === generation) message(error.message, true); }
+          finally { more.disabled = false; }
+        };
+      }
+    }
+    await appendPage();
     return content;
   }
 
