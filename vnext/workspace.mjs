@@ -188,6 +188,36 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
         return json({ error: 'Ação WhatsApp indisponível.' }, 404);
       }
 
+      if (resource === 'operations' && request.method === 'GET' && parts.length === 1) {
+        const { rows } = await tx.query(`
+          select d.id, c.name as client, p.name as product, p.kind, plan.name as plan,
+            plan.amount_brl_cents, plan.interval, lic.state as license_state,
+            coalesce((select jsonb_object_agg(t.state,t.total) from (
+              select b.state, count(*) as total from lkz_vnext_billing.payment_bindings b
+              where (b.tenant_id,b.subscription_id)=(d.tenant_id,d.id) group by b.state
+            ) t),'{}'::jsonb) as payments
+          from lkz_vnext.subscription_drafts d
+          join lkz_vnext.clients c on (c.tenant_id,c.id)=(d.tenant_id,d.client_id)
+          join lkz_vnext.plans plan on (plan.tenant_id,plan.id)=(d.tenant_id,d.plan_id)
+          join lkz_vnext.products p on (p.tenant_id,p.id)=(plan.tenant_id,plan.product_id)
+          left join lkz_vnext.license_requests lic on (lic.tenant_id,lic.subscription_id)=(d.tenant_id,d.id)
+          where d.tenant_id=$1 and ($2::uuid is null or d.id>$2)
+          order by d.id limit 51`, [tenant, url.searchParams.get('after')]);
+        const items = rows.slice(0,50);
+        return json({ items, next: rows.length > 50 ? items[49].id : null,
+          canRequest: access.rows[0].role === 'admin' });
+      }
+      if (resource === 'operations' && action === 'request-license' && parts.length === 3 && request.method === 'POST') {
+        if (access.rows[0].role !== 'admin') return json({ error: 'Ação sem permissão.' }, 403);
+        const eligibleDraft = await tx.query(`select d.id from lkz_vnext.subscription_drafts d
+          join lkz_vnext.plans pl on (pl.tenant_id,pl.id)=(d.tenant_id,d.plan_id)
+          join lkz_vnext.products p on (p.tenant_id,p.id)=(pl.tenant_id,pl.product_id)
+          where d.tenant_id=$1 and d.id=$2 and p.kind='saas'`, [tenant,id]);
+        if (!eligibleDraft.rows.length) return json({ error: 'Assinatura de sistema indisponível.' },404);
+        await tx.query(`insert into lkz_vnext.license_requests (tenant_id,subscription_id)
+          values ($1,$2) on conflict (tenant_id,subscription_id) do nothing`, [tenant,id]);
+        return json({state:'blocked'});
+      }
       if (request.method === 'GET' && resource === 'overview' && parts.length === 1) {
         const result = await tx.query(`
           select

@@ -22,7 +22,7 @@ document.addEventListener('keydown', event => {
   }
 });
 const tabs = {
-  overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
+  overview: 'Visão geral', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
   subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', cash: 'Caixa', audit: 'Auditoria',
 };
@@ -348,6 +348,48 @@ async function build(section) {
       }
     });
     content.append(card('Configurar lembretes e limite mensal', settings));
+    return content;
+  }
+
+  if (section === 'operations') {
+    const token = generation;
+    content.className = 'records';
+    const more = element('button', 'Carregar mais');
+    async function appendPage(after) {
+      const result = await api('operations', undefined, after ? { after } : {});
+      if (token !== generation) return;
+      more.remove();
+      for (const row of result.items) {
+        const payments = Object.entries(row.payments).map(([state,n]) => n + ' ' + sandboxStates[state]);
+        const details = [row.plan, money.format(row.amount_brl_cents / 100) + ' · ' + intervals[row.interval],
+          'Assinatura em rascunho', !result.canRequest ? 'Cobranças restritas ao administrador' : payments.length ? 'Sandbox: ' + payments.join(', ') : 'Sem cobrança vinculada'];
+        let control;
+        if (row.kind === 'saas') {
+          details.push(row.license_state ? 'Licença solicitada · liberação bloqueada' : 'Licença ainda não solicitada');
+          if (result.canRequest && !row.license_state) {
+            control = element('button', 'Solicitar licença');
+            control.onclick = async () => {
+              control.disabled = true;
+              try { await mutate('operations/' + row.id + '/request-license', {}, token); }
+              catch (error) { if (token === generation) message(error.message, true); }
+              finally { control.disabled = false; }
+            };
+          }
+        }
+        content.append(record(row.client + ' · ' + row.product, details.join(' · '), control));
+      }
+      if (!after && !result.items.length) content.append(element('p', 'Nenhuma assinatura cadastrada nesta empresa.'));
+      if (result.next) {
+        content.append(more);
+        more.onclick = async () => {
+          more.disabled = true;
+          try { await appendPage(result.next); }
+          catch (error) { if (token === generation) message(error.message, true); }
+          finally { more.disabled = false; }
+        };
+      }
+    }
+    await appendPage();
     return content;
   }
 
