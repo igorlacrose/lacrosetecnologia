@@ -10,13 +10,16 @@
 </head>
 <body>
   <a class="skip" href="#main">Pular para conteúdo</a>
-  <aside>
+  <aside id="sidebar">
     <div class="brand"><b>LKZ ADM</b><span>Lacrose Tecnologia</span></div>
+    <p class="nav-label">Operação</p>
     <nav aria-label="Operação" id="navigation"></nav>
   </aside>
+  <button class="sidebar-backdrop" type="button" aria-label="Fechar menu"></button>
   <main id="main">
     <header>
-      <div><p class="environment">Ambiente local · dados de teste</p><h1 id="title">Visão geral</h1></div>
+      <div><button id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ Menu</button>
+        <p class="environment">Ambiente local · dados de teste</p><h1 id="title">Visão geral</h1></div>
       <label>Empresa<select id="tenant"></select></label>
     </header>
     <p id="feedback" role="status" aria-live="polite"></p>

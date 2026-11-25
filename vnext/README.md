@@ -129,3 +129,8 @@ O simulador transacional de fila avalia tarefas de lembretes vencendo no interva
 ## Simulação do serviço de envio — sem Meta
 
 Foi acrescentado um processamento sintético e transacional que reserva uma cota mensal fictícia por empresa, marca tarefas como `simulated` (nunca `sent`) e registra um ledger com RLS e auditoria agregada. Não existe envio, cobrança nem garantia de teto financeiro real. Veja [SIMULATED_DISPATCH.md](./SIMULATED_DISPATCH.md) para modo `--simulation-only`, testes, limitações e rollback.
+## Caixa manual
+
+A aba Caixa registra recebimentos em dinheiro e estornos integrais por empresa. O acesso usa o papel administrativo VNext e MFA. O livro caixa e as conferências são somente de acréscimo para a aplicação. Cada operação identifica o usuário e gera auditoria. Reenvie o mesmo identificador para repetir uma solicitação cuja resposta foi perdida.
+
+A conferência registra o total contado e o compara com o movimento líquido do dia na hora da gravação. Lançamentos posteriores afetam o resumo atual, enquanto a conferência mantém os valores originais. O movimento diário considera apenas recebimentos em dinheiro e estornos. A integração com contas a receber, saldo de abertura e o FluX é uma etapa separada.

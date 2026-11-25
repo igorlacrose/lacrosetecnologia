@@ -5,10 +5,26 @@ const view = document.querySelector('#view');
 const tenant = document.querySelector('#tenant');
 const feedback = document.querySelector('#feedback');
 const nav = document.querySelector('#navigation');
+const menuToggle = document.querySelector('#menu-toggle');
+function setMenu(open) {
+  document.body.classList.toggle('menu-open', open);
+  menuToggle.setAttribute('aria-expanded', String(open));
+}
+menuToggle.onclick = () => setMenu(!document.body.classList.contains('menu-open'));
+document.querySelector('.sidebar-backdrop').onclick = () => {
+  setMenu(false);
+  menuToggle.focus();
+};
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.body.classList.contains('menu-open')) {
+    setMenu(false);
+    menuToggle.focus();
+  }
+});
 const tabs = {
-  overview: 'Visão geral', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
+  overview: 'Visão geral', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
-  subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', audit: 'Auditoria',
+  subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', cash: 'Caixa', audit: 'Auditoria',
 };
 const stages = { qualification: 'Qualificação', proposal: 'Proposta', negotiation: 'Negociação', won: 'Ganha', lost: 'Perdida' };
 const channels = { oca: 'OCA', email: 'E-mail', phone: 'Telefone', internal: 'Interno' };
@@ -31,8 +47,8 @@ function message(text, error = false) {
   feedback.toggleAttribute('data-error', error);
 }
 
-async function api(route, data) {
-  const query = new URLSearchParams({ tenant: tenant.value });
+async function api(route, data, filters = {}) {
+  const query = new URLSearchParams({ ...filters, tenant: tenant.value });
   const headers = accessToken ? { Authorization: 'Bearer ' + accessToken } : {};
   if (data !== undefined) headers['Content-Type'] = 'application/json';
   const response = await fetch('/api/' + route + '?' + query, {
@@ -118,6 +134,70 @@ async function mutate(route, data, token = generation) {
 
 async function build(section) {
   const content = element('div');
+  if (section === 'cash') {
+    const date = element('input');
+    date.type = 'date';
+    date.value = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Bahia' }).format();
+    const dateLabel = element('label', 'Data do caixa');
+    dateLabel.append(date);
+    const summary = element('p');
+    summary.setAttribute('role', 'status');
+    const entries = element('ul');
+    let queryVersion = 0;
+    async function refreshCash() {
+      const version = ++queryVersion;
+      summary.textContent = 'Consultando caixa…';
+      entries.replaceChildren();
+      try {
+        const totals = await api('cash', undefined, { date: date.value });
+        if (version !== queryVersion) return;
+        summary.textContent = 'Recebido ' + money.format(Number(totals.received_cents) / 100) +
+          ' · Estornado ' + money.format(Number(totals.reversed_cents) / 100) +
+          ' · Movimento líquido esperado ' + money.format(Number(totals.expected_cents) / 100);
+        for (const entry of totals.entries) {
+          entries.append(element('li', (entry.reverses_id ? 'Estorno' : 'Recebimento') +
+            ' · ' + money.format(entry.amount_brl_cents / 100) + ' · ' + entry.reference + ' · ' + entry.id));
+        }
+        if (Number(totals.entry_count) > totals.entries.length) {
+          entries.append(element('li', 'Exibindo os 50 lançamentos mais recentes do dia.'));
+        }
+      } catch (error) {
+        if (version === queryVersion) summary.textContent = error.message;
+      }
+    }
+    date.onchange = refreshCash;
+    const details = element('div');
+    details.append(dateLabel, summary, entries);
+    content.append(card('Movimento do dia', details));
+    const receiptFields = [['amount_brl_cents', 'Valor em centavos', 'number'], ['reference', 'Referência ou motivo']];
+    function cashForm(heading, specs, route) {
+      let pending;
+      const editor = form(specs, 'Registrar', async (fields, token) => {
+        const payload = { ...fields, business_date: date.value };
+        if (route === 'cash/counts') payload.counted_brl_cents = Number(fields.counted_brl_cents);
+        const signature = JSON.stringify(payload);
+        if (pending?.signature !== signature) pending = { signature, id: crypto.randomUUID() };
+        const saved = await api(route, { ...payload, id: pending.id });
+        pending = undefined;
+        if (token !== generation) return;
+        editor.reset();
+        message(route === 'cash/counts'
+          ? 'Conferência registrada. Diferença ' + money.format(Number(saved.difference_brl_cents) / 100) + '.'
+          : 'Lançamento registrado. Identificador ' + saved.id);
+        await refreshCash();
+      });
+      const counted = editor.elements.namedItem('counted_brl_cents');
+      if (counted) counted.min = '0';
+      return card(heading, editor);
+    }
+    content.append(
+      cashForm('Receber em dinheiro', receiptFields, 'cash'),
+      cashForm('Estornar recebimento', [...receiptFields, ['reverses_id', 'Identificador do recebimento']], 'cash'),
+      cashForm('Conferir dinheiro recebido', [['counted_brl_cents', 'Valor contado em centavos', 'number']], 'cash/counts'),
+    );
+    await refreshCash();
+    return content;
+  }
   if (section === 'overview') {
     const resources = ['leads', 'clients', 'opportunities', 'interactions', 'subscription_drafts'];
     const counts = await api('overview');
@@ -271,6 +351,48 @@ async function build(section) {
     return content;
   }
 
+  if (section === 'operations') {
+    const token = generation;
+    content.className = 'records';
+    const more = element('button', 'Carregar mais');
+    async function appendPage(after) {
+      const result = await api('operations', undefined, after ? { after } : {});
+      if (token !== generation) return;
+      more.remove();
+      for (const row of result.items) {
+        const payments = Object.entries(row.payments).map(([state,n]) => n + ' ' + sandboxStates[state]);
+        const details = [row.plan, money.format(row.amount_brl_cents / 100) + ' · ' + intervals[row.interval],
+          'Assinatura em rascunho', !result.canRequest ? 'Cobranças restritas ao administrador' : payments.length ? 'Sandbox: ' + payments.join(', ') : 'Sem cobrança vinculada'];
+        let control;
+        if (row.kind === 'saas') {
+          details.push(row.license_state ? 'Licença solicitada · liberação bloqueada' : 'Licença ainda não solicitada');
+          if (result.canRequest && !row.license_state) {
+            control = element('button', 'Solicitar licença');
+            control.onclick = async () => {
+              control.disabled = true;
+              try { await mutate('operations/' + row.id + '/request-license', {}, token); }
+              catch (error) { if (token === generation) message(error.message, true); }
+              finally { control.disabled = false; }
+            };
+          }
+        }
+        content.append(record(row.client + ' · ' + row.product, details.join(' · '), control));
+      }
+      if (!after && !result.items.length) content.append(element('p', 'Nenhuma assinatura cadastrada nesta empresa.'));
+      if (result.next) {
+        content.append(more);
+        more.onclick = async () => {
+          more.disabled = true;
+          try { await appendPage(result.next); }
+          catch (error) { if (token === generation) message(error.message, true); }
+          finally { more.disabled = false; }
+        };
+      }
+    }
+    await appendPage();
+    return content;
+  }
+
   if (section === 'oca') {
     const answer = element('p');
     answer.setAttribute('aria-live', 'polite');
@@ -393,7 +515,12 @@ async function render(done = '') {
 for (const [key,label] of Object.entries(tabs)) {
   const button = element('button', label);
   button.dataset.page = key;
-  button.onclick = () => { page = key; render(); };
+  button.onclick = () => {
+    if (document.body.classList.contains('menu-open')) menuToggle.focus();
+    setMenu(false);
+    page = key;
+    render();
+  };
   nav.append(button);
 }
 tenant.onchange = () => render();
@@ -419,6 +546,7 @@ async function sendAuth(path, data, token) {
 }
 
 function showLogin() {
+  setMenu(false);
   nav.hidden = true;
   tenant.parentElement.hidden = true;
   title.textContent = 'Entrar';

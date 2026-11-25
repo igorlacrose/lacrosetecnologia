@@ -65,6 +65,20 @@ test('CRM, OCA and commercial drafts work through the workspace API with tenant 
   assert.equal((await call('subscription_drafts', { data: draft, claims: viewer }))[0], 403);
   const [createdDraft, subscription] = await call('subscription_drafts', { data: draft });
   assert.equal(createdDraft, 201);
+  const ops = 'operations/' + subscription.id + '/request-license';
+  assert.equal((await call('operations', { claims: { ...admin, aal: 'aal1' } }))[0], 403);
+  assert.equal((await call(ops, { data: {}, claims: viewer }))[0], 403);
+  assert.equal((await call(ops, { data: {}, tenant: fixture.secondTenant, claims: adminB }))[0], 404);
+  assert.deepEqual((await call('operations', { tenant: fixture.secondTenant, claims: adminB }))[1].items, []);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.deepEqual(await call(ops, { data: {} }), [200, { state: 'blocked' }]);
+  }
+  const [, operations] = await call('operations');
+  assert.equal(operations.items.length, 1);
+  assert.equal(operations.items[0].client, lead.name);
+  assert.equal(operations.items[0].product, products[0].name);
+  assert.equal(operations.items[0].license_state, 'blocked');
+  assert.equal((await call('license_requests'))[1].length, 1);
   const eligibility = 'subscription_drafts/' + subscription.id + '/eligibility';
   assert.deepEqual(await call(eligibility), [200, {
     eligible: false, product: products[0].slug, reason: 'product_not_homologated',

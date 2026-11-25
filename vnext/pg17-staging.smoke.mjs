@@ -49,7 +49,8 @@ test('PostgreSQL 17: migrations, idempotence, quota and RLS', {skip:!connection}
     const {rows:history}=await pool.query(
       'select filename,sha256 from lkz_vnext_migrations.history order by filename'
     );
-    assert.equal(history.length,17);
+    assert.equal(history.length,18);
+    assert.equal(history.at(-1).filename,'018-cash-ledger.sql');
     assert.ok(history.every(row=>/^[a-f0-9]{64}$/.test(row.sha256)));
 
     const runtimePairs=[

@@ -58,6 +58,58 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
       }
       const access = await tx.query(`select role from lkz_vnext.memberships where tenant_id = $1`, [tenant]);
       if (!access.rows.length) return json({ error: 'Empresa indisponível para esta sessão.' }, 403);
+      if (resource === 'cash' && id === 'counts' && parts.length === 2 && request.method === 'POST') {
+        if (access.rows[0].role !== 'admin') return json({ error: 'Ação sem permissão.' }, 403);
+        const { id: key, business_date: date, counted_brl_cents: amount } = data;
+        if (typeof key !== 'string' || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+            !Number.isInteger(amount) || amount < 0 || amount > 2147483647) throw new TypeError('Invalid cash count');
+        const values = [tenant,key,date,amount];
+        const inserted = await tx.query(`
+          insert into lkz_vnext.cash_counts (tenant_id,id,business_date,counted_brl_cents)
+          values ($1,$2,$3,$4) on conflict (tenant_id,id) do nothing
+          returning id,expected_brl_cents::text,difference_brl_cents::text`, values);
+        if (inserted.rows.length) return json(inserted.rows[0], 201);
+        const replay = await tx.query(`
+          select id,expected_brl_cents::text,difference_brl_cents::text from lkz_vnext.cash_counts
+          where tenant_id=$1 and id=$2 and business_date=$3 and counted_brl_cents=$4 and actor_id=auth.uid()`, values);
+        if (replay.rows.length) return json(replay.rows[0]);
+        return json({ error: 'Identificador já usado em outra conferência.' }, 409);
+      }
+      if (resource === 'cash' && parts.length === 1) {
+        if (access.rows[0].role !== 'admin') return json({ error: 'Ação sem permissão.' }, 403);
+        if (request.method === 'GET') {
+          const date = url.searchParams.get('date');
+          if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new TypeError('Invalid date');
+          const { rows: [summary] } = await tx.query(`
+            select count(*)::text as entry_count,
+              coalesce(sum(amount_brl_cents) filter (where reverses_id is null),0)::text as received_cents,
+              coalesce(sum(amount_brl_cents) filter (where reverses_id is not null),0)::text as reversed_cents,
+              coalesce(sum(case when reverses_id is null then amount_brl_cents else -amount_brl_cents end),0)::text
+                as expected_cents,
+              coalesce((select jsonb_agg(to_jsonb(recent) order by recent.recorded_at desc,recent.id)
+                from (select id,amount_brl_cents,reference,reverses_id,recorded_at from lkz_vnext.cash_entries
+                  where tenant_id=$1 and business_date=$2::date order by recorded_at desc,id limit 50) recent
+              ),'[]'::jsonb) as entries
+            from lkz_vnext.cash_entries where tenant_id=$1 and business_date=$2::date`, [tenant,date]);
+          return json(summary);
+        }
+        const { id: key, business_date: date, amount_brl_cents: amount, reference, reverses_id: reverses = null } = data;
+        if (typeof key !== 'string' || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+            !Number.isInteger(amount) || amount < 1 || amount > 2147483647 || typeof reference !== 'string' ||
+            (reverses !== null && typeof reverses !== 'string')) throw new TypeError('Invalid cash entry');
+        const values = [tenant,key,date,amount,reference.trim(),reverses];
+        const inserted = await tx.query(`
+          insert into lkz_vnext.cash_entries (tenant_id,id,business_date,amount_brl_cents,reference,reverses_id)
+          values ($1,$2,$3,$4,$5,$6) on conflict (tenant_id,id) do nothing
+          returning id`, values);
+        if (inserted.rows.length) return json(inserted.rows[0], 201);
+        const replay = await tx.query(`
+          select id from lkz_vnext.cash_entries where tenant_id=$1 and id=$2
+            and business_date=$3 and amount_brl_cents=$4 and reference=$5
+            and reverses_id is not distinct from $6::uuid and actor_id=auth.uid()`, values);
+        if (replay.rows.length) return json(replay.rows[0]);
+        return json({ error: 'Identificador já usado em outro lançamento.' }, 409);
+      }
       if (resource === 'whatsapp') {
         // MFA-backed RLS is checked by the active tenant membership lookup above.
         // The actual Meta OAuth token is never accessible from this API or its role.
@@ -136,6 +188,36 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
         return json({ error: 'Ação WhatsApp indisponível.' }, 404);
       }
 
+      if (resource === 'operations' && request.method === 'GET' && parts.length === 1) {
+        const { rows } = await tx.query(`
+          select d.id, c.name as client, p.name as product, p.kind, plan.name as plan,
+            plan.amount_brl_cents, plan.interval, lic.state as license_state,
+            coalesce((select jsonb_object_agg(t.state,t.total) from (
+              select b.state, count(*) as total from lkz_vnext_billing.payment_bindings b
+              where (b.tenant_id,b.subscription_id)=(d.tenant_id,d.id) group by b.state
+            ) t),'{}'::jsonb) as payments
+          from lkz_vnext.subscription_drafts d
+          join lkz_vnext.clients c on (c.tenant_id,c.id)=(d.tenant_id,d.client_id)
+          join lkz_vnext.plans plan on (plan.tenant_id,plan.id)=(d.tenant_id,d.plan_id)
+          join lkz_vnext.products p on (p.tenant_id,p.id)=(plan.tenant_id,plan.product_id)
+          left join lkz_vnext.license_requests lic on (lic.tenant_id,lic.subscription_id)=(d.tenant_id,d.id)
+          where d.tenant_id=$1 and ($2::uuid is null or d.id>$2)
+          order by d.id limit 51`, [tenant, url.searchParams.get('after')]);
+        const items = rows.slice(0,50);
+        return json({ items, next: rows.length > 50 ? items[49].id : null,
+          canRequest: access.rows[0].role === 'admin' });
+      }
+      if (resource === 'operations' && action === 'request-license' && parts.length === 3 && request.method === 'POST') {
+        if (access.rows[0].role !== 'admin') return json({ error: 'Ação sem permissão.' }, 403);
+        const eligibleDraft = await tx.query(`select d.id from lkz_vnext.subscription_drafts d
+          join lkz_vnext.plans pl on (pl.tenant_id,pl.id)=(d.tenant_id,d.plan_id)
+          join lkz_vnext.products p on (p.tenant_id,p.id)=(pl.tenant_id,pl.product_id)
+          where d.tenant_id=$1 and d.id=$2 and p.kind='saas'`, [tenant,id]);
+        if (!eligibleDraft.rows.length) return json({ error: 'Assinatura de sistema indisponível.' },404);
+        await tx.query(`insert into lkz_vnext.license_requests (tenant_id,subscription_id)
+          values ($1,$2) on conflict (tenant_id,subscription_id) do nothing`, [tenant,id]);
+        return json({state:'blocked'});
+      }
       if (request.method === 'GET' && resource === 'overview' && parts.length === 1) {
         const result = await tx.query(`
           select
