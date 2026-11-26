@@ -99,3 +99,19 @@ header .environment,header label{color:#cbd5e1}header h1{font-size:1.75rem;font-
 label:has(>input[type=checkbox]){display:flex;align-items:center;gap:.5rem}label>input[type=checkbox]{width:1rem;min-height:1rem}
 @media(max-width:1100px){.dash-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-panel[data-chart=recent],.dash-panel[data-chart=cash],.dash-panel[data-chart=stages]{grid-column:1/-1}}
 @media(max-width:760px){main{padding:0 .9rem 1.5rem}header{margin:0 -.9rem;padding:1.15rem .9rem;align-items:stretch}.dashboard-page header{padding-bottom:4.5rem}header label{min-width:0}.dash-grid{grid-template-columns:1fr}.dash-panel[data-chart=recent],.dash-panel[data-chart=cash],.dash-panel[data-chart=stages]{grid-column:auto}.fuel-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-kpi{padding:.75rem}.fuel-kpi-label{font-size:.7rem}}
+
+/* Gráficos executivos, inclusive quando a base está vazia. */
+.fuel-dashboard .dash-grid{align-items:stretch}
+.fuel-dashboard .dash-panel{display:flex;flex-direction:column;gap:.65rem}
+.fuel-dashboard .dash-panel[hidden]{display:none!important}
+.fuel-dashboard .dash-panel>.dash-note{margin-top:auto;padding-top:.4rem}
+.dash-bar-list{display:grid;gap:.85rem;margin:.5rem 0}
+.dash-bar-row{min-width:0}.dash-bar-label{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;font-size:.8rem;color:#475569;overflow-wrap:anywhere}
+.dash-bar-label strong{color:#0f172a;white-space:nowrap}.dash-bar-row .dash-svg{margin-top:.35rem;max-height:.75rem}
+.dash-legend{display:grid;gap:.55rem;width:100%}
+.dash-legend-row{display:grid;grid-template-columns:.65rem minmax(0,1fr) auto;align-items:center;gap:.4rem;color:#475569;font-size:.76rem;overflow-wrap:anywhere}
+.dash-legend-row .dash-svg{width:.65rem;height:.65rem;margin:0}.dash-legend-row strong{color:#0f172a;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dash-ring .dash-svg{max-height:11rem}.dash-ring .dash-legend-row .dash-svg{max-height:.65rem}
+.dash-cash-graph .dash-svg{max-height:19rem}.dash-cash-legend{display:flex;justify-content:center;gap:1.2rem;font-size:.77rem;font-weight:650;flex-wrap:wrap}
+.dash-receipts{color:#1d4ed8}.dash-reversed{color:#92400e}
+@media(max-width:760px){.dash-legend-row{font-size:.8rem}}
