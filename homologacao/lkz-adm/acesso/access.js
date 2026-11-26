@@ -1,11 +1,12 @@
 const base = 'https://nijsafzwxzcfqdevlsxe.supabase.co/auth/v1';
 const key = 'sb_publishable_O7yEQwMVQtW2zoIpHTyY1w_2LUguIC0';
 const el = id => document.getElementById(id);
-const steps = ['send','verify','factor','password'];
+const steps = ['login','send','verify','factor','password'];
 let email, bearer, factorId;
+let recovering = false;
 function step(id) {
   for (const name of steps) el(name).hidden = name !== id;
-  el('restart').hidden = id === 'send' || id === null;
+  el('restart').hidden = id === 'login' || id === null;
   if (id) el(id).querySelector('input').focus();
 }
 async function api(path, method, data) {
@@ -37,10 +38,27 @@ function clear() {
   for (const id of steps) el(id).reset();
 }
 el('restart').onclick = () => location.reload();
+el('recover').onclick = () => {
+  if (el('login').querySelector('button').disabled) return;
+  el('send').elements.email.value = el('login').elements.email.value;
+  el('login').elements.pass.value = '';
+  el('status').textContent = '';
+  step('send');
+};
+handle('login', async fields => {
+  email = fields.email.value.trim();
+  bearer = undefined;
+  const session = await api('/token?grant_type=password','POST',{email,password:fields.pass.value});
+  fields.pass.value = '';
+  if (!session.access_token) throw new Error('Login sem sessão válida.');
+  bearer = session.access_token;
+  await prepareFactor();
+});
 window.addEventListener('pagehide', clear);
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 handle('send', async fields => {
   email = fields.email.value.trim();
+  recovering = true;
   await api('/recover', 'POST', {email});
   step('verify'); el('status').textContent = 'Confira o código na sua caixa de entrada.';
 });
@@ -76,10 +94,19 @@ handle('factor', async fields => {
   if (!session.access_token) throw new Error('Verificação incompleta. Recomece.');
   bearer = session.access_token;
   fields.code.value = ''; el('secret').textContent = '';
+  if (!recovering) {
+    await finish('Autenticador configurado. Você pode fechar esta página.');
+    return;
+  }
   step('password'); el('status').textContent = 'Autenticador confirmado.';
 });
 handle('password', async fields => {
   await api('/user','PUT',{password:fields.newpass.value});
-  try { await api('/logout?scope=local','POST',{}); } catch { /* Drop the in-memory session even if offline. */ }
-  clear(); step(null); el('status').textContent = 'Senha salva e autenticador configurado. Você pode fechar esta página.';
+  await finish('Senha salva e autenticador configurado. Você pode fechar esta página.');
 });
+async function finish(message) {
+  try { await api('/logout?scope=local','POST',{}); } catch { /* A falha remota não impede a limpeza local. */ }
+  clear();
+  step(null);
+  el('status').textContent = message;
+}

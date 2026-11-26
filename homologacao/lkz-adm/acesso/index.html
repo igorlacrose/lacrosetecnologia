@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://nijsafzwxzcfqdevlsxe.supabase.co; form-action 'none'; base-uri 'none'; object-src 'none'"><title>Primeiro acesso · LKZ ADM</title><link rel="stylesheet" href="./style.css">
 <main><p>LKZ ADM · Homologação</p><h1>Primeiro acesso</h1>
-<form id="send"><label>E-mail cadastrado<input name="email" type="email" autocomplete="email" required maxlength="254"></label><button>Receber código</button></form>
+<form id="login"><label>E-mail cadastrado<input name="email" type="email" autocomplete="username" required maxlength="254"></label><label>Senha do LKZ ADM<input name="pass" type="password" autocomplete="current-password" required></label><button>Configurar autenticador</button><button id="recover" type="button">Recuperar senha</button></form>
+<form id="send" hidden><label>E-mail cadastrado<input name="email" type="email" autocomplete="email" required maxlength="254"></label><button>Receber código</button></form>
 <form id="verify" hidden><label>Código recebido por e-mail<input name="otp" inputmode="numeric" pattern="[0-9]{6,10}" autocomplete="one-time-code" required></label><button>Verificar e-mail</button></form>
 <form id="factor" hidden><p id="guide"></p><output id="secret"></output><label>Código do autenticador<input name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label><button>Verificar autenticador</button></form>
 <form id="password" hidden><label>Nova senha<input name="newpass" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button>Salvar senha</button></form>
