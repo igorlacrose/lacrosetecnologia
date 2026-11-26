@@ -1,9 +1,23 @@
 const base = 'https://nijsafzwxzcfqdevlsxe.supabase.co/auth/v1';
 const key = 'sb_publishable_O7yEQwMVQtW2zoIpHTyY1w_2LUguIC0';
 const el = id => document.getElementById(id);
-const steps = ['login','send','verify','factor','password'];
+const steps = ['login','send','verify','confirm-email','factor','password'];
 let email, bearer, factorId;
 let recovering = false;
+
+const callback = new URLSearchParams(location.hash.slice(1));
+if (callback.has('access_token') || callback.has('refresh_token') || callback.has('error')) {
+  history.replaceState(null, '', location.pathname);
+}
+if (callback.get('type') === 'recovery' && callback.has('access_token')) {
+  bearer = callback.get('access_token');
+  recovering = true;
+  step('confirm-email');
+} else if (callback.has('error')) {
+  el('status').textContent = 'O link expirou ou já foi usado. Solicite outro em Recuperar senha.';
+}
+callback.delete('access_token');
+callback.delete('refresh_token');
 function step(id) {
   for (const name of steps) el(name).hidden = name !== id;
   el('restart').hidden = id === 'login' || id === null;
@@ -59,8 +73,21 @@ window.addEventListener('pageshow', event => { if (event.persisted) location.rel
 handle('send', async fields => {
   email = fields.email.value.trim();
   recovering = true;
-  await api('/recover', 'POST', {email});
-  step('verify'); el('status').textContent = 'Confira o código na sua caixa de entrada.';
+  const redirect = location.origin + location.pathname;
+  await api('/recover?redirect_to=' + encodeURIComponent(redirect), 'POST', {email});
+  el('status').textContent = 'Abra o link de recuperação no novo e-mail do Supabase.';
+});
+el('use-code').onclick = () => {
+  const form = el('send');
+  if (form.querySelector('button').disabled || !form.reportValidity()) return;
+  email = form.elements.email.value.trim();
+  recovering = true;
+  step('verify');
+  el('status').textContent = 'Informe o código recebido por e-mail.';
+};
+handle('confirm-email', async fields => {
+  email = fields.email.value.trim();
+  await prepareFactor();
 });
 async function prepareFactor() {
   const user = await api('/user','GET');
