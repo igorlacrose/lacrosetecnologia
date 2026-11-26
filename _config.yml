@@ -1,0 +1,3 @@
+# GitHub Pages publica somente o site. O backend nunca integra o pacote estático.
+exclude:
+  - backend

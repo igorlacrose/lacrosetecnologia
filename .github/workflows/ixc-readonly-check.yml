@@ -1,0 +1,69 @@
+name: LKZ IXC Readonly Connector Tests
+
+on:
+  push:
+    paths:
+      - 'backend/ixc-connector/**'
+      - '.github/workflows/ixc-readonly-check.yml'
+      - '_config.yml'
+      - '.nojekyll'
+  pull_request:
+    paths:
+      - 'backend/ixc-connector/**'
+      - '.github/workflows/ixc-readonly-check.yml'
+      - '_config.yml'
+      - '.nojekyll'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Dependências reproduzíveis, sem scripts de instalação
+        working-directory: backend/ixc-connector
+        run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Teste estático e sintaxe
+        run: |
+          node --check backend/ixc-connector/src/config.mjs
+          node --check backend/ixc-connector/src/schema.mjs
+          node --check backend/ixc-connector/src/cli.mjs
+          node --check backend/ixc-connector/src/deadline.mjs
+          node --check backend/ixc-connector/src/session.mjs
+          node --test backend/ixc-connector/test/*.test.mjs
+      - name: Proibir TLS inseguro e inclusão no frontend
+        run: |
+          if grep -REq 'rejectUnauthorized:[[:space:]]*false|multipleStatements:[[:space:]]*true|curl[[:space:]]+.*3306' backend/ixc-connector/src; then
+            echo "Unsafe connector setting"; exit 1
+          fi
+          if grep -Rq 'ixc-connector' lkzisp/index.html lkzisp/src; then
+            echo "Backend referenced from static frontend"; exit 1
+          fi
+
+  pages-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Impedir bypass do Jekyll
+        run: test ! -e .nojekyll
+      - name: Gerar pacote Pages sem publicar
+        uses: actions/jekyll-build-pages@b113e835ba89136744d892a14204f22e2b568599
+        with:
+          source: ./
+          destination: ./_site
+      - name: Conferir isolamento e páginas preservadas
+        run: |
+          test ! -e _site/backend
+          for page in index.html lkzisp/index.html card/index.html flux/index.html gpar/index.html lcs/index.html admin/index.html; do
+            test -f "_site/$page"
+            cmp "$page" "_site/$page"
+          done
