@@ -50,7 +50,7 @@ export async function buildRelationship({api,element:e,card,form,message,isCurre
  });
  root.prepend(card('Novo cliente',create));
  async function openClient(id){
-   const version=++detailVersion,data=await api('crm/clients/'+id);
+   const version=++detailVersion;selected=null;models.replaceChildren();detail.replaceChildren(e('p','Carregando ficha…'));const data=await api('crm/clients/'+id);
    if(!active()||version!==detailVersion)return;
    const current=()=>active()&&version===detailVersion;
    const {client,profile:p,contacts,plans}=data;selected={client,profile:p};
@@ -83,7 +83,7 @@ export async function buildRelationship({api,element:e,card,form,message,isCurre
    await refreshTemplates();
  }
  async function refreshTemplates(){
-   const result=await api('crm/templates');if(!active())return;templates=result.items;
+   const version=detailVersion;const result=await api('crm/templates');if(!active()||version!==detailVersion)return;templates=result.items;
    models.replaceChildren();const box=e('div',undefined,'records'),pick=e('select');pick.setAttribute('aria-label','Escolher modelo');
    const showArchived=e('input');showArchived.type='checkbox';const archivedLabel=e('label','Exibir modelos excluídos/inativos');archivedLabel.prepend(showArchived);
    function populate(){const prior=pick.value;pick.replaceChildren(new Option('Novo modelo',''));for(const t of templates.filter(t=>t.active||showArchived.checked))pick.add(new Option(t.title+(t.active?'':' (inativo)'),t.id));if([...pick.options].some(o=>o.value===prior))pick.value=prior;}
@@ -113,7 +113,7 @@ export async function buildRelationship({api,element:e,card,form,message,isCurre
      if(!t?.active||state.value!=='true'||head.value!==t.title||body.value!==t.body)throw new Error('Selecione um modelo ativo e salvo. Salve as alterações antes de continuar.');
      const variables=Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value]));
      const result=await api('crm/clients/'+selection.client.id+'/whatsapp',{template_id:t.id,revision:t.revision,variables});
-     if(!active()||selected!==selection||!prepared.isConnected||pick.value!==t.id||head.value!==t.title||body.value!==t.body||JSON.stringify(variables)!==JSON.stringify(Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value]))))return;
+     if(!active()||selected!==selection||!prepared.isConnected||pick.value!==t.id||state.value!=='true'||head.value!==t.title||body.value!==t.body||JSON.stringify(variables)!==JSON.stringify(Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value]))))return;
      if(!/^[1-9]\d{7,14}$/.test(result.phone)||typeof result.message!=='string')throw new Error('Resposta de contato inválida.');
      const content=e('pre',result.message,'crm-preview');
      const link=e('a','Abrir conversa no WhatsApp','crm-whatsapp');link.href='https://wa.me/'+result.phone;link.target='_blank';link.rel='noopener noreferrer';link.referrerPolicy='no-referrer';
