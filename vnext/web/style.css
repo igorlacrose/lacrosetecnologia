@@ -73,3 +73,29 @@ form button { justify-self: start; }
 .dash-svg{width:100%;max-height:20rem;display:block;margin-top:.75rem}.dash-axis{font-size:12px;fill:#526d7d}.dash-total{font-size:17px;font-weight:700;fill:#152f40}.dash-note{font-size:.85rem;color:var(--muted)}.dash-ring{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:.5rem}.dash-ring p{margin:.15rem 0}
 .crm-preview,.crm-history p{white-space:pre-wrap;overflow-wrap:anywhere}.crm-preview{background:#eff5f8;border:1px solid var(--line);padding:1rem;border-radius:.65rem;font:inherit;min-height:4rem}.crm-chips{justify-content:start}.crm-chips button{font-size:.8rem}
 @media(max-width:900px){.dash-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* LKZ Fuel layout: navy header, overlapping KPI cards, 2:1 data panels.
+   Keep Lacrose blue accents instead of the fuel product's orange. */
+:root{background:#f4f6f9;color:#0f172a;--accent:#2563eb;--muted:#526176;--line:#e2e8f0}
+aside{background:#0b1220}nav button[aria-current]{background:#2563eb;box-shadow:0 5px 16px #2563eb45;border-radius:.8rem}nav button{border-radius:.8rem;font-size:.9rem}
+main{width:100%;min-width:0;padding:0 1.6rem 2rem}
+header{margin:0 -1.6rem;padding:1.7rem 1.6rem 1.6rem;background:linear-gradient(100deg,#0b1220,#131d2d 55%,#1e293b);color:#fff;border:0;align-items:center}
+header .environment,header label{color:#cbd5e1}header h1{font-size:1.75rem;font-weight:800;letter-spacing:-.025em}header label{min-width:12rem}header select{background:#fff;color:#0f172a}
+.dashboard-page header{padding-bottom:4.6rem}
+.dashboard-page #feedback{position:relative;z-index:1;margin:.4rem 0;min-height:1.25rem}
+.dashboard-page #feedback:empty{height:0;min-height:0;margin:0}
+.fuel-dashboard{position:relative;margin-top:-3rem;min-width:0}
+.dash-controls{justify-content:flex-end;margin-bottom:1rem;gap:.5rem}.dash-controls select,.dash-controls details{box-shadow:0 2px 9px #0f172a12;font-size:.82rem}
+.fuel-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:1rem}
+.fuel-kpi{background:#fff;color:#0f172a;text-align:left;display:grid;gap:.45rem;border:1px solid #e2e8f0;border-radius:1rem;box-shadow:0 5px 18px #0f172a0d;padding:1rem;min-width:0}
+.fuel-kpi:hover{border-color:#93c5fd}.fuel-kpi-label{font-size:.78rem;color:#475569;display:flex;gap:.55rem;align-items:center}.fuel-kpi-icon{display:grid;place-items:center;background:#dbeafe;color:#1d4ed8;border-radius:.5rem;min-width:1.75rem;height:1.75rem;font-size:.75rem;font-weight:800}
+.fuel-kpi strong{font-size:clamp(1.25rem,2vw,1.7rem);font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.fuel-kpi small{font-weight:500;color:#64748b;font-size:.75rem}
+.dash-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}.dash-panel{border-radius:1rem;box-shadow:0 5px 18px #0f172a0d;padding:1.2rem}.dash-panel[data-chart=recent],.dash-panel[data-chart=cash],.dash-panel[data-chart=stages]{grid-column:span 2}
+.dash-head{align-items:start}.dash-head h2{font-size:.96rem;font-weight:750}.dash-head button{background:transparent;color:#1d4ed8;border:0;padding:.25rem;font-size:.75rem;min-height:1.75rem}.dash-value{font-size:1.35rem;font-weight:800}
+.dash-ring{grid-template-columns:1fr}.dash-ring svg{max-height:10rem}.dash-ring .records{margin-top:0}.dash-ring p{font-size:.82rem}
+.fuel-table-scroll{overflow-x:auto}.fuel-table{border-collapse:collapse;width:100%;font-size:.8rem;text-align:left;min-width:19rem}.fuel-table td,.fuel-table th{padding:.7rem .35rem;border-bottom:1px solid #e2e8f0}.fuel-table th{color:#64748b;font-weight:650}.fuel-table td:first-child{font-weight:650}
+.fuel-ranking{display:grid;gap:.6rem;margin-top:.9rem}.fuel-ranking>div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.55rem;padding:.65rem;background:#f8fafc;border-radius:.7rem;font-size:.82rem;overflow-wrap:anywhere}.fuel-rank{display:grid;place-items:center;width:1.55rem;height:1.55rem;border-radius:.4rem;background:#dbeafe;color:#1d4ed8;font-weight:800}
+.crm-whatsapp{display:inline-block;padding:.8rem 1rem;background:#166534;color:white;border-radius:.6rem;font-weight:700;text-decoration:none;justify-self:start}.crm-whatsapp:focus-visible{outline:2px solid #166534}
+label:has(>input[type=checkbox]){display:flex;align-items:center;gap:.5rem}label>input[type=checkbox]{width:1rem;min-height:1rem}
+@media(max-width:1100px){.dash-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-panel[data-chart=recent],.dash-panel[data-chart=cash],.dash-panel[data-chart=stages]{grid-column:1/-1}}
+@media(max-width:760px){main{padding:0 .9rem 1.5rem}header{margin:0 -.9rem;padding:1.15rem .9rem;align-items:stretch}.dashboard-page header{padding-bottom:4.5rem}header label{min-width:0}.dash-grid{grid-template-columns:1fr}.dash-panel[data-chart=recent],.dash-panel[data-chart=cash],.dash-panel[data-chart=stages]{grid-column:auto}.fuel-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-kpi{padding:.75rem}.fuel-kpi-label{font-size:.7rem}}

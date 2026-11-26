@@ -52,6 +52,22 @@ export async function serveRelationship(tx,request,tenant,role,parts,data){
      if(!result.rows.length)return json({error:'Ficha alterada em outra sessão. Reabra antes de salvar.'},409);
      return json(result.rows[0]);
    }
+   if(write&&action==='whatsapp'&&parts.length===4){
+     if(!uuid.test(data.template_id??'')||!Number.isSafeInteger(data.revision)||data.revision<1||
+       !data.variables||typeof data.variables!=='object'||Array.isArray(data.variables)||
+       Object.keys(data.variables).some(k=>!['servico','data','horario','responsavel'].includes(k)))throw new TypeError('Invalid message request');
+     const {rows:[p]}=await tx.query('select phone,whatsapp_permission from lkz_vnext.client_relationships where tenant_id=$1 and id=$2',[tenant,id]);
+     if(p?.whatsapp_permission!=='allowed'||!/^\+[1-9]\d{7,14}$/.test(p.phone))return json({error:'Registre um número válido e autorização de contato por WhatsApp.'},403);
+     const {rows:[t]}=await tx.query('select revision,body,active from lkz_vnext.crm_message_versions where tenant_id=$1 and id=$2 order by revision desc limit 1',[tenant,data.template_id]);
+     if(!t?.active||t.revision!==data.revision)return json({error:'Modelo inativo ou alterado. Atualize a página.'},409);
+     const {rows:[company]}=await tx.query('select name from lkz_vnext.tenants where id=$1',[tenant]);
+     const values={cliente:client.name,empresa:company.name};
+     for(const key of ['servico','data','horario','responsavel'])values[key]=txt(data.variables[key]??'',160,true);
+     let missing=false;
+     const message=t.body.replace(/\{\{(\w+)\}\}/g,(m,k)=>{if(!Object.hasOwn(values,k)||!values[k]){missing=true;return m;}return values[k];});
+     if(missing||message.includes('{{')||message.includes('}}')||message.length>3000)return json({error:'Confira as variáveis da mensagem.'},400);
+     return json({phone:p.phone.slice(1),message});
+   }
    if(write&&action==='contact'&&parts.length===4){
      const channel=data.channel,note=txt(data.note,2000);
      if(!['internal','phone','email','whatsapp','meeting'].includes(channel)||!uuid.test(data.id??''))throw new TypeError('Invalid contact');
@@ -103,5 +119,7 @@ export async function serveDashboard(tx,tenant,role,request){
  const contacts=(await tx.query(`select channel as name,count(*)::int as value from (select channel from lkz_vnext.interactions where tenant_id=$1 and (created_at at time zone 'America/Bahia')::date between $2::date and $3::date union all select channel from lkz_vnext.client_contacts where tenant_id=$1 and (created_at at time zone 'America/Bahia')::date between $2::date and $3::date) c group by channel`,params)).rows;
  const clients=(await tx.query(`select coalesce(r.segment,'unclassified') as name,count(*)::int as value from lkz_vnext.clients c left join lkz_vnext.client_relationships r on (c.tenant_id,c.id)=(r.tenant_id,r.id) where c.tenant_id=$1 and c.archived_at is null group by 1`,[tenant])).rows;
  const cash=role==='admin'?(await tx.query(`select business_date::text as day,coalesce(sum(amount_brl_cents) filter(where reverses_id is null),0)::text as received,coalesce(sum(amount_brl_cents) filter(where reverses_id is not null),0)::text as reversed from lkz_vnext.cash_entries where tenant_id=$1 and business_date between $2::date and $3::date group by business_date order by business_date`,params)).rows:null;
- return json({...range,stages,products,contacts,clients,cash,restricted:role==='viewer'});
+ const recent=role==='viewer'?[]:(await tx.query(`select c.name as client,a.channel,a.created_at from lkz_vnext.client_contacts a join lkz_vnext.clients c on (c.tenant_id,c.id)=(a.tenant_id,a.client_id) where a.tenant_id=$1 and c.archived_at is null and (a.created_at at time zone 'America/Bahia')::date between $2::date and $3::date order by a.created_at desc,a.id limit 6`,params)).rows;
+ const {rows:[totals]}=await tx.query('select (select count(*)::int from lkz_vnext.subscription_drafts where tenant_id=$1) as drafts, (select count(*)::int from lkz_vnext.leads where tenant_id=$1 and client_id is null) as open_leads',[tenant]);
+ return json({...range,stages,products,contacts,clients,cash,recent,totals,restricted:role==='viewer'});
 }

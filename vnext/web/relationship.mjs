@@ -8,6 +8,8 @@ const starters=[
  ['Pós-atendimento','Olá, {{cliente}}! Como foi sua experiência com {{servico}}? Podemos ajudar em algo?'],
  ['Follow-up comercial','Olá, {{cliente}}! Gostaria de saber se podemos avançar com sua solicitação.'],
  ['Renovação','Olá, {{cliente}}! Podemos conversar sobre a renovação do seu serviço?'],
+ ['Lembrete de cobrança','Olá, {{cliente}}! Gostaria de conversar sobre o pagamento do seu serviço com a {{empresa}}. Podemos ajudar?'],
+ ['Envio de proposta','Olá, {{cliente}}! Podemos apresentar nossa proposta para {{servico}}. Estamos à disposição.'],
  ['Aniversário','Feliz aniversário, {{cliente}}! São os votos da equipe {{empresa}}.']
 ];
 export async function buildRelationship({api,element:e,card,form,message,isCurrent,tenantName}){
@@ -83,25 +85,44 @@ export async function buildRelationship({api,element:e,card,form,message,isCurre
  async function refreshTemplates(){
    const result=await api('crm/templates');if(!active())return;templates=result.items;
    models.replaceChildren();const box=e('div',undefined,'records'),pick=e('select');pick.setAttribute('aria-label','Escolher modelo');
-   pick.add(new Option('Novo modelo',''));for(const t of templates)pick.add(new Option(t.title+(t.active?'':' (inativo)'),t.id));
-   box.append(pick);const editor=e('form'),head=field(editor,'Título','title','text','',undefined,80);
+   const showArchived=e('input');showArchived.type='checkbox';const archivedLabel=e('label','Exibir modelos excluídos/inativos');archivedLabel.prepend(showArchived);
+   function populate(){const prior=pick.value;pick.replaceChildren(new Option('Novo modelo',''));for(const t of templates.filter(t=>t.active||showArchived.checked))pick.add(new Option(t.title+(t.active?'':' (inativo)'),t.id));if([...pick.options].some(o=>o.value===prior))pick.value=prior;}
+   populate();showArchived.onchange=()=>{populate();select();};
+   box.append(pick,archivedLabel);const editor=e('form'),head=field(editor,'Título','title','text','',undefined,80);
    const body=field(editor,'Mensagem','body','textarea','',undefined,1000);body.rows=5;
    const state=field(editor,'Situação','active','select','true',{true:'Ativo',false:'Inativo'});
    const preview=e('pre',undefined,'crm-preview'),context=e('div',undefined,'records'),inputs={};
    for(const key of ['servico','data','horario','responsavel'])inputs[key]=field(context,key,'preview_'+key,'text','',undefined,160);
    function update(){const values={cliente:selected?.client?.name??'Cliente de exemplo',empresa:tenantName(),...Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value||'['+k+']']))};preview.textContent=body.value.replace(/\{\{(\w+)\}\}/g,(m,k)=>Object.hasOwn(values,k)?values[k]:m);}
-   body.oninput=update;for(const input of Object.values(inputs))input.oninput=update;
+   const prepared=e('div',undefined,'records');
+   function invalidate(){prepared.replaceChildren();update();}
+   body.oninput=invalidate;head.oninput=invalidate;state.onchange=invalidate;for(const input of Object.values(inputs))input.oninput=invalidate;
    const chips=e('div',undefined,'crm-chips');
-   for(const key of variables)button(chips,'{{'+key+'}}',()=>{if(!result.canEdit)return;body.setRangeText('{{'+key+'}}',body.selectionStart,body.selectionEnd,'end');update();body.focus();});
+   for(const key of variables)button(chips,'{{'+key+'}}',()=>{if(!result.canEdit)return;body.setRangeText('{{'+key+'}}',body.selectionStart,body.selectionEnd,'end');invalidate();body.focus();});
    const starter=e('select');starter.setAttribute('aria-label','Modelo sugerido');starter.add(new Option('Sugestões de mensagens',''));starters.forEach(([title],i)=>starter.add(new Option(title,String(i))));
-   starter.onchange=()=>{if(!result.canEdit||starter.value==='')return;const [t,b]=starters[Number(starter.value)];pick.value='';head.value=t;body.value=b;state.value='true';update();};
-   function select(){const t=templates.find(x=>x.id===pick.value);head.value=t?.title??'';body.value=t?.body??'';state.value=String(t?.active??true);update();}
+   starter.onchange=()=>{if(!result.canEdit||starter.value==='')return;const [t,b]=starters[Number(starter.value)];pick.value='';head.value=t;body.value=b;state.value='true';invalidate();};
+   function select(){const t=templates.find(x=>x.id===pick.value);head.value=t?.title??'';body.value=t?.body??'';state.value=String(t?.active??true);invalidate();}
    pick.onchange=select;box.append(starter,editor,chips,context,preview);
    if(result.canEdit)save(editor,'Salvar modelo',async values=>{const t=templates.find(x=>x.id===pick.value);await api('crm/templates'+(t?'/'+t.id:''),{title:values.title,body:values.body,active:values.active==='true',...(t?{revision:t.revision}:{})});if(active()){await refreshTemplates();message('Modelo salvo e versionado.');}});
    else{head.disabled=body.disabled=state.disabled=starter.disabled=true;}
-   button(box,'Copiar mensagem para revisão manual',async()=>{if(!selected)throw new Error('Selecione um cliente.');const t=templates.find(x=>x.id===pick.value);if(!t?.active||state.value!=='true')throw new Error('Selecione um modelo ativo e salvo.');if(selected.profile?.whatsapp_permission!=='allowed'&&selected.profile?.email_permission!=='allowed')throw new Error('Registre a autorização de contato antes de preparar uma mensagem.');if(/\[[a-z]+\]|\{\{/.test(preview.textContent))throw new Error('Preencha as variáveis antes de copiar.');await navigator.clipboard.writeText(preview.textContent);if(active())message('Copiado para revisão. Nenhum envio realizado. Respeite a permissão do canal.');});
+   if(result.canEdit)button(box,'Excluir modelo selecionado',async()=>{const t=templates.find(x=>x.id===pick.value);if(!t?.active)throw new Error('Selecione um modelo ativo.');if(!window.confirm('Excluir este modelo da lista ativa? O histórico será preservado.'))return;await api('crm/templates/'+t.id,{title:t.title,body:t.body,active:false,revision:t.revision});if(active()){await refreshTemplates();message('Modelo excluído da lista ativa. Histórico preservado.');}});
+   button(box,'Preparar mensagem no WhatsApp',async()=>{
+     prepared.replaceChildren();
+     if(!selected)throw new Error('Selecione um cliente.');
+     const selection=selected, t=templates.find(x=>x.id===pick.value);
+     if(!t?.active||state.value!=='true'||head.value!==t.title||body.value!==t.body)throw new Error('Selecione um modelo ativo e salvo. Salve as alterações antes de continuar.');
+     const variables=Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value]));
+     const result=await api('crm/clients/'+selection.client.id+'/whatsapp',{template_id:t.id,revision:t.revision,variables});
+     if(!active()||selected!==selection||!prepared.isConnected||pick.value!==t.id||head.value!==t.title||body.value!==t.body||JSON.stringify(variables)!==JSON.stringify(Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value]))))return;
+     if(!/^[1-9]\d{7,14}$/.test(result.phone)||typeof result.message!=='string')throw new Error('Resposta de contato inválida.');
+     const content=e('pre',result.message,'crm-preview');
+     const link=e('a','Abrir conversa no WhatsApp','crm-whatsapp');link.href='https://wa.me/'+result.phone;link.target='_blank';link.rel='noopener noreferrer';link.referrerPolicy='no-referrer';
+     button(prepared,'Copiar texto da mensagem',async()=>{await navigator.clipboard.writeText(result.message);if(active())message('Mensagem copiada. Cole no WhatsApp e revise antes de enviar.');});
+     prepared.append(content,link,e('p','Abra a conversa e cole o texto. Nada é enviado automaticamente; a mensagem não é incluída na URL.'));
+   });
+   box.append(prepared);
    if(result.canEdit)button(box,'Ver versões anteriores',async()=>{if(!pick.value)return;const rows=await api('crm/templates/'+pick.value);if(active()){history.replaceChildren();for(const r of rows)history.append(e('p','Versão '+r.revision+' · '+r.title+' · '+new Date(r.created_at).toLocaleString('pt-BR')+'\n'+r.body));}});
-   const history=e('div',undefined,'crm-history');box.append(history,e('p','Nenhum envio automático. Confirme o canal e a autorização antes de utilizar a mensagem.'));
+   const history=e('div',undefined,'crm-history');box.append(history,e('p','WhatsApp manual: autorização e modelo ativo são verificados no servidor. O envio é feito por você.'));
    models.append(card('Mensagens personalizáveis',box));select();
  }
  await refreshTemplates();return root;

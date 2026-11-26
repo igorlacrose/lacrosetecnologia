@@ -33,6 +33,16 @@ test('CRM and dashboard preserve tenant and MFA boundaries',async t=>{
  assert.equal((await call('crm/templates/'+saved.id,{...template,revision:1,body:'Olá {{empresa}}!'}))[0],201);
  assert.equal((await call('crm/templates/'+saved.id,{...template,revision:1}))[0],409);
  assert.equal((await call('crm/templates/'+saved.id))[1].length,2);
+ const wa={template_id:saved.id,revision:2,variables:{}};
+ assert.deepEqual(await call(route+'/whatsapp',wa),[200,{phone:'5573999999999',message:'Olá Lacrose Tecnologia!'}]);
+ assert.equal((await call(route+'/whatsapp',wa,viewer))[0],403);
+ assert.equal((await call(route+'/whatsapp',{...wa,revision:1}))[0],409);
+ assert.equal((await call(route+'/whatsapp',wa,other,fixture.secondTenant))[0],404);
+ assert.equal((await call(route+'/profile',{...profile,revision:2,whatsapp_permission:'opted_out'}))[0],200);
+ assert.equal((await call(route+'/whatsapp',wa))[0],403);
+ assert.equal((await call('crm/templates/'+saved.id,{...template,revision:2,active:false}))[0],201);
+ assert.equal((await call(route+'/profile',{...profile,revision:3}))[0],200);
+ assert.equal((await call(route+'/whatsapp',{...wa,revision:3}))[0],409);
  assert.equal((await call('crm/templates',undefined,other,fixture.secondTenant))[1].items.length,0);
  const [dash,d]=await call('dashboard',undefined,admin,fixture.tenant,'&period=week');assert.equal(dash,200);assert.equal(d.clients.find(c=>c.name==='active').value,1);
  assert.equal((await call('dashboard',undefined,viewer))[1].cash,null);

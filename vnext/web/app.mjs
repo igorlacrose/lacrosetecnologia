@@ -24,7 +24,7 @@ document.addEventListener('keydown', event => {
   }
 });
 const tabs = {
-  overview: 'Dashboard', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
+  overview: 'Dashboard', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes e relacionamento', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
   subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', cash: 'Caixa', audit: 'Auditoria',
 };
@@ -207,11 +207,9 @@ async function build(section) {
 
   if (section === 'whatsapp') {
     content.className = 'records';
-    const [connections, metaConfig, reminders, reminderCounts, rehearsal, simulation] = await Promise.all([
-      api('whatsapp'), api('whatsapp/config'), api('whatsapp/reminders'),
-      api('whatsapp/reminders/summary'), api('whatsapp/reminders/rehearsal'),
-      api('whatsapp/reminders/simulated'),
-    ]);
+    const [connections, metaConfig] = await Promise.all([api('whatsapp'), api('whatsapp/config')]);
+    const manual=element('button','Abrir clientes e modelos de mensagem');manual.type='button';manual.onclick=()=>{if(generation===currentGeneration){page='clients';render();}};
+    content.append(card('Relacionamento pelo WhatsApp',manual));
     const instructions = element('p',
       'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
       'no Gerenciador do WhatsApp. A assinatura do software é separada, via Asaas.');
@@ -272,79 +270,6 @@ async function build(section) {
       content.append(record(label, details, action));
     }
     if (!connections.length) content.append(element('p', 'Nenhum número conectado para esta empresa.'));
-    content.append(card('Lembretes de agendamento', element('p',
-      'Estado: ' + (reminders.enabled ? 'política cadastrada (não homologada)' : 'desativados') +
-      ' · 24h e 2h antes do horário. Agendamentos: ' + Number(reminderCounts.appointments) +
-      ' · Pendentes (sem disparo): ' + Number(reminderCounts.pending) +
-      ' · Cancelados: ' + Number(reminderCounts.cancelled) +
-      '. Os eventos são recebidos apenas de agendas com assinatura HMAC. ' +
-      'NENHUMA mensagem será enviada antes da homologação da conta, consentimento, ' +
-      'template aprovado e cobrança própria validada.')));
-    content.append(card('Ensaio de processamento — nenhuma mensagem enviada',
-      element('p',
-        'Tarefas verificadas: ' + Number(rehearsal.checks) +
-        ' · Elegíveis somente na simulação: ' + Number(rehearsal.ready_simulated) +
-        ' · Bloqueadas: ' + Number(rehearsal.blocked) +
-        ' · Expiradas: ' + Number(rehearsal.expired) +
-        '. Esses números são diagnósticos e não comprovam entrega, ' +
-        'autorização de faturamento ou consumo da API Meta.')));
-    content.append(card('Cota de testes — somente simulação',
-      element('p',
-        'Despachos fictícios acumulados: ' + Number(simulation.simulated_jobs) +
-        ' · No mês UTC atual: ' + Number(simulation.simulated_this_month) +
-        '. Nenhuma dessas simulações envia WhatsApp ou consome créditos Meta. ' +
-        'A cota não representa um limite financeiro real.')));
-    // Operator settings are drafts; neither this form nor the API can enable
-    // message delivery, verify customer billing or select a Meta credit line.
-    const settings = element('form');
-    const offsetLabel = element('label', 'Quando lembrar');
-    const offsetSelect = element('select');
-    options(offsetSelect, {
-      both: '24 horas e 2 horas antes',
-      day: 'Somente 24 horas antes',
-      two_hours: 'Somente 2 horas antes',
-    });
-    const savedOffsets = new Set(reminders.offsets_minutes);
-    offsetSelect.value = savedOffsets.has(1440) && savedOffsets.has(120) ? 'both'
-      : savedOffsets.has(1440) ? 'day' : 'two_hours';
-    offsetLabel.append(offsetSelect);
-    const capLabel = element('label', 'Limite mensal desejado de mensagens');
-    const cap = element('input');
-    cap.type = 'number';
-    cap.min = '0';
-    cap.max = '10000';
-    cap.step = '1';
-    cap.required = true;
-    cap.value = String(reminders.monthly_message_limit);
-    capLabel.append(cap);
-    const save = element('button', 'Salvar preferências');
-    save.type = 'submit';
-    settings.append(offsetLabel, capLabel,
-      element('p', 'Configuração preparatória: os envios permanecem DESATIVADOS ' +
-        'até a homologação da integração Meta, cobrança própria, consentimento e templates.'),
-      save);
-    settings.addEventListener('submit', async event => {
-      event.preventDefault();
-      if (save.disabled) return;
-      save.disabled = true;
-      const token = generation;
-      try {
-        const configured = offsetSelect.value === 'both' ? [1440, 120]
-          : offsetSelect.value === 'day' ? [1440] : [120];
-        const limit = Number(cap.value);
-        if (!Number.isInteger(limit) || limit < 0 || limit > 10000)
-          throw new Error('Escolha um limite mensal entre 0 e 10.000.');
-        await api('whatsapp/reminders', {
-          offsets_minutes: configured, monthly_message_limit: limit,
-        });
-        if (token === generation) await render('Preferências salvas. O envio continua bloqueado.');
-      } catch (error) {
-        if (token === generation) message(error.message, true);
-      } finally {
-        save.disabled = false;
-      }
-    });
-    content.append(card('Configurar lembretes e limite mensal', settings));
     return content;
   }
 
@@ -492,6 +417,7 @@ async function build(section) {
 async function render(done = '') {
   const token = ++generation;
   title.textContent = tabs[page];
+  document.body.classList.toggle('dashboard-page',page==='overview');
   for (const button of nav.children) {
     if (button.dataset.page === page) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -543,6 +469,7 @@ async function sendAuth(path, data, token) {
 }
 
 function showLogin() {
+  document.body.classList.remove('dashboard-page');
   setMenu(false);
   nav.hidden = true;
   tenant.parentElement.hidden = true;
