@@ -49,12 +49,7 @@ export async function buildDashboard({api,element:e,card,navigate,isCurrent,mess
   const total=rows=>rows.reduce((s,r)=>s+r.value,0);
   function kpi(label,value,note,icon,route){const box=e('button',undefined,'fuel-kpi');box.type='button';box.onclick=()=>navigate(route);const top=e('span',undefined,'fuel-kpi-label');top.append(e('span',icon,'fuel-kpi-icon'),e('span',label));box.append(top,e('strong',String(value)),e('small',note));kpis.append(box);}
   const receipts=data.cash?.reduce((s,r)=>s+Number(r.received),0),reversed=data.cash?.reduce((s,r)=>s+Number(r.reversed),0);
-  if(data.cash!==null)kpi('Caixa líquido',brl(receipts-reversed),'Dinheiro · período selecionado','R
- }
- period.onchange=()=>{preferences.period=period.value;refresh().catch(err=>{if(isCurrent())message(err.message,true);});};
- await refresh();return root;
-}
-,'cash');
+  if(data.cash!==null)kpi('Caixa líquido',brl(receipts-reversed),'Dinheiro · período selecionado','R$','cash');
   kpi('Clientes',total(data.clients),'Carteira não arquivada','C','clients');
   kpi('Leads abertos',data.totals.open_leads,'Ainda não convertidos','L','leads');
   kpi('Assinaturas',data.totals.drafts,'Rascunhos · não são receita','A','subscription_drafts');
