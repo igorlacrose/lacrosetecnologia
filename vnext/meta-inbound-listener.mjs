@@ -64,7 +64,8 @@ if(process.argv[1]&&import.meta.filename===process.argv[1]){
       db,
       appSecret:process.env.VNEXT_META_APP_SECRET,
       verifyToken:process.env.VNEXT_META_WEBHOOK_VERIFY_TOKEN,
-      hashPepper:process.env.VNEXT_REMINDER_HASH_PEPPER
+      hashPepper:process.env.VNEXT_REMINDER_HASH_PEPPER,
+      captureInbox:process.env.VNEXT_META_CRM_INBOX==='1'
     });
     const server=createMetaInboundServer(handler);
     server.listen(4178,'127.0.0.1',()=>console.log('VNext Meta inbound: loopback-only'));

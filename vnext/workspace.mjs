@@ -124,6 +124,17 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
             'where tenant_id=$1 order by created_at desc limit 20', [tenant]);
           return json(rows);
         }
+        if (request.method === 'GET' && id === 'inbox' && parts.length === 2) {
+          if (!['admin','operator'].includes(access.rows[0].role)) {
+            return json({error:'Conversas restritas à equipe autorizada.'},403);
+          }
+          const {rows} = await tx.query(`
+            select i.meta_phone_number_id,i.peer_phone,i.direction,i.body,i.received_at,c.name as client_name
+            from lkz_vnext.whatsapp_crm_inbox i
+            left join lkz_vnext.clients c on (c.tenant_id,c.id)=(i.tenant_id,i.client_id)
+            where i.tenant_id=$1 order by i.received_at desc,i.meta_message_id limit 50`,[tenant]);
+          return json(rows);
+        }
         if (request.method === 'GET' && id === 'config' && parts.length === 2) {
           return json({ enabled: Boolean(metaProvider), directBillingOnly: true,
             ...(metaProvider?.publicConfig ?? {}) });

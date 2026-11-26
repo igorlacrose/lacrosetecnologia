@@ -189,3 +189,52 @@ test('dedicated loopback listener exposes only the signed Meta webhook',async t=
   assert.equal(result.status,200);
   assert.equal((await result.json()).processed,1);
 });
+
+test('signed inbox text is linked once and protected by MFA and tenant isolation',async t=>{
+  const {serveWorkspace}=await import('../workspace.mjs');
+  const {withIdentity}=await import('../preview-db.mjs');
+  const db=await createPreviewDatabase();t.after(()=>db.close());
+  await connect(db,fixture.tenant,waA,phoneA);
+  const admin={sub:fixture.admin,aal:'aal2'};
+  const {rows:[{id:clientId}]}=await withIdentity(db,admin,tx=>tx.query(
+    'insert into lkz_vnext.clients(tenant_id,name,email) values($1,$2,$3) returning id',
+    [fixture.tenant,'Cliente fictício','visitante@example.test']));
+  await withIdentity(db,admin,tx=>tx.query(
+    'insert into lkz_vnext.client_relationships(tenant_id,id,phone) values($1,$2,$3)',
+    [fixture.tenant,clientId,'+'+recipient]));
+  const handler=createMetaInboundWebhook({db,appSecret,verifyToken,hashPepper:pepper,captureInbox:true});
+  const msg=envelope(waA,phoneA,{text:'Olá, CRM <b>teste</b>'});
+  assert.equal((await call(handler,msg,{sig:'sha256='+'0'.repeat(64)}))[0],401);
+  assert.equal((await call(handler,envelope(waB,phoneA,{text:'Outra WABA'})))[1].processed,0);
+  assert.equal((await call(handler,msg))[0],200);
+  assert.equal((await call(handler,msg))[1].processed,0);
+  const open=(route,claims)=>serveWorkspace(
+    new Request('https://test.example/api/'+route+'?tenant='+fixture.tenant),db,claims);
+  assert.equal((await open('whatsapp/inbox',{...admin,aal:'aal1'})).status,403);
+  assert.equal((await open('whatsapp/inbox',{sub:fixture.viewer,aal:'aal2'})).status,403);
+  assert.equal((await open('whatsapp/inbox',{sub:fixture.secondAdmin,aal:'aal2'})).status,403);
+  const inbox=await (await open('whatsapp/inbox',admin)).json();
+  assert.equal(inbox.length,1);
+  assert.equal(inbox[0].client_name,'Cliente fictício');
+  assert.equal(inbox[0].body,'Olá, CRM <b>teste</b>');
+  const client=await (await open('crm/clients/'+clientId,admin)).json();
+  assert.ok(client.contacts.some(row=>row.channel==='whatsapp'&&row.note==='Recebida: '+inbox[0].body));
+  const echo=envelope();
+  const change=echo.entry[0].changes[0];
+  change.field='smb_message_echoes';
+  change.value.message_echoes=[{id:'wamid.echo123',from:'5573000011111',to:recipient,
+    type:'text',text:{body:'PARAR'}}];
+  delete change.value.messages;
+  assert.equal((await call(handler,echo))[0],200);
+  const echoed=(await (await open('whatsapp/inbox',admin)).json()).find(row=>row.direction==='app_echo');
+  assert.equal(echoed.peer_phone,'+'+recipient);
+  assert.equal(echoed.client_name,'Cliente fictício');
+  assert.equal((await db.query('select count(*)::int n from lkz_vnext.whatsapp_opt_outs')).rows[0].n,0);
+});
+
+test('Meta verification rejects a same-length Unicode token safely', async ()=>{
+  const handler=makeWebhook({transaction(){throw new Error('unexpected');}});
+  const response=await handler(new Request('https://test.example/?hub.mode=subscribe&hub.challenge=1&hub.verify_token='+
+    encodeURIComponent('é'.repeat(verifyToken.length))));
+  assert.equal(response.status,403);
+});

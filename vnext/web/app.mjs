@@ -210,6 +210,35 @@ async function build(section) {
     const [connections, metaConfig] = await Promise.all([api('whatsapp'), api('whatsapp/config')]);
     const manual=element('button','Abrir clientes e modelos de mensagem');manual.type='button';manual.onclick=()=>{if(generation===currentGeneration){page='clients';render();}};
     content.append(card('Relacionamento pelo WhatsApp',manual));
+    const inbox = element('div', undefined, 'records');
+    const openInbox = element('button','Carregar conversas');
+    openInbox.type = 'button';
+    openInbox.onclick = async () => {
+      openInbox.disabled = true;
+      try {
+        const messages = await api('whatsapp/inbox');
+        if (generation !== currentGeneration) return;
+        inbox.replaceChildren();
+        if (!messages.length) inbox.append(element('p','Nenhuma conversa registrada.'));
+        const threads = new Map();
+        for (const item of messages) {
+          const key = item.meta_phone_number_id + ':' + item.peer_phone;
+          if (!threads.has(key)) {
+            const thread = element('details');
+            thread.append(element('summary',item.client_name ?? key));
+            threads.set(key,thread);
+            inbox.append(thread);
+          }
+          const date = new Date(item.received_at).toLocaleString('pt-BR');
+          threads.get(key).append(record((item.direction === 'app_echo' ? 'Enviada pelo celular · ' : 'Recebida · ') + date,item.body));
+        }
+      } catch (error) {
+        if (generation === currentGeneration) message(error.message,true);
+      } finally {
+        openInbox.disabled = false;
+      }
+    };
+    content.append(card('Conversas do WhatsApp',openInbox),inbox);
     const instructions = element('p',
       'Cada empresa conecta sua própria conta Meta e configura o pagamento direto ' +
       'no Gerenciador do WhatsApp. A assinatura do software é separada, via Asaas.');

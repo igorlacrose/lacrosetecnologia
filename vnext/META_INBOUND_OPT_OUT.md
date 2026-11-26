@@ -4,7 +4,7 @@
 
 ## Função
 
-O receptor `meta-inbound.mjs` aceita eventos oficiais da WhatsApp Cloud API, valida `X-Hub-Signature-256` com HMAC-SHA256 sobre **o corpo bruto**, confere se o número pertence a uma conta WABA registrada e trata somente pedidos **explícitos** de parar lembretes:
+O receptor `meta-inbound.mjs` aceita eventos oficiais da WhatsApp Cloud API, valida `X-Hub-Signature-256` com HMAC-SHA256 sobre **o corpo bruto**, confere se o número pertence a uma conta WABA registrada e trata pedidos **explícitos** de parar lembretes:
 
 `PARAR`, `SAIR`, `STOP`, `UNSUBSCRIBE`, `CANCELAR NOTIFICAÇÕES`, `NÃO RECEBER MENSAGENS` e `NÃO QUERO MAIS MENSAGENS`.
 
@@ -15,10 +15,10 @@ Ele **não interpreta** "cancelar meu horário" como opt-out (isso precisa segui
 - GET de verificação: `hub.mode=subscribe`, `hub.verify_token` exato e `hub.challenge` numérico. Nenhuma sessão administrativa fica exposta.
 - POST de evento: somente JSON até 64 KiB, assinatura Meta obrigatória, comparação em tempo constante, WABA e número conferidos contra a conta da empresa; mensagens não reconhecidas são ignoradas sem efeito.
 - Identidade do tenant **derivada do WABA + ID do número no banco**, nunca do corpo de uma mensagem ou parâmetro de query.
-- Apenas grava `meta_message_id`, número de conta de destino e HMAC do remetente com segredo do backend em `whatsapp_meta_optout_events`. Texto e telefone original **não são persistidos nem registrados em logs**.
+- Apenas grava `meta_message_id`, número de conta de destino e HMAC do remetente com segredo do backend em `whatsapp_meta_optout_events`. O ledger de opt-out preserva apenas o HMAC. A caixa de entrada opcional guarda os dados mínimos da conversa em tabela própria com RLS. O listener nunca os inclui nos logs.
 - Evento repetido é ignorado pelo ledger idempotente. A transação insere opt-out, cancela jobs pendentes de BarbarOS e LibertyOS **apenas do tenant identificado**, e remove telefone cifrado/consentimento dos agendamentos.
 - Retirada de consentimento independe de status financeiro e de habilitação da conta Meta.
-- O processo utiliza exclusivamente o banco de homologação com o papel `lkz_vnext_reminder_runtime` e permissão efetiva `lkz_vnext_reminder_bridge`. Não acessa tokens da Meta, créditos, Asaas nem dados do CRM.
+- O processo utiliza exclusivamente o banco de homologação com o papel `lkz_vnext_reminder_runtime` e permissão efetiva `lkz_vnext_reminder_bridge`. O papel de webhook pode inserir mensagens na caixa de entrada, sem poder lê-las. A associação ao cliente é feita no banco por telefone e empresa, quando há um único cadastro ativo correspondente.
 
 ### Instalação em homologação
 
@@ -33,6 +33,12 @@ Ele **não interpreta** "cancelar meu horário" como opt-out (isso precisa segui
 5. Garantir backups/rollback testados, monitoramento sem PII, retenção de opt-outs e revisão LGPD.
 
 **Pendente:** Meta Tech Provider/App Review e webhook real, processamento de confirmação/reagendamento, templates, controle de custos, worker de envio, homologação com sistemas e banco PostgreSQL persistente. A Cloud API só deve enviar mensagens com templates aprovados e consentimento válido, segundo as regras oficiais Meta.
+
+### Caixa de entrada do CRM
+
+A migração `020-whatsapp-crm-inbox.sql` acrescenta a caixa de conversas e o histórico na ficha do cliente. O listener pode registrar textos recebidos via `messages` e enviados pelo celular via `smb_message_echoes` com `VNEXT_META_CRM_INBOX=1`. Habilitar somente em homologação, após definir autorização e retenção para os dados de teste. O receptor ignora mídia e eventos sem telefone. O opt-out é aplicado apenas a comandos de mensagens recebidas. A captura fica desativada por padrão.
+
+A lista do CRM mostra até 50 mensagens recentes e é restrita a administradores e operadores da empresa com AAL2. Os modelos internos versionados já disponíveis no CRM continuam disponíveis. Ativar a captura não habilita envio pela Cloud API, status de entrega/leitura ou cobrança.
 
 ### Rollback
 

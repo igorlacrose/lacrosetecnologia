@@ -40,8 +40,11 @@ export async function serveRelationship(tx,request,tenant,role,parts,data){
      const rel=await tx.query('select phone,contact_name,segment,preferred_channel,whatsapp_permission,email_permission,permission_source,followup_on::text,notes,revision from lkz_vnext.client_relationships where tenant_id=$1 and id=$2',[tenant,id]);
      const contacts=await tx.query(`select channel,note,created_at from lkz_vnext.client_contacts where tenant_id=$1 and client_id=$2 order by created_at desc,id limit 50`,[tenant,id]);
      const leads=await tx.query(`select i.channel,i.note,i.created_at from lkz_vnext.interactions i join lkz_vnext.leads l on (l.tenant_id,l.id)=(i.tenant_id,i.lead_id) where l.tenant_id=$1 and l.client_id=$2 order by i.created_at desc,i.id limit 50`,[tenant,id]);
+     const inbound=await tx.query(`select 'whatsapp' as channel,case direction when 'app_echo' then 'Enviada pelo celular: ' else 'Recebida: ' end || body as note,received_at as created_at
+       from lkz_vnext.whatsapp_crm_inbox where tenant_id=$1 and client_id=$2
+       order by received_at desc,meta_message_id limit 50`,[tenant,id]);
      const plans=await tx.query(`select p.name as product,pl.name as plan,pl.amount_brl_cents,pl.interval from lkz_vnext.subscription_drafts d join lkz_vnext.plans pl on (pl.tenant_id,pl.id)=(d.tenant_id,d.plan_id) join lkz_vnext.products p on (p.tenant_id,p.id)=(pl.tenant_id,pl.product_id) where d.tenant_id=$1 and d.client_id=$2 order by d.created_at desc limit 50`,[tenant,id]);
-     return json({client,profile:rel.rows[0]??null,contacts:[...contacts.rows,...leads.rows].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50),plans:plans.rows});
+     return json({client,profile:rel.rows[0]??null,contacts:[...contacts.rows,...leads.rows,...inbound.rows].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50),plans:plans.rows});
    }
    if(write&&action==='profile'&&parts.length===4){
      const values=profile(data);
