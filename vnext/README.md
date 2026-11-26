@@ -1,0 +1,136 @@
+# LKZ ADM VNext
+
+Fundação experimental do LKZ ADM, com dados fictícios nos testes. O ambiente de desenvolvimento utiliza Node.js 24.
+
+```sh
+npm ci --ignore-scripts
+npm test
+```
+
+- `db/001-foundation.sql` cria os esquemas de tenants, usuários associados, leads, clientes e auditoria. O RLS exige vínculo ativo e MFA. A conversão de lead usa e-mail normalizado dentro do tenant.
+- `db/002-asaas-inbox.sql` cria a caixa de entrada de eventos de cobrança e um papel sem login com permissão de inserção.
+- `db/003-draft-catalog.sql` cria produtos e planos em rascunho. Administradores com MFA podem cadastrar rascunhos. A oferta pública depende de um fluxo de homologação.
+- `db/004-asaas-reconcile.sql` adiciona estado da fila, tentativas e um papel de processamento separado.
+- `asaas-sandbox.mjs` recebe eventos autenticados, grava o envelope mínimo antes do HTTP 200 e oferece consulta a cobranças apenas no Sandbox. O runtime deve passar uma conexão PostgreSQL em autocommit sob o papel dedicado e obter o token de um gerenciador de segredos.
+
+As migrações são um rascunho para um banco de desenvolvimento vazio, com os papéis e funções de identidade Supabase. Os testes simulam os claims de identidade em PostgreSQL embarcado e simulam a API do Asaas. O consumidor consulta o estado corrente com lease de 60 segundos, espera exponencial e até cinco tentativas. O resultado observado não autoriza cobranças, alterações comerciais ou licenças. O agendamento e a integração com Auth e Sandbox externo exigem homologação.
+
+O backend precisa de empacotamento separado da raiz publicada do site. O fluxo de produção depende de validação da implantação, API administrativa, processamento e reconciliação de eventos, recuperação de dados e homologação do ambiente.
+
+## Segunda entrega — prévia operacional local
+
+Use `npm run preview` e abra a URL indicada no terminal. A prévia escuta exclusivamente na interface de loopback, cria PostgreSQL em memória e usa uma identidade administrativa fictícia para o navegador. Encerre com Ctrl+C. Cadastros de teste são descartados no encerramento. O servidor de prévia é exclusivo para desenvolvimento, sem login real e sem conexões com o Supabase, Asaas ou OCA de produção.
+
+A interface consulta o banco para exibir indicadores e listas. Ela permite cadastrar e converter leads, cadastrar clientes, registrar atendimentos, mover oportunidades, cadastrar produtos e planos, montar rascunhos de assinatura e consultar o histórico de auditoria. As listas retornam até 100 registros. As contagens do painel consideram todo o tenant. A migração 005 acrescenta oportunidades, interações, assinaturas em rascunho e uma referência OCA idempotente por tenant.
+
+O módulo OCA consulta somente o conhecimento aprovado da Lacrose na prévia. O catálogo exibido ao operador vem do banco do tenant. A entrada no CRM é feita pelo operador com UUID de atendimento, nome e e-mail. O vínculo com a captação pública e a integração com Auth dependem de ambiente de homologação separado. BarbarOS e LibertyOS aparecem como produtos em desenvolvimento. A consulta de elegibilidade da assinatura bloqueia o provisionamento no servidor.
+
+Para verificar uma cobrança fictícia **já existente** na conta Asaas Sandbox, configure `ASAAS_SANDBOX_API_KEY` e `ASAAS_SANDBOX_PAYMENT_ID` pelo ambiente seguro e execute `node check-asaas-sandbox.mjs`. O comando só faz uma consulta de leitura na origem Sandbox. O envio de webhook pela conta Sandbox, a conciliação com contratos e a emissão de cobranças e licenças ainda precisam de integração e homologação.
+
+## Terceira entrega — homologação persistente
+
+A prévia anterior continua disponível. O modo de homologação usa um servidor PostgreSQL separado e Supabase Auth de um projeto dedicado. Para PostgreSQL standalone, a URL do banco deve apontar para uma base `lkz_vnext_stage` ou `lkz_vnext_stage_<sufixo>`. O modo de homologação recusa o identificador institucional conhecido e escuta apenas em loopback. Conexões PostgreSQL remotas exigem TLS com verificação de certificado.
+
+**Exceção controlada para o Supabase de homologação gerenciado (12/11/2026):** o projeto isolado `nijsafzwxzcfqdevlsxe` usa a base padrão `postgres`. O backend aceita essa base **somente** no host direto `db.nijsafzwxzcfqdevlsxe.supabase.co` (porta 5432), com SSL de certificado verificado e autenticação PostgreSQL de menor privilégio. Não aceita `/postgres` em projeto de produção, em outros projetos, no pooler ou em host arbitrário. Todas as **16 migrações** foram aplicadas nesse projeto usando o histórico do próprio Supabase; **NÃO** execute `npm run migrate:staging` nesse banco, pois o comando agora bloqueia explicitamente sua reaplicação. A exceção de conexão não provisiona contas de login PostgreSQL, não cria usuários Auth, não garante TOTP configurado e não ativa integrações pagas.
+
+1. Provisione uma base exclusiva com os papéis anon e authenticated e as funções auth.uid() e auth.jwt() compatíveis. Cadastre em auth.users os UUIDs das identidades do Auth de homologação. No PostgreSQL standalone, o responsável pelo banco deve preparar essa ponte. Ela precisa manter os UUIDs e retirar vínculos ativos ao desativar usuários.
+2. Com o servidor PostgreSQL iniciado em modo normal e uma credencial de migração exclusiva, configure VNEXT_MIGRATION_DATABASE_URL e execute npm run migrate:staging. O migrador aplica o conjunto em transação, serializa execuções, grava SHA-256 e rejeita alterações retroativas nos arquivos. Não aplique migrações via `postgres --single`, que pode atribuir OIDs reservados para objetos internos e fazer o PostgreSQL ignorar RLS. Se isso aconteceu, preserve a base afetada para diagnóstico e recrie o esquema em uma base isolada por conexão normal. Não dê privilégios de migração ao processo web.
+3. Configure um login lkz_vnext_runtime com NOINHERIT e associação ao papel authenticated para SET ROLE. A inicialização rejeita proprietário, superusuário, BYPASSRLS, associação a papéis financeiros e tabelas em que o PostgreSQL não aplique RLS sob o papel efetivo. Cadastre tenants e vínculos pela administração da base de teste.
+4. No ambiente seguro, configure VNEXT_RUNTIME_DATABASE_URL, VNEXT_AUTH_URL e VNEXT_AUTH_PUBLISHABLE_KEY. Opcionalmente, defina VNEXT_LACROSE_TENANT para ativar o conhecimento aprovado da Lacrose somente nesse tenant. Execute npm run staging. Use uma conta de homologação com TOTP previamente cadastrado. O navegador guarda o token apenas em memória. O servidor verifica emissor, audiência, validade, perfil e AAL2 antes de consultar o banco sob RLS.
+5. Execute npm test. Os testes automatizados usam respostas sintéticas do Auth e Asaas. Em homologação, valide separadamente login/TOTP real, negação sem MFA, revogação de vínculo, acesso cruzado e sessão expirada.
+
+### Papéis de runtime — migração 017 (homologação)
+
+A migração `db/017-nologin-runtime-identities.sql` cria **somente seis identidades técnicas PostgreSQL sem LOGIN e sem senha**:
+
+| Identidade | Papel permitido via SET ROLE |
+| --- | --- |
+| `lkz_vnext_runtime` | `authenticated` |
+| `lkz_vnext_asaas_ingest_runtime` | `lkz_vnext_asaas_ingest` |
+| `lkz_vnext_asaas_issue_runtime` | `lkz_vnext_asaas_issue` |
+| `lkz_vnext_asaas_reconcile_runtime` | `lkz_vnext_asaas_reconcile` |
+| `lkz_vnext_meta_runtime` | `lkz_vnext_meta_bridge` |
+| `lkz_vnext_reminder_runtime` | `lkz_vnext_reminder_bridge` |
+
+Todos começam sem LOGIN, SUPERUSER, BYPASSRLS, CREATEDB, CREATEROLE e **sem herdar os privilégios** dos papéis associados. As identidades só podem ser usadas após provisionamento explícito, separado e seguro de credenciais de homologação.
+
+Os workers Asaas selecionam o papel correspondente com `SET LOCAL ROLE` **dentro de cada transação**. Meta e lembretes já selecionam seus papéis nas transações. O workspace precisa de JWT verificado e consulta ao banco como `authenticated`, com RLS e MFA AAL2.
+
+No PostgreSQL 17 descartável da CI, apenas os testes habilitam logins com credenciais sintéticas. **Não habilitar LOGIN no projeto Supabase** como parte desta migração.
+
+**Status em 12/11/2026:** a migração 017 foi aplicada com sucesso **somente** no Supabase de homologação `nijsafzwxzcfqdevlsxe`, pelo mecanismo gerenciado do Supabase. Confirmados seis papéis sem LOGIN, associação única, `MEMBER=true`, `USAGE=false`, `SET=true` e ausência de privilégio herdado. O projeto possui 17 migrações, 26 tabelas com RLS ativo e nenhum tenant/usuário/cobrança real. O operador SQL gerenciado `postgres` **não** possui `SET ROLE` para esses papéis: a tentativa foi recusada (`42501`), sem alteração de privilégios. Por isso, a execução funcional com logins reais ainda exige provisionamento isolado e revisão; a CI PostgreSQL 17 descartável testou a troca de papel. **Nunca** usar `npm run migrate:staging` para reaplicar migrações no projeto gerenciado, conceder `service_role`, usar credenciais de produção ou alterar papéis fora da homologação. Ativação futura exige segredo protegido, TLS, revisão dos privilégios e Auth real.
+
+### Integração OCA
+
+A rota POST /integrations/oca é opcional. Configure VNEXT_OCA_ACTOR como um operador técnico ativo no tenant VNEXT_LACROSE_TENANT e VNEXT_OCA_HMAC_KEY como 32 bytes em hexadecimal. O remetente deve enviar x-oca-timestamp em segundos Unix e x-oca-signature com HMAC-SHA256 hexadecimal sobre timestamp, ponto e os bytes exatos do corpo. O envelope contém eventId e conversationId UUID, consent=true, name, email e note. A integração fixa o tenant no servidor, registra lead e interação em uma transação e audita o operador. Entregas repetidas com o mesmo conteúdo retornam 200. Referência repetida com conteúdo diferente retorna 409. O emissor público ainda precisa ser ligado em homologação. O VNext não recebe chamadas do site institucional nesta entrega.
+
+### Sandbox e licenças
+
+O worker de observação da primeira entrega continua disponível. Os vínculos de cobranças fictícias criados na terceira entrega continuam elegíveis à conciliação. As solicitações de licença ficam em estado bloqueado e não dão acesso ao produto.
+
+### Quarta entrega — emissão e conciliação isoladas
+
+**OCA.** O processo de homologação do OCA pode entregar um evento consentido com `node oca-staging-sender.mjs`, recebendo o envelope JSON por stdin. O destino é o receptor VNext no mesmo host, em loopback na porta 4176. Forneça a mesma chave de homologação aos dois processos pelo gerenciador de segredos. Grave os IDs estáveis no lado emissor antes da primeira tentativa e reutilize o mesmo envelope em caso de `retry_same_event`. Em `conflict`, investigue a origem da divergência. Valide uma entrada de atendimento e auditoria por evento. O endpoint público do site continua separado.
+
+**Asaas.** Aplique as migrações 008 e 009 em banco de homologação e use três logins de menor privilégio. Cada login deve herdar exclusivamente o papel de sua função.
+
+| Função | Variável da conexão | Papel |
+|---|---|---|
+| Recepção HTTP | `VNEXT_ASAAS_INGEST_DATABASE_URL` | `lkz_vnext_asaas_ingest` |
+| Emissão | `VNEXT_ASAAS_ISSUE_DATABASE_URL` | `lkz_vnext_asaas_issue` |
+| Conciliação | `VNEXT_ASAAS_RECONCILE_DATABASE_URL` | `lkz_vnext_asaas_reconcile` |
+
+1. Configure `VNEXT_ASAAS_TENANT` com o UUID do tenant fictício. Crie no painel um cliente com endereço de teste em `example.test` e rascunhos vinculados a planos de cobrança única, mensal ou anual. Forneça `ASAAS_SANDBOX_API_KEY` e, para o cadastro do cliente, `VNEXT_ASAAS_FIXTURE_TAX_ID` com um documento fictício aceito pelo Sandbox. O cliente externo recebe um nome genérico e fica com notificações desativadas.
+2. Emita o cadastro e use o UUID de cada rascunho nos comandos seguintes. Substitua a data ilustrativa por uma data válida no Sandbox. Valores e recorrência vêm do plano local. Os métodos aceitos neste ensaio são `PIX`, `BOLETO` e `UNDEFINED`.
+
+   ```sh
+   node issue-asaas-staging.mjs customers <client-uuid>
+   node issue-asaas-staging.mjs payments <one-time-draft-uuid> 2030-01-15 PIX
+   node issue-asaas-staging.mjs subscriptions <recurring-draft-uuid> 2030-01-15 BOLETO
+   ```
+
+3. A emissão reserva uma referência por cliente ou rascunho em PostgreSQL antes de chamar o gateway. Se o comando retornar `needs_reconciliation`, repita os mesmos argumentos para consultar a referência existente. Essa repetição nunca executa um segundo POST. Se o Sandbox não encontrar um resultado único, confira a conta e a referência antes de decidir como tratar a reserva. Preserve a trilha em `lkz_vnext_billing.sandbox_issuance`.
+4. Para receber eventos, configure também `VNEXT_ASAAS_WEBHOOK_TOKEN` com um token próprio. O modo `npm run staging` atende testes locais na porta 4176. Para entrega externa, execute `node staging-asaas-webhook.mjs` e use uma entrada HTTPS de homologação previamente autorizada, apontada exclusivamente para `127.0.0.1:4177`. Preserve o método, o caminho e o cabeçalho `asaas-access-token`. Configure o proxy para enviar `Host: 127.0.0.1:4177` ao destino local. No Asaas Sandbox, use o mesmo token e cadastre a URL HTTPS com o caminho `/integrations/asaas-sandbox`. O processo dedicado responde apenas ao POST dessa rota e confirma o recebimento após gravar o envelope mínimo. A assinatura gera cobranças distintas ao longo do ciclo.
+5. Execute `node reconcile-asaas-staging.mjs --next` para processar o próximo evento devido. Cada execução processa até um evento. Use um agendador do ambiente para executar o comando de forma periódica. O worker faz até cinco tentativas com espera crescente e encaminha divergências para revisão. Use `node reconcile-asaas-staging.mjs <event_id>` para investigar e reaplicar um evento específico. O reconciliador consulta o gateway e confere a cobrança, o valor, o cliente e, nas recorrências, a assinatura externa. Repita o evento e confirme `already_processed`. O painel de Assinaturas mostra as contagens por estado aos administradores do tenant. Eventos próprios do ciclo de vida de assinaturas seguem pendentes. O provisionamento exige homologação independente do produto.
+
+**Auth real.** Com duas contas fictícias em tenants diferentes, confira o login com TOTP, a negação com token AAL1, a negação após a expiração do token AAL2 e a negação com o mesmo token após desativar seu vínculo no PostgreSQL. Confira que o token de um tenant recebe HTTP 403 ao consultar o outro. Registre somente status e horários, sem copiar tokens, códigos ou dados pessoais.
+
+### Backup e rollback
+
+Pare a aplicação antes do backup, confirme que o banco é de homologação e preserve o snapshot com controle de acesso. Para PostgreSQL standalone, use o backup homologado da instalação. Um backup frio exige desligamento limpo e restauração em outro diretório, com a mesma versão e arquitetura. Valide a restauração em instância isolada antes de alterar a origem. Para reverter a quarta entrega, pare a emissão e a recepção, volte o checkout para `b432df59` e restaure o snapshot anterior à migração 008 em outra base. O migrador rejeita um banco com histórico à frente do checkout. Preserve o banco avançado e concilie as referências pendentes antes de reativar emissão. Uma restauração local não apaga registros já criados no Sandbox.
+
+
+## WhatsApp Meta por empresa — módulo de homologação
+
+Foi acrescentado um módulo para que cada empresa conecte seu número WhatsApp Business por Embedded Signup, sem dividir o crédito Meta da Lacrose. Os módulos ficam isolados por tenant, utilizam conta/telefone próprios e a conexão só chega a `awaiting_billing`. O cliente informa que adicionou meio de pagamento na Meta, mas o servidor não permite enviar mensagens antes da verificação externa. O armazenamento de credenciais é cifrado e acessível somente a um papel técnico separado. **Nenhuma conta ou chave Meta está configurada; nenhuma mensagem é enviada.**
+
+A implantação depende de programa Tech Provider, App Review, configuração Embedded Signup v4, conta Meta e faturamento próprio da empresa, credenciais separadas de homologação e testes com Meta real. Consulte [WHATSAPP_META.md](./WHATSAPP_META.md) para credenciais de ambiente, papéis, restrições, testes, pendências e rollback.
+
+
+## Serviço de lembretes para BarbarOS e LibertyOS (em homologação)
+
+O módulo compartilhado de confirmação e lembretes 24h/2h recebe eventos **assinados** das agendas, cancela tarefas quando o agendamento é alterado e respeita consentimento/opt-out por tenant. Nenhuma mensagem é enviada: política e cobranças Meta continuam bloqueadas até validação de titularidade, templates e homologação. Os indicadores administrativos são agregados e não exibem telefones. Contrato e requisitos: [REMINDERS_SAAS.md](./REMINDERS_SAAS.md).
+
+## Webhook Meta para interrupção dos lembretes
+
+O receptor dedicado valida `X-Hub-Signature-256`, relaciona WABA/número à empresa e registra com idempotência solicitações explícitas de opt-out. Ele desativa consentimento e cancela os lembretes futuros dos dois produtos, sem armazenar texto ou telefone em claro. Ainda não está ligado a uma WABA real ou hospedado externamente. Consulte [META_INBOUND_OPT_OUT.md](./META_INBOUND_OPT_OUT.md) para configuração segura, migração, testes e bloqueios de produção.
+
+
+## Preferências do WhatsApp por empresa
+
+No módulo WhatsApp, administradores com MFA podem preparar lembretes de 24h e/ou 2h e registrar um limite mensal desejado. A política permanece desativada mesmo após o salvamento; o limite **não é aplicado a mensagens reais até existir worker homologado**. Consultar [REMINDER_PREFERENCES.md](./REMINDER_PREFERENCES.md).
+
+
+## Ensaio de tarefas WhatsApp em homologação
+
+O simulador transacional de fila avalia tarefas de lembretes vencendo no intervalo, respeita consentimento, revisões de agendamento, opt-out, política e situação da conta Meta, **sem enviar mensagens ou usar créditos**. Registra decisões sem dados do cliente e invalida tarefas antigas. Para execução isolada com papel restrito: `node rehearse-reminders.mjs --dry-run <tenant-uuid>`. Veja [REMINDER_REHEARSAL.md](./REMINDER_REHEARSAL.md) para testes, efeitos de expiração, limites e homologação.
+
+
+## Simulação do serviço de envio — sem Meta
+
+Foi acrescentado um processamento sintético e transacional que reserva uma cota mensal fictícia por empresa, marca tarefas como `simulated` (nunca `sent`) e registra um ledger com RLS e auditoria agregada. Não existe envio, cobrança nem garantia de teto financeiro real. Veja [SIMULATED_DISPATCH.md](./SIMULATED_DISPATCH.md) para modo `--simulation-only`, testes, limitações e rollback.
+## Caixa manual
+
+A aba Caixa registra recebimentos em dinheiro e estornos integrais por empresa. O acesso usa o papel administrativo VNext e MFA. O livro caixa e as conferências são somente de acréscimo para a aplicação. Cada operação identifica o usuário e gera auditoria. Reenvie o mesmo identificador para repetir uma solicitação cuja resposta foi perdida.
+
+A conferência registra o total contado e o compara com o movimento líquido do dia na hora da gravação. Lançamentos posteriores afetam o resumo atual, enquanto a conferência mantém os valores originais. O movimento diário considera apenas recebimentos em dinheiro e estornos. A integração com contas a receber, saldo de abertura e o FluX é uma etapa separada.
