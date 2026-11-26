@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createPreviewDatabase,fixture} from '../preview-db.mjs';
+import {serveWorkspace} from '../workspace.mjs';
+test('CRM and dashboard preserve tenant and MFA boundaries',async t=>{
+ const db=await createPreviewDatabase();t.after(()=>db.close());
+ const admin={sub:fixture.admin,aal:'aal2'},viewer={sub:fixture.viewer,aal:'aal2'},other={sub:fixture.secondAdmin,aal:'aal2'};
+ async function call(route,data,claims=admin,tenant=fixture.tenant,query=''){
+  const req=new Request('https://workspace.example.test/api/'+route+'?tenant='+tenant+query,data===undefined?{}:{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
+  const r=await serveWorkspace(req,db,claims);return [r.status,await r.json()];
+ }
+ assert.equal((await call('dashboard',undefined,{...admin,aal:'aal1'}))[0],403);
+ assert.equal((await call('crm/clients',undefined,other))[0],403);
+ const [status,client]=await call('clients',{name:'Empresa fictícia',email:'crm@example.test'});assert.equal(status,201);
+ const route='crm/clients/'+client.id;
+ const profile={phone:'+5573999999999',contact_name:'Contato teste',segment:'active',preferred_channel:'whatsapp',whatsapp_permission:'allowed',email_permission:'unknown',permission_source:'Teste fictício',followup_on:'2026-12-01',notes:'Sem dados reais',revision:0};
+ assert.equal((await call(route+'/profile',profile,viewer))[0],403);
+ assert.equal((await call(route+'/profile',{...profile,permission_source:''}))[0],400);
+ assert.equal((await call(route+'/profile',profile))[0],200);
+ assert.equal((await call(route+'/profile',profile))[0],409);
+ assert.equal((await call(route+'/profile',{...profile,revision:1}))[0],200);
+ assert.equal((await call(route,undefined,other,fixture.secondTenant))[0],404);
+ const contact={id:randomUUID(),channel:'meeting',note:'Registro fictício'};
+ assert.equal((await call(route+'/contact',contact))[0],201);
+ assert.equal((await call(route+'/contact',contact))[0],200);
+ assert.equal((await call(route+'/contact',{...contact,note:'Divergente'}))[0],409);
+ assert.equal((await call(route))[1].contacts.length,1);
+ const template={title:'Boas-vindas',body:'Olá {{cliente}}!',active:true};
+ assert.equal((await call('crm/templates',template,viewer))[0],403);
+ assert.equal((await call('crm/templates',{...template,body:'{{desconhecida}}'}))[0],400);
+ const [created,saved]=await call('crm/templates',template);assert.equal(created,201);
+ assert.equal((await call('crm/templates/'+saved.id,{...template,revision:1,body:'Olá {{empresa}}!'}))[0],201);
+ assert.equal((await call('crm/templates/'+saved.id,{...template,revision:1}))[0],409);
+ assert.equal((await call('crm/templates/'+saved.id))[1].length,2);
+ assert.equal((await call('crm/templates',undefined,other,fixture.secondTenant))[1].items.length,0);
+ const [dash,d]=await call('dashboard',undefined,admin,fixture.tenant,'&period=week');assert.equal(dash,200);assert.equal(d.clients.find(c=>c.name==='active').value,1);
+ assert.equal((await call('dashboard',undefined,viewer))[1].cash,null);
+ assert.equal((await call('dashboard',undefined,admin,fixture.tenant,'&period=invalid'))[0],400);
+});

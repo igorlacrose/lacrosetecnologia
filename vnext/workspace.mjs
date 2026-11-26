@@ -1,5 +1,6 @@
 import knowledge from '../assets/oca-knowledge.js';
 import { fixture, withIdentity } from './preview-db.mjs';
+import {serveRelationship,serveDashboard} from './relationship.mjs';
 
 const stages = ['qualification', 'proposal', 'negotiation', 'won', 'lost'];
 const fields = {
@@ -58,6 +59,8 @@ export async function serveWorkspace(request, db, claims, { lacroseTenant = fixt
       }
       const access = await tx.query(`select role from lkz_vnext.memberships where tenant_id = $1`, [tenant]);
       if (!access.rows.length) return json({ error: 'Empresa indisponível para esta sessão.' }, 403);
+      if (resource === 'crm') return serveRelationship(tx,request,tenant,access.rows[0].role,parts,data);
+      if (resource === 'dashboard' && request.method === 'GET' && parts.length === 1) return serveDashboard(tx,tenant,access.rows[0].role,request);
       if (resource === 'cash' && id === 'counts' && parts.length === 2 && request.method === 'POST') {
         if (access.rows[0].role !== 'admin') return json({ error: 'Ação sem permissão.' }, 403);
         const { id: key, business_date: date, counted_brl_cents: amount } = data;

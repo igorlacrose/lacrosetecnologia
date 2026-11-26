@@ -1,4 +1,6 @@
 import { startEmbeddedSignup } from './whatsapp-signup.mjs';
+import {buildRelationship} from './relationship.mjs';
+import {buildDashboard} from './dashboard.mjs';
 
 const title = document.querySelector('#title');
 const view = document.querySelector('#view');
@@ -22,7 +24,7 @@ document.addEventListener('keydown', event => {
   }
 });
 const tabs = {
-  overview: 'Visão geral', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
+  overview: 'Dashboard', operations: 'Operações por cliente', leads: 'Leads', clients: 'Clientes', opportunities: 'Oportunidades',
   interactions: 'Atendimentos', oca: 'OCA', products: 'Catálogo', plans: 'Planos',
   subscription_drafts: 'Assinaturas', license_requests: 'Licenças', whatsapp: 'WhatsApp', cash: 'Caixa', audit: 'Auditoria',
 };
@@ -134,6 +136,10 @@ async function mutate(route, data, token = generation) {
 
 async function build(section) {
   const content = element('div');
+  const currentGeneration=generation;
+  const context={api,element,card,form,message,isCurrent:()=>generation===currentGeneration,tenantName:()=>tenant.selectedOptions[0]?.textContent??'Empresa',navigate:route=>{if(generation===currentGeneration&&Object.hasOwn(tabs,route)){page=route;render();}}};
+  if(section==='overview')return buildDashboard(context);
+  if(section==='clients')return buildRelationship(context);
   if (section === 'cash') {
     const date = element('input');
     date.type = 'date';
@@ -196,15 +202,6 @@ async function build(section) {
       cashForm('Conferir dinheiro recebido', [['counted_brl_cents', 'Valor contado em centavos', 'number']], 'cash/counts'),
     );
     await refreshCash();
-    return content;
-  }
-  if (section === 'overview') {
-    const resources = ['leads', 'clients', 'opportunities', 'interactions', 'subscription_drafts'];
-    const counts = await api('overview');
-    content.className = 'cards';
-    resources.forEach(key => {
-      content.append(card(tabs[key], element('strong', String(counts[key]), 'metric')));
-    });
     return content;
   }
 

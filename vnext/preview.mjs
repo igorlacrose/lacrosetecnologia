@@ -8,6 +8,8 @@ const assets = new Map([
   ['/', ['index.html', 'text/html']],
   ['/style.css', ['style.css', 'text/css']],
   ['/app.mjs', ['app.mjs', 'text/javascript']],
+  ['/relationship.mjs', ['relationship.mjs', 'text/javascript']],
+  ['/dashboard.mjs', ['dashboard.mjs', 'text/javascript']],
   ['/whatsapp-signup.mjs', ['whatsapp-signup.mjs', 'text/javascript']],
 ]);
 
